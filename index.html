@@ -599,13 +599,13 @@ function ProjectDetailPanel({project,onClose,onSave,mode='side'}){
   const panelStyle=mode==='full'
     ?{width:'min(920px,96vw)',height:'94vh',margin:'auto',borderRadius:18,overflow:'hidden',boxShadow:'0 24px 80px rgba(0,0,0,0.35)',animation:'zoomIn 0.22s ease',display:'flex',flexDirection:'column'}
     :mode==='tall'
-    ?{width:'min(700px,95vw)',maxHeight:'80vh',borderRadius:'18px 18px 0 0',overflow:'hidden',boxShadow:'0 -8px 40px rgba(0,0,0,0.3)',animation:'slideUp 0.25s ease',display:'flex',flexDirection:'column'}
+    ?{width:'min(700px,95vw)',height:'80vh',borderRadius:'18px 18px 0 0',overflow:'hidden',boxShadow:'0 -8px 40px rgba(0,0,0,0.3)',animation:'slideUp 0.25s ease',display:'flex',flexDirection:'column'}
     :{width:560,height:'100vh',overflow:'hidden',boxShadow:'-8px 0 40px rgba(0,0,0,0.2)',animation:'slideIn 0.25s ease',flexShrink:0,display:'flex',flexDirection:'column'};
   const wrapStyle=mode==='full'
     ?{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.5)',backdropFilter:'blur(5px)'}
     :mode==='tall'
     ?{position:'fixed',inset:0,zIndex:600,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-end',background:'rgba(0,0,0,0.2)',backdropFilter:'blur(2px)'}
-    :{position:'fixed',inset:0,zIndex:600,display:'flex',direction:'ltr',background:'rgba(0,0,0,0.15)'};
+    :{position:'fixed',top:0,left:0,bottom:0,right:230,zIndex:600,display:'flex',direction:'ltr',background:'transparent'};
   return(
     <div style={wrapStyle} onClick={onClose}>
       {mode==='side'&&<div style={{flex:1}} onClick={onClose}/>}
