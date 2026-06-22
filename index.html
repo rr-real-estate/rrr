@@ -677,12 +677,12 @@ function ProjectDetailPanel({project,onClose,onSave,mode='side',inline=false}){
   const panelStyle=mode==='full'
     ?{width:'min(920px,96vw)',height:'94vh',margin:'auto',borderRadius:18,overflow:'hidden',boxShadow:'0 24px 80px rgba(0,0,0,0.35)',animation:'zoomIn 0.22s ease',display:'flex',flexDirection:'column'}
     :mode==='tall'
-    ?{width:'min(700px,95vw)',height:'80vh',borderRadius:'18px 18px 0 0',overflow:'hidden',boxShadow:'0 -8px 40px rgba(0,0,0,0.3)',animation:'slideUp 0.25s ease',display:'flex',flexDirection:'column'}
-    :{width:560,height:'100vh',overflow:'hidden',boxShadow:'-8px 0 40px rgba(0,0,0,0.2)',animation:'slideIn 0.25s ease',flexShrink:0,display:'flex',flexDirection:'column'};
+    ?{width:'min(520px,95vw)',height:'80vh',borderRadius:'18px 18px 0 0',overflow:'hidden',boxShadow:'0 -4px 40px rgba(0,0,0,0.25)',animation:'slideUp 0.25s ease',display:'flex',flexDirection:'column'}
+    :{width:520,height:'100vh',overflow:'hidden',boxShadow:'-4px 0 30px rgba(0,0,0,0.2)',animation:'slideIn 0.25s ease',flexShrink:0,display:'flex',flexDirection:'column'};
   const wrapStyle=mode==='full'
     ?{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.5)',backdropFilter:'blur(5px)'}
     :mode==='tall'
-    ?{position:'fixed',inset:0,zIndex:600,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-end',background:'rgba(0,0,0,0.2)',backdropFilter:'blur(2px)'}
+    ?{position:'fixed',inset:0,zIndex:600,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-end',background:'transparent'}
     :{position:'fixed',top:0,left:0,bottom:0,right:230,zIndex:600,display:'flex',direction:'ltr',background:'transparent'};
   return(
     <div style={wrapStyle} onClick={onClose}>
@@ -966,20 +966,15 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
                 <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
               </div>
               {isOpen&&(
-                <div style={{background:'#faf8f4',padding:'14px',borderRadius:'0 0 14px 14px'}}>
-                  {(settings?.expandMode||'side')==='tall'&&panelProject&&items.some(p=>p._row===panelProject._row)
-                    ?<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} mode="tall" inline={true}/>
-                    :<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12}}>
-                      {items.map(p=><ProjectCard key={p._row} project={p} onClick={()=>setPanelProject(p)}/>)}
-                    </div>
-                  }
+                <div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px'}}>
+                  {items.map(p=><ProjectCard key={p._row} project={p} onClick={()=>setPanelProject(p)}/>)}
                 </div>
               )}
             </div>
           );
         })
       )}
-      {panelProject&&(settings?.expandMode||'side')!=='tall'&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} mode={settings?.expandMode||'side'}/>}
+      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} mode={settings?.expandMode||'side'}/>}
     </div>
   );
 }
@@ -1061,21 +1056,14 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings}){
                 </div>
                 <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
               </div>
-              {isOpen&&(
-                <div style={{background:'#faf8f4',padding:'14px',borderRadius:'0 0 14px 14px'}}>
-                  {(settings?.expandMode||'side')==='tall'&&panelProject&&items.some(p=>p._row===panelProject._row)
-                    ?<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} mode="tall" inline={true}/>
-                    :<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12}}>
-                      {items.map(p=><ProjectCard key={p._row} project={p} onClick={()=>setPanelProject(p)} hideDate/>)}
-                    </div>
-                  }
-                </div>
-              )}
+              {isOpen&&<div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px'}}>
+                {items.map(p=><ProjectCard key={p._row} project={p} onClick={()=>setPanelProject(p)} hideDate/>)}
+              </div>}
             </div>
           );
         })
       )}
-      {panelProject&&(settings?.expandMode||'side')!=='tall'&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} mode={settings?.expandMode||'side'}/>}
+      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} mode={settings?.expandMode||'side'}/>}
     </div>
   );
 }
