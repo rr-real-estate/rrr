@@ -19,6 +19,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f5f3ef;direction:rtl;co
 @keyframes slideIn{from{transform:translateX(110%)}to{transform:translateX(0)}}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
 @keyframes zoomIn{from{transform:scale(0.92);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes expandDown{from{transform:scaleY(0);opacity:0}to{transform:scaleY(1);opacity:1}}
 input,select,textarea{font-family:inherit;font-size:14px}
 </style>
 </head>
@@ -477,7 +478,7 @@ function ProjectCard({project,onClick,hideDate}){
   ].filter(c=>c.v);
 
   return(
-    <div onClick={onClick} style={{
+    <div onClick={e=>onClick&&onClick(e)} style={{
       background:'#fff',borderRadius:13,padding:'15px 17px',cursor:'pointer',
       boxShadow:'0 1px 4px rgba(0,0,0,0.07)',borderRight:`5px solid ${m.dot}`,
       transition:'all 0.16s',outline:overdue?'1.5px solid #fca5a5':'none',
@@ -558,7 +559,7 @@ function ProjectCard({project,onClick,hideDate}){
 }
 
 // ═══════════════ PROJECT DETAIL PANEL ════════════════════════════
-function ProjectDetailPanel({project,onClose,onSave,mode='side',inline=false}){
+function ProjectDetailPanel({project,onClose,onSave,mode='side',inline=false,anchor=null}){
   const [form,setForm]=useState({...project});
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
@@ -677,12 +678,12 @@ function ProjectDetailPanel({project,onClose,onSave,mode='side',inline=false}){
   const panelStyle=mode==='full'
     ?{width:'min(920px,96vw)',height:'94vh',margin:'auto',borderRadius:18,overflow:'hidden',boxShadow:'0 24px 80px rgba(0,0,0,0.35)',animation:'zoomIn 0.22s ease',display:'flex',flexDirection:'column'}
     :mode==='tall'
-    ?{width:'min(520px,95vw)',height:'80vh',borderRadius:'18px 18px 0 0',overflow:'hidden',boxShadow:'0 -4px 40px rgba(0,0,0,0.25)',animation:'slideUp 0.25s ease',display:'flex',flexDirection:'column'}
+    ?{position:'absolute',top:anchor?.top||100,left:anchor?.left||'50%',transform:anchor?'none':'translateX(-50%)',width:Math.min(anchor?.width||520,window.innerWidth-20),maxHeight:`calc(100vh - ${(anchor?.top||100)+12}px)`,borderRadius:'0 0 14px 14px',overflow:'hidden',boxShadow:'0 8px 40px rgba(0,0,0,0.22)',animation:'expandDown 0.22s ease',transformOrigin:'top',display:'flex',flexDirection:'column'}
     :{width:520,height:'100vh',overflow:'hidden',boxShadow:'-4px 0 30px rgba(0,0,0,0.2)',animation:'slideIn 0.25s ease',flexShrink:0,display:'flex',flexDirection:'column'};
   const wrapStyle=mode==='full'
     ?{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.5)',backdropFilter:'blur(5px)'}
     :mode==='tall'
-    ?{position:'fixed',inset:0,zIndex:600,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'flex-end',background:'transparent'}
+    ?{position:'fixed',inset:0,zIndex:600,background:'transparent'}
     :{position:'fixed',top:0,left:0,bottom:0,right:230,zIndex:600,display:'flex',direction:'ltr',background:'transparent'};
   return(
     <div style={wrapStyle} onClick={onClose}>
@@ -799,6 +800,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
   const [search,setSearch]=useState('');
   const [personFilter,setPersonFilter]=useState('');
   const [panelProject,setPanelProject]=useState(null);
+  const [panelAnchor,setPanelAnchor]=useState(null);
   const [collapsed,setCollapsed]=useState({});
   const [viewMode,setViewMode]=useState('cards'); // 'cards' | 'table'
   const [colGroup,setColGroup]=useState(0); // 0=ראשי 1=מסמכים 2=ביקור
@@ -967,14 +969,14 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
               </div>
               {isOpen&&(
                 <div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px'}}>
-                  {items.map(p=><ProjectCard key={p._row} project={p} onClick={()=>setPanelProject(p)}/>)}
+                  {items.map(p=><ProjectCard key={p._row} project={p} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}}/>)}
                 </div>
               )}
             </div>
           );
         })
       )}
-      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} mode={settings?.expandMode||'side'}/>}
+      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} mode={settings?.expandMode||'side'} anchor={panelAnchor}/>}
     </div>
   );
 }
