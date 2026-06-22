@@ -1,0 +1,2103 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ניהול תיקים | רובינשטיין רוזנטל שמאות</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#f5f3ef;direction:rtl;color:#1a1510;font-size:14px}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:#d9af3455;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#d9af34}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{transform:translateX(110%)}to{transform:translateX(0)}}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes zoomIn{from{transform:scale(0.92);opacity:0}to{transform:scale(1);opacity:1}}
+input,select,textarea{font-family:inherit;font-size:14px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef, useMemo } = React;
+
+// ═══════════════ CONFIG ══════════════════════════════════════════
+const CONFIG = {
+  CLIENT_ID:      '479650657219-j5on6nc2lcaqn96cc6qp5qfc7i98m6en.apps.googleusercontent.com',
+  SPREADSHEET_ID: '1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI',
+  LOGO_URL:       'https://drive.google.com/thumbnail?id=1ytQ6Uptt18RjfX5VIPxRTKbDv9VFA6a5&sz=w400',
+  LOGO_FALLBACK:  'https://lh3.googleusercontent.com/d/1ytQ6Uptt18RjfX5VIPxRTKbDv9VFA6a5',
+  SCOPES:         'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.send profile email',
+  SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
+};
+const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
+const DEFAULT_SETTINGS={fontSize:'medium',expandMode:'side',defaultPerson:'__auto__'};
+function loadSettings(){try{return{...DEFAULT_SETTINGS,...JSON.parse(localStorage.getItem('rrSettings')||'{}')};}catch{return DEFAULT_SETTINGS;}}
+function saveSettings(s){try{localStorage.setItem('rrSettings',JSON.stringify(s));}catch{}}
+const FONT_ZOOM={small:0.88,medium:1,large:1.14};
+
+// ═══════════════ STATUS — colors matching Google Sheets ══════════
+const CLIENT_STATUSES=['ממתין לקבלת מסמכים','נבדק - נשלח עדכון/טיוטה ללקוח','נשלח לבנק / לקוח','בהמתנה'];
+const STATUS_META={
+  'בבדיקה':                           {bg:'#fef9e8',fg:'#4b3400',dot:'#d9af34',order:1},
+  'בכתיבה':                           {bg:'#f5e8d5',fg:'#3a2000',dot:'#8c6239',order:2},
+  'בבדיקה לאחר ביקור':                {bg:'#e8d5a8',fg:'#1a0e00',dot:'#4b3400',order:3},
+  'תואם ביקור':                        {bg:'#e0e0e0',fg:'#404040',dot:'#808080',order:4},
+  'בשלבי תיאום ביקור':                 {bg:'#f0f0f0',fg:'#606060',dot:'#b8b8b8',order:5},
+  'ממתין לקבלת מסמכים':                {bg:'#e0e0e0',fg:'#404040',dot:'#808080',order:6},
+  'נבדק - נשלח עדכון/טיוטה ללקוח':    {bg:'#f5e8d5',fg:'#3a2000',dot:'#8c6239',order:7},
+  'נשלח לבנק / לקוח':                  {bg:'#fef9e8',fg:'#4b3400',dot:'#d9af34',order:8},
+  'בהמתנה':                            {bg:'#1c1c1c',fg:'#d9af34',dot:'#d9af34',order:9},
+};
+const STATUS_ORDER=Object.entries(STATUS_META).sort((a,b)=>a[1].order-b[1].order).map(e=>e[0]);
+
+// ═══════════════ COLUMN INDICES ══════════════════════════════════
+const P={name:0,yossi:1,michael:2,feigi:3,notes:4,dueDate:5,status:6,
+  expected:7,advance:8,docs:9,missingDocs:10,buildingFile:11,
+  transactions:12,visitSheet:13,visitDate:14,visitHours:15,
+  visitPhone:16,visitName:17,visitRole:18,visitNotes:19,
+  postVisitDocs:20,postVisitComplete:21,fee:22,feeStatus:23,feeNotes:24};
+const M={openDate:0,closeDate:1,fee:2,caseNum:3,status:4,folder:5,
+  client:6,phone:7,email:8,advisor:9,advisorPhone:10,advisorEmail:11,
+  purpose:12,propType:13,city:14,street:15,houseNum:16,
+  aptNum:17,block:18,parcel:19,subParcel:20,bank:21,michael:22,closeDate2:23};
+
+// ═══════════════ TASK EMAIL + NOTES DATE ════════════════════════
+// מיפוי מייל → שם (זהה ל-Apps Script)
+const USER_BY_EMAIL={
+  'yr@yrr.co.il':'יוסי','a0504105070@gmail.com':'יוסי',
+  'office@yrr.co.il':'פייגי','mr@mrr.co.il':'מיכאל',
+};
+// עמודות משימה → בעלים + מייל
+const TASK_FIELDS=[
+  ['yossi','יוסי','yr@yrr.co.il'],
+  ['michael','מיכאל','mr@mrr.co.il'],
+  ['feigi','פייגי','office@yrr.co.il'],
+];
+
+// מוסיף (DD/MM) להערות אם אין כבר תאריך כזה — בדיוק כמו Apps Script
+function withNoteDate(notes){
+  if(!notes)return notes;
+  if(/\(\d{1,2}\/\d{1,2}\)/.test(notes))return notes;
+  const d=new Date();
+  const dd=String(d.getDate()).padStart(2,'0');
+  const mm=String(d.getMonth()+1).padStart(2,'0');
+  return notes.trim()+' ('+dd+'/'+mm+')';
+}
+
+// שולח מייל לבעל המשימה אם המשימה השתנתה ועורך ≠ בעלים + תזכורות עצמיות למיכאל
+async function sendTaskEmails(prev,next,editorEmail){
+  const editorName=USER_BY_EMAIL[(editorEmail||'').toLowerCase()]||'מיכאל';
+  for(const [field,ownerName,recipient] of TASK_FIELDS){
+    if(next[field]&&next[field]!==prev[field]&&editorName!==ownerName){
+      const html="<div dir='rtl' style='text-align:right;font-family:Arial'>"
+        +"<h2 style='color:#1a73e8'>היי "+ownerName+",</h2>"
+        +"<p>התווספה משימה חדשה בתיק: <b>"+next.name+"</b></p>"
+        +"<p>נשלח על ידי: <b>"+editorName+"</b></p>"
+        +"<div style='background:#f4f4f4;padding:15px;border-right:5px solid #1a73e8;margin-bottom:20px'>"
+        +"<b>תוכן המשימה:</b><br>"+next[field]+"</div>"
+        +"<a href='"+CONFIG.SHEET_URL+"' style='background-color:#1a73e8;color:white;padding:12px 20px;text-decoration:none;border-radius:5px;font-weight:bold;display:inline-block'>פתח את הגיליון</a>"
+        +"</div>";
+      try{await api.sendEmail(recipient,'משימה מ'+editorName+': '+next.name,html);}
+      catch(e){console.warn('שגיאת מייל:',e.message);}
+    }
+  }
+  // תזכורות עצמיות למיכאל (כמו Apps Script)
+  if(editorName==='מיכאל'){
+    const reminderHtml=(msg)=>"<div dir='rtl' style='text-align:right;font-family:Arial'>"+msg+"</div>";
+    if(next.yossi&&next.yossi!==prev.yossi&&next.yossi.includes('לבדיקה')&&!(next.notes||'').includes('נכתב למעט')){
+      api.sendEmail('mr@mrr.co.il','תזכורת תשלום - '+next.name,reminderHtml("רשמת 'לבדיקה' ליוסי. נא לעדכן תשלום.")).catch(()=>{});
+    }
+    if(next.notes&&next.notes!==prev.notes&&next.notes.includes('נכתב למעט')){
+      api.sendEmail('mr@mrr.co.il','תזכורת תשלום - '+next.name,reminderHtml("רשמת 'נכתב למעט' בהערות. נא לעדכן תשלום.")).catch(()=>{});
+    }
+  }
+}
+
+// עדכון סטטוס בגיליון "ניהול תיקים" כשסטטוס משתנה ב"פרויקטים בביצוע"
+async function syncStatusToManaged(managedCases,projectName,newStatus,onUpdateCase){
+  const STATUS_MAP={'נשלח לבנק':'הסתיים','נשלח לבנק / לקוח':'הסתיים','בהמתנה':'ממתין'};
+  const targetStatus=STATUS_MAP[newStatus]||'בביצוע';
+  const match=managedCases.find(c=>c.folder&&c.folder.trim()===projectName.trim());
+  if(!match)return;
+  try{
+    await api.put(`'ניהול תיקים'!E${match._row}`,[[targetStatus]]);
+    if(onUpdateCase)onUpdateCase(match._row,{status:targetStatus});
+  }catch(e){console.warn('שגיאת סנכרון סטטוס:',e.message);}
+}
+
+// שליחת מייל חוסרי מסמכים ללקוח/יועץ (כמו Apps Script)
+async function sendMissingDocsEmailFn(upd,prev,managedCases){
+  if(!upd.postVisitDocs||upd.postVisitDocs===prev.postVisitDocs)return;
+  const ok=window.confirm('הזנת תאריך דרישת מסמכים לתיק:\n"'+upd.name+'"\n\nהאם לשלוח עכשיו מייל אוטומטי ללקוח/יועץ?');
+  if(!ok)return;
+  const match=managedCases.find(c=>c.folder&&c.folder.trim()===upd.name.trim());
+  const recipient=(match?.advisorEmail||match?.email||'').trim();
+  const missingDocs=upd.missingDocs||'אנא צור קשר עם המשרד לבירור המסמכים החסרים.';
+  if(!recipient){
+    api.sendEmail('mr@mrr.co.il','שגיאה בשליחת דרישת מסמכים - '+upd.name,
+      "<div dir='rtl' style='font-family:Arial'>לא נמצא מייל לתיק: "+upd.name+"</div>").catch(()=>{});
+    alert('לא נמצא מייל ללקוח/יועץ — נשלחה התראה למיכאל');
+    return;
+  }
+  const html="<div dir='rtl' style='font-family:Arial,sans-serif;font-size:14px'>"
+    +"<p>שלום וברכה,</p>"
+    +"<p>לצורך השלמת כתיבת חוות הדעת לנכס, יש להשלים את המסמכים הבאים:</p>"
+    +"<div style='background:#f4f4f4;padding:15px;border-right:5px solid #1a73e8;margin-bottom:20px;white-space:pre-wrap'><b>"+missingDocs+"</b></div>"
+    +"<p>נשמח לקבלם בהקדם האפשרי כדי שנוכל לקדם את התיק.</p>"
+    +"<br><div>בברכה,<br><b>צוות המשרד</b></div>"
+    +"<img src='https://drive.google.com/uc?export=view&id=1ytQ6Uptt18RjfX5VIPxRTKbDv9VFA6a5' alt='לוגו' style='width:200px;height:auto;display:block;margin-top:12px'>"
+    +"</div>";
+  try{
+    await api.sendEmail(recipient,upd.name,html);
+    alert('מייל חוסרים נשלח בהצלחה ל: '+recipient);
+  }catch(e){alert('שגיאה בשליחת מייל: '+e.message);}
+}
+
+// Per-column checklist options (matching Google Sheets validation exactly)
+const ADVANCE_OPTS=['','נשלחה דרישה','התקבל','לא נשלחה'];
+const DOCS_OPTS=['','בוצע','נשלח בקשה ללקוח'];
+const BUILDING_OPTS=['','בוצע','לא אותר'];
+const TRANSACTIONS_OPTS=['','בוצע','לא בוצע'];
+const VISIT_SHEET_OPTS=['','בוצע','לא בוצע','חלקי'];
+const VISIT_ROLE_OPTS=['','בעלים','מתווך','שוכרים','חבר של המוכר','שוכרת'];
+// Legacy — kept for dynamic fallback only
+const BASE_CHECK=['','בוצע','לא בוצע','לא אותר','חלקי','נשלח בקשה ללקוח','התקבל','נשלחה דרישה','לא נשלחה'];
+let dynamicCheckOpts=new Set(BASE_CHECK);
+// cols 20+21 are DATE fields ("דרישת/השלמת מסמכים לאחר ביקור"), not checkboxes
+const CHECK_COLS=[P.advance,P.docs,P.buildingFile,P.transactions,P.visitSheet];
+const DATE_RE=/^\d{1,2}\/\d{1,2}\/\d{4}$/;
+
+// ═══════════════ API ══════════════════════════════════════════════
+const api={
+  token:null,
+  async get(range,id=CONFIG.SPREADSHEET_ID){
+    const r=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}`,
+      {headers:{Authorization:`Bearer ${this.token}`}});
+    if(!r.ok)throw new Error((await r.json())?.error?.message||r.statusText);
+    return(await r.json()).values||[];
+  },
+  async put(range,values,id=CONFIG.SPREADSHEET_ID){
+    const r=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
+      {method:'PUT',headers:{Authorization:`Bearer ${this.token}`,'Content-Type':'application/json'},
+       body:JSON.stringify({range,majorDimension:'ROWS',values})});
+    if(!r.ok)throw new Error((await r.json())?.error?.message||r.statusText);
+    return r.json();
+  },
+  async sendEmail(to,subject,html){
+    const subjB64='=?UTF-8?B?'+btoa(unescape(encodeURIComponent(subject)))+'?=';
+    const msg='To: '+to+'\r\nContent-Type: text/html; charset=UTF-8\r\nMIME-Version: 1.0\r\nSubject: '+subjB64+'\r\n\r\n'+html;
+    const encoded=btoa(unescape(encodeURIComponent(msg))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    const r=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{
+      method:'POST',headers:{Authorization:`Bearer ${this.token}`,'Content-Type':'application/json'},
+      body:JSON.stringify({raw:encoded})
+    });
+    if(!r.ok){const e=await r.json();throw new Error(e?.error?.message||r.statusText);}
+  }
+};
+
+// ═══════════════ HELPERS ══════════════════════════════════════════
+function colLetter(n){let s='';while(n>0){s=String.fromCharCode(64+((n-1)%26+1))+s;n=Math.floor((n-1)/26);}return s;}
+function parseDate(v){
+  if(!v)return null; if(v instanceof Date)return isNaN(v)?null:v;
+  const s=String(v).trim();
+  const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m)return new Date(+m[3],+m[2]-1,+m[1]);
+  const d=new Date(v);return isNaN(d)?null:d;
+}
+function fmt(v){if(!v)return'';const d=v instanceof Date?v:parseDate(v);if(!d)return String(v);
+  return`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;}
+function g(row,i){return(i<row.length?String(row[i]||'').trim():'');}
+
+function parseProject(row,ri){
+  const status=g(row,P.status);
+  CHECK_COLS.forEach(ci=>{const v=g(row,ci);if(v&&v.length<25&&!DATE_RE.test(v))dynamicCheckOpts.add(v);});
+  return{_row:ri+2,_raw:[...row],
+    name:g(row,P.name),yossi:g(row,P.yossi),michael:g(row,P.michael),feigi:g(row,P.feigi),
+    notes:g(row,P.notes),dueDate:fmt(g(row,P.dueDate)),status,expected:fmt(g(row,P.expected)),
+    advance:g(row,P.advance),docs:g(row,P.docs),missingDocs:g(row,P.missingDocs),
+    buildingFile:g(row,P.buildingFile),transactions:g(row,P.transactions),
+    visitSheet:g(row,P.visitSheet),visitDate:fmt(g(row,P.visitDate)),
+    visitHours:g(row,P.visitHours),visitPhone:g(row,P.visitPhone),
+    visitName:g(row,P.visitName),visitRole:g(row,P.visitRole),visitNotes:g(row,P.visitNotes),
+    postVisitDocs:fmt(g(row,P.postVisitDocs))||g(row,P.postVisitDocs),
+    postVisitComplete:fmt(g(row,P.postVisitComplete))||g(row,P.postVisitComplete),
+    fee:g(row,P.fee),feeStatus:g(row,P.feeStatus),feeNotes:g(row,P.feeNotes),
+    _expD:parseDate(g(row,P.expected)),_dueD:parseDate(g(row,P.dueDate)),_visitD:parseDate(g(row,P.visitDate)),
+  };
+}
+function parseManagedCase(row,ri){
+  return{_row:ri+2,_raw:[...row],
+    openDate:fmt(g(row,M.openDate)),closeDate:fmt(g(row,M.closeDate)),
+    fee:g(row,M.fee),caseNum:g(row,M.caseNum),status:g(row,M.status),
+    folder:g(row,M.folder),client:g(row,M.client),phone:g(row,M.phone),
+    email:g(row,M.email),advisor:g(row,M.advisor),advisorPhone:g(row,M.advisorPhone),
+    advisorEmail:g(row,M.advisorEmail),purpose:g(row,M.purpose),propType:g(row,M.propType),
+    rights:g(row,M.rights),city:g(row,M.city),street:g(row,M.street),
+    houseNum:g(row,M.houseNum),aptNum:g(row,M.aptNum),block:g(row,M.block),
+    parcel:g(row,M.parcel),subParcel:g(row,M.subParcel),bank:g(row,M.bank),michael:g(row,M.michael),
+  };
+}
+
+// ═══════════════ ATOMS ═══════════════════════════════════════════
+function Spinner({size=18,color=GOLD}){
+  return<div style={{width:size,height:size,border:`2px solid ${color}33`,borderTopColor:color,borderRadius:'50%',animation:'spin 0.7s linear infinite',flexShrink:0}}/>;
+}
+function Badge({status,size='md'}){
+  const m=STATUS_META[status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
+  return<span style={{background:m.bg,color:m.fg,padding:size==='sm'?'3px 9px':'5px 13px',borderRadius:20,fontSize:size==='sm'?12:13,fontWeight:700,whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:5}}>
+    <span style={{width:7,height:7,borderRadius:'50%',background:m.dot,flexShrink:0}}/>
+    {status||'—'}
+  </span>;
+}
+function SectionTitle({children,icon}){
+  return<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12,paddingBottom:8,borderBottom:`2px solid ${GOLD}44`}}>
+    {icon&&<span style={{fontSize:17}}>{icon}</span>}
+    <span style={{fontSize:14,fontWeight:700,color:GOLD}}>{children}</span>
+  </div>;
+}
+function FLabel({children}){return<div style={{fontSize:12,fontWeight:600,color:'#6b5e50',marginBottom:4}}>{children}</div>;}
+
+// ═══════════════ SAVE ROW HELPER ════════════════════════════════
+function buildProjectRow(upd){
+  const row=[...upd._raw];
+  while(row.length<=24)row.push('');
+  [['status',P.status],['yossi',P.yossi],['michael',P.michael],['feigi',P.feigi],
+   ['notes',P.notes],['missingDocs',P.missingDocs],['dueDate',P.dueDate],['expected',P.expected],
+   ['advance',P.advance],['docs',P.docs],['buildingFile',P.buildingFile],['transactions',P.transactions],
+   ['visitSheet',P.visitSheet],['visitDate',P.visitDate],['visitHours',P.visitHours],
+   ['visitPhone',P.visitPhone],['visitName',P.visitName],['visitRole',P.visitRole],
+   ['visitNotes',P.visitNotes],['postVisitDocs',P.postVisitDocs],['postVisitComplete',P.postVisitComplete],
+   ['fee',P.fee],['feeStatus',P.feeStatus],['feeNotes',P.feeNotes],
+  ].forEach(([k,i])=>row[i]=upd[k]||'');
+  return row;
+}
+
+// ═══════════════ PROJECT EXPANDED (inline accordion) ═════════════
+function ProjectExpanded({project,onSave,onCollapse,wide}){
+  const [form,setForm]=useState({...project});
+  const [saving,setSaving]=useState(false);
+  const [flashSaved,setFlashSaved]=useState(false);
+  const [err,setErr]=useState('');
+  const latestFormRef=useRef(form);
+  const debounceRef=useRef(null);
+  const savingRef=useRef(false);
+  const onSaveRef=useRef(onSave);
+  useEffect(()=>{onSaveRef.current=onSave;},[onSave]);
+  useEffect(()=>()=>clearTimeout(debounceRef.current),[]);
+
+  const set=(k,v)=>setForm(f=>{const n={...f,[k]:v};latestFormRef.current=n;return n;});
+
+  const doSave=async()=>{
+    if(savingRef.current)return;
+    savingRef.current=true;
+    setSaving(true);setErr('');
+    try{
+      await onSaveRef.current(latestFormRef.current);
+      setFlashSaved(true);setTimeout(()=>setFlashSaved(false),1500);
+    }catch(e){setErr(e.message);}
+    finally{setSaving(false);savingRef.current=false;}
+  };
+
+  const schedSave=()=>{clearTimeout(debounceRef.current);debounceRef.current=setTimeout(doSave,320);};
+
+  const checkOpts=[...dynamicCheckOpts].sort();
+  const numMatch=project.name.match(/\b(5\d{4})\b/);
+  const caseNum=numMatch?numMatch[1]:'';
+  const dot=STATUS_META[form.status]?.dot||GOLD;
+
+  const iS={width:'100%',padding:'7px 10px',borderRadius:7,border:'1px solid #ddd0bb',fontSize:13,background:'#fffdf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
+  const kd=(e)=>{if(e.key==='Enter')e.target.blur();};
+  const inp=(k,multi=false)=>multi
+    ?<textarea value={form[k]||''} onChange={e=>set(k,e.target.value)} onBlur={schedSave} rows={2} style={{...iS,resize:'vertical'}}/>
+    :<input value={form[k]||''} onChange={e=>set(k,e.target.value)} onBlur={schedSave} onKeyDown={kd} style={iS}/>;
+
+  // date conversion: stored as DD/MM/YYYY, input requires YYYY-MM-DD
+  const toISO=v=>{if(!v)return'';const m=v.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);if(m)return`${m[3]||new Date().getFullYear()}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return v;};
+  const fromISO=v=>{if(!v)return'';const m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return`${m[3]}/${m[2]}/${m[1]}`;return v;};
+  const dateInp=(k)=><input type="date" value={toISO(form[k]||'')} onChange={e=>set(k,fromISO(e.target.value))} onBlur={schedSave} onKeyDown={kd} style={{...iS,cursor:'pointer'}}/>;
+
+  const sS={width:'100%',padding:'7px 10px',borderRadius:7,border:'1px solid #ddd0bb',fontSize:13,background:'#fffdf8',outline:'none',fontFamily:'inherit',color:'#1a1510'};
+  const selField=(k,opts)=>(
+    <select value={form[k]||''} onChange={e=>{set(k,e.target.value);schedSave();}} style={sS}>
+      {opts.map(o=><option key={o} value={o}>{o||'— בחר —'}</option>)}
+      {form[k]&&!opts.includes(form[k])&&<option value={form[k]}>{form[k]}</option>}
+    </select>
+  );
+  const docChk=(k,label,ac,opts)=>(
+    <div key={k}>
+      <div style={{fontSize:11,fontWeight:700,color:ac,marginBottom:3}}>{label}</div>
+      <select value={form[k]||''} onChange={e=>{set(k,e.target.value);schedSave();}}
+        style={{width:'100%',padding:'6px 8px',borderRadius:7,border:`1.5px solid ${ac}55`,fontSize:12,background:`${ac}0d`,outline:'none',color:'#1a1510',fontFamily:'inherit'}}>
+        {opts.map(o=><option key={o} value={o}>{o||'—'}</option>)}
+        {form[k]&&!opts.includes(form[k])&&<option value={form[k]}>{form[k]}</option>}
+      </select>
+    </div>
+  );
+  const box={background:'#f8f6f2',borderRadius:9,padding:'10px 12px',border:'1px solid #ede8e0',marginBottom:8};
+
+  return(
+    <div onClick={onCollapse} style={{background:'#fff',borderRadius:13,padding:'15px 17px',cursor:'pointer',boxShadow:'0 3px 16px rgba(0,0,0,0.13)',borderRight:`5px solid ${dot}`,animation:'fadeIn 0.18s ease'}}>
+      {/* Card header — click closes */}
+      <div style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid #ede8e0'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:6}}>
+          <div style={{flex:1,minWidth:0}}>
+            {caseNum&&<span style={{fontSize:11,fontWeight:700,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 8px',display:'inline-flex',alignItems:'center',gap:4,marginBottom:4,userSelect:'none'}}><span style={{width:6,height:6,borderRadius:'50%',background:'#d9af34',flexShrink:0}}/>{`#${caseNum}`}</span>}
+            <div style={{fontSize:14,fontWeight:700,color:'#0d0d0d',lineHeight:1.4}}>{project.name}</div>
+          </div>
+          <Badge status={form.status} size="sm"/>
+        </div>
+        <div style={{marginTop:4,height:15,display:'flex',alignItems:'center',gap:8}}>
+          {saving&&<Spinner size={11} color={GOLD}/>}
+          {flashSaved&&<span style={{fontSize:11,color:'#16a34a',fontWeight:700}}>✓ נשמר</span>}
+          {err&&<span style={{fontSize:11,color:'#dc2626'}}>{err}</span>}
+          {!saving&&!flashSaved&&!err&&<span style={{fontSize:11,color:'#c8bfb5'}}>לחץ על הכותרת לסגירה</span>}
+        </div>
+      </div>
+
+      {/* Fields — stopPropagation */}
+      <div onClick={e=>e.stopPropagation()} style={wide?{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}:{}}>
+
+        {/* סטטוס + תאריכים */}
+        <div style={{...box,display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+          <div>
+            <FLabel>סטטוס</FLabel>
+            <select value={form.status||''} onChange={e=>{set('status',e.target.value);schedSave();}}
+              style={{...sS,fontSize:12,padding:'6px 8px'}}>
+              <option value="">— בחר —</option>
+              {STATUS_ORDER.map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div><FLabel>תאריך לביצוע</FLabel>{dateInp('dueDate')}</div>
+          <div><FLabel>צפי לסיום</FLabel>{dateInp('expected')}</div>
+        </div>
+
+        {/* משימות */}
+        <div style={box}>
+          <SectionTitle icon="📋">משימות</SectionTitle>
+          {[['יוסי','yossi','#607060'],['מיכאל','michael',GOLD],['פייגי','feigi','#8c6239']].map(([l,k,c])=>(
+            <div key={k} style={{marginBottom:7}}>
+              <FLabel><span style={{color:c,fontWeight:700}}>{l}</span></FLabel>
+              {inp(k)}
+            </div>
+          ))}
+        </div>
+
+        {/* הערות */}
+        <div style={box}>
+          <SectionTitle icon="💬">הערות ותובנות</SectionTitle>
+          {inp('notes',true)}
+        </div>
+
+        {/* מסמכים — 3 בשורה */}
+        <div style={box}>
+          <SectionTitle icon="📁">מסמכים ופעולות</SectionTitle>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:7}}>
+            {docChk('advance','דרישת מקדמה','#d9af34',ADVANCE_OPTS)}
+            {docChk('docs','השלמת מסמכים','#c49a28',DOCS_OPTS)}
+            {docChk('buildingFile','תיק בנין','#8c6239',BUILDING_OPTS)}
+            {docChk('transactions','עסקאות','#6a4520',TRANSACTIONS_OPTS)}
+            {docChk('visitSheet','דף ביקור','#4b3400',VISIT_SHEET_OPTS)}
+          </div>
+        </div>
+
+        {/* פרטי ביקור */}
+        <div style={box}>
+          <SectionTitle icon="🏠">פרטי ביקור</SectionTitle>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:7}}>
+            <div><FLabel>תאריך</FLabel>{dateInp('visitDate')}</div>
+            <div><FLabel>שעות</FLabel>{inp('visitHours')}</div>
+            <div><FLabel>נייד</FLabel>{inp('visitPhone')}</div>
+            <div><FLabel>שם לתאום</FLabel>{inp('visitName')}</div>
+            <div style={{gridColumn:'1/-1'}}><FLabel>שיוך/לנכס</FLabel>{selField('visitRole',VISIT_ROLE_OPTS)}</div>
+          </div>
+          <FLabel>הערות לביקור</FLabel>{inp('visitNotes',true)}
+        </div>
+
+        {/* לאחר ביקור */}
+        <div style={box}>
+          <SectionTitle icon="📬">לאחר ביקור</SectionTitle>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:7}}>
+            <div><FLabel>דרישת מסמכים</FLabel>{dateInp('postVisitDocs')}</div>
+            <div><FLabel>השלמת מסמכים</FLabel>{dateInp('postVisitComplete')}</div>
+          </div>
+          <FLabel>⚠️ מסמכים חסרים</FLabel>{inp('missingDocs',true)}
+        </div>
+
+        {/* שכר טרחה */}
+        <div style={box}>
+          <SectionTitle icon="💰">שכר טרחה</SectionTitle>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:7}}>
+            <div><FLabel>סכום (₪)</FLabel>{inp('fee')}</div>
+            <div><FLabel>סטטוס</FLabel>{inp('feeStatus')}</div>
+          </div>
+          <FLabel>הערות</FLabel>{inp('feeNotes',true)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════ PROJECT CARD ════════════════════════════════════
+const CASE_BASE_DEFAULT='G:/תיקיות אחסון שיתופי/רובינשטיין רוזנטל שמאות מקרקעין/שומות - רובינשטיין רוזנטל שמאות מקרקעין/פרויקטים בביצוע';
+function getCaseBase(){return(localStorage.getItem('rrFolderBase')||CASE_BASE_DEFAULT).replace(/\\/g,'/');}
+function openCaseFolder(folderName,e){
+  e.stopPropagation();e.preventDefault();
+  window.location.href='openrr:'+getCaseBase()+'/'+folderName;
+}
+function ProjectCard({project,onClick,hideDate}){
+  const [copied,setCopied]=React.useState(false);
+  const m=STATUS_META[project.status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
+  const today=new Date();
+  const expD=project._expD;
+  const diff=expD&&!hideDate?Math.round((expD-today)/86400000):null;
+  const overdue=diff!==null&&diff<0;
+  const soon=diff!==null&&diff>=0&&diff<=2;
+
+  const numMatch=project.name.match(/\b(5\d{4})\b/);
+  const caseNum=numMatch?numMatch[1]:'';
+  const parts=project.name.replace(/\s*-\s*\d{5}\s*$/,'').split(' - ');
+  const city=parts[0]||'';
+
+  const tasks=[
+    {n:'יוסי',v:project.yossi,c:'#607060'},
+    {n:'מיכאל',v:project.michael,c:GOLD},
+    {n:'פייגי',v:project.feigi,c:'#8c6239'},
+  ].filter(t=>t.v);
+
+  const checks=[
+    {l:'מקדמה',v:project.advance},{l:'מסמכים',v:project.docs},{l:'דף ביקור',v:project.visitSheet},
+    {l:'תיק בניין',v:project.buildingFile},{l:'עסקאות',v:project.transactions},
+  ].filter(c=>c.v);
+
+  return(
+    <div onClick={onClick} style={{
+      background:'#fff',borderRadius:13,padding:'15px 17px',cursor:'pointer',
+      boxShadow:'0 1px 4px rgba(0,0,0,0.07)',borderRight:`5px solid ${m.dot}`,
+      transition:'all 0.16s',outline:overdue?'1.5px solid #fca5a5':'none',
+    }}
+    onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 5px 18px rgba(0,0,0,0.13)';e.currentTarget.style.transform='translateY(-2px)';}}
+    onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,0.07)';e.currentTarget.style.transform='translateY(0)';}}
+    >
+      {/* Title */}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:9,gap:6}}>
+        <div style={{flex:1,minWidth:0}}>
+          {caseNum&&<span style={{fontSize:11,fontWeight:700,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 8px',display:'inline-flex',alignItems:'center',gap:4,marginBottom:4,userSelect:'none'}}><span style={{width:6,height:6,borderRadius:'50%',background:'#d9af34',flexShrink:0}}/>{`#${caseNum}`}</span>}
+          <div style={{fontSize:14,fontWeight:700,color:'#0d0d0d',lineHeight:1.4}}>
+            <span style={{color:GOLD}}>{city}</span>
+            {parts[1]&&<span style={{color:'#4a3e30'}}>{' — '}{parts.slice(1).join(' — ')}</span>}
+          </div>
+        </div>
+        <Badge status={project.status} size="sm"/>
+      </div>
+
+      {/* Dates — hidden for client-side */}
+      {!hideDate&&(project.dueDate||project.expected||project.visitDate)&&(
+        <div style={{display:'flex',gap:10,marginBottom:9,flexWrap:'wrap'}}>
+          {project.dueDate&&<span style={{fontSize:12,color:'#6b5e50'}}>⏰ {project.dueDate}</span>}
+          {project.expected&&(
+            <span style={{fontSize:12,fontWeight:600,color:overdue?'#dc2626':soon?'#d97706':'#6b5e50'}}>
+              {overdue?'⚠️':'📅'} {project.expected}
+              {diff!==null&&<span style={{marginRight:4,fontSize:11}}>({Math.abs(diff)} ימים {overdue?'איחור':'נותרו'})</span>}
+            </span>
+          )}
+          {project.visitDate&&<span style={{fontSize:12,color:'#6b5e50'}}>🏠 {project.visitDate}</span>}
+        </div>
+      )}
+
+      {/* Tasks */}
+      {tasks.length>0&&(
+        <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:8}}>
+          {tasks.map(t=>(
+            <div key={t.n} style={{background:`${t.c}14`,border:`1px solid ${t.c}33`,borderRadius:7,padding:'3px 9px',fontSize:12}}>
+              <span style={{color:t.c,fontWeight:700}}>{t.n}: </span>
+              <span style={{color:'#3a3228',verticalAlign:'bottom'}}>{t.v}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Checklist badges */}
+      {checks.length>0&&(
+        <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:project.notes?6:0}}>
+          {checks.map(c=>{
+            const ok=c.v&&c.v!=='לא בוצע'&&c.v!=='לא אותר';
+            const partial=c.v==='חלקי';
+            const notDone=c.v==='לא בוצע'||c.v==='לא אותר';
+            const color=partial?'#3a2000':ok?'#1a0e00':notDone?'#606060':'#6b5e50';
+            const bg=partial?'#f5e8d5':ok?'#fef9e8':notDone?'#e8e8e8':'#f0ebe3';
+            const border=partial?'#8c6239':ok?'#d9af34':notDone?'#b8b8b8':'#ddd0bb';
+            return<span key={c.l} style={{fontSize:11,padding:'2px 7px',borderRadius:6,background:bg,color,fontWeight:600,border:`1px solid ${border}`}}>
+              {partial?'~':ok?'✓':'✗'} {c.l}
+            </span>;
+          })}
+        </div>
+      )}
+
+      {/* Notes */}
+      {project.notes&&(
+        <div style={{fontSize:12,color:'#9a8e84',marginTop:5,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',borderTop:'1px solid #ede8e0',paddingTop:5}}>
+          💬 {project.notes}
+        </div>
+      )}
+
+      {/* Missing docs */}
+      {project.missingDocs&&(
+        <div style={{marginTop:5,fontSize:12,color:'#9a3412',background:'#fff7ed',padding:'4px 8px',borderRadius:6,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+          ⚠️ {project.missingDocs}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════ PROJECT DETAIL PANEL ════════════════════════════
+function ProjectDetailPanel({project,onClose,onSave,mode='side'}){
+  const [form,setForm]=useState({...project});
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+  const [err,setErr]=useState('');
+  const [tab,setTab]=useState('main');
+  const savingRef=useRef(false);
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const doSave=async()=>{
+    if(savingRef.current)return;
+    savingRef.current=true;setSaving(true);setErr('');
+    try{await onSave({...form});setSaved(true);setTimeout(()=>setSaved(false),1800);}
+    catch(e){setErr(e.message);}
+    finally{setSaving(false);savingRef.current=false;}
+  };
+  const iS={width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
+  const inp=(k,multi=false)=>multi
+    ?<textarea value={form[k]||''} onChange={e=>set(k,e.target.value)} rows={2} style={{...iS,resize:'vertical'}}/>
+    :<input value={form[k]||''} onChange={e=>set(k,e.target.value)} style={iS}/>;
+  const toISO=v=>{if(!v)return'';const m=v.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);if(m)return`${m[3]||new Date().getFullYear()}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return v;};
+  const fromISO=v=>{if(!v)return'';const m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return`${m[3]}/${m[2]}/${m[1]}`;return v;};
+  const dateInp=(k)=><input type="date" value={toISO(form[k]||'')} onChange={e=>set(k,fromISO(e.target.value))} style={{...iS,cursor:'pointer'}}/>;
+  const selF=(k,opts)=><select value={form[k]||''} onChange={e=>set(k,e.target.value)} style={{...iS,fontFamily:'inherit'}}>{opts.map(o=><option key={o} value={o}>{o||'— בחר —'}</option>)}{form[k]&&!opts.includes(form[k])&&<option value={form[k]}>{form[k]}</option>}</select>;
+  const docChk=(k,label,ac,opts)=>(
+    <div key={k}>
+      <div style={{fontSize:11,fontWeight:700,color:ac,marginBottom:3}}>{label}</div>
+      <select value={form[k]||''} onChange={e=>set(k,e.target.value)}
+        style={{width:'100%',padding:'7px 9px',borderRadius:8,border:`1.5px solid ${ac}55`,fontSize:12,background:`${ac}0d`,outline:'none',color:'#1a1510',fontFamily:'inherit'}}>
+        {opts.map(o=><option key={o} value={o}>{o||'—'}</option>)}
+        {form[k]&&!opts.includes(form[k])&&<option value={form[k]}>{form[k]}</option>}
+      </select>
+    </div>
+  );
+  const numMatch=project.name.match(/\b(5\d{4})\b/);
+  const caseNum=numMatch?numMatch[1]:'';
+  const dot=STATUS_META[form.status]?.dot||GOLD;
+  const sec={background:'#fff',borderRadius:12,padding:16,marginBottom:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'};
+  const panelTabs=[{id:'main',label:'📋 ראשי'},{id:'docs',label:'📁 מסמכים'},{id:'visit',label:'🏠 ביקור'},{id:'fee',label:'💰 שכ"ט'}];
+  const panelStyle=mode==='full'
+    ?{width:'min(920px,96vw)',maxHeight:'94vh',margin:'auto',borderRadius:18,overflow:'hidden',boxShadow:'0 24px 80px rgba(0,0,0,0.35)',animation:'zoomIn 0.22s ease',display:'flex',flexDirection:'column'}
+    :mode==='tall'
+    ?{width:'100%',maxHeight:'80vh',borderRadius:'18px 18px 0 0',overflow:'hidden',boxShadow:'0 -8px 40px rgba(0,0,0,0.3)',animation:'slideUp 0.25s ease',display:'flex',flexDirection:'column'}
+    :{width:600,height:'100vh',background:'#f5f3ef',overflowY:'auto',boxShadow:'-10px 0 50px rgba(0,0,0,0.25)',animation:'slideIn 0.25s ease',flexShrink:0,display:'flex',flexDirection:'column'};
+  const wrapStyle=mode==='full'
+    ?{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.5)',backdropFilter:'blur(5px)'}
+    :mode==='tall'
+    ?{position:'fixed',inset:0,zIndex:600,display:'flex',flexDirection:'column',justifyContent:'flex-end'}
+    :{position:'fixed',inset:0,zIndex:600,display:'flex'};
+  return(
+    <div style={wrapStyle} onClick={mode!=='side'?onClose:undefined}>
+      {mode==='side'&&<div style={{flex:1,background:'rgba(0,0,0,0.45)',backdropFilter:'blur(4px)'}} onClick={onClose}/>}
+      <div style={{background:'#f5f3ef',...panelStyle,...(mode!=='side'?{overflowY:'auto'}:{})}} onClick={e=>e.stopPropagation()}>
+        {/* Header */}
+        <div style={{background:BLACK,padding:'18px 24px',flexShrink:0,borderLeft:`4px solid ${dot}`}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
+            <div style={{flex:1,minWidth:0}}>
+              {caseNum&&<span style={{fontSize:11,fontWeight:700,color:GOLD,background:`${GOLD}22`,border:`1px solid ${GOLD}44`,borderRadius:20,padding:'2px 9px',display:'inline-block',marginBottom:6}}>#{caseNum}</span>}
+              <div style={{fontSize:15,fontWeight:700,color:'#fff',lineHeight:1.4,marginBottom:8}}>{project.name}</div>
+              <Badge status={form.status}/>
+            </div>
+            <button onClick={onClose} style={{background:'rgba(255,255,255,0.12)',border:'none',borderRadius:8,width:34,height:34,color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>×</button>
+          </div>
+        </div>
+        {/* Tabs */}
+        <div style={{background:'#fff',display:'flex',borderBottom:'2px solid #ede8e0',padding:'0 16px',flexShrink:0,overflowX:'auto'}}>
+          {panelTabs.map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'12px 14px',border:'none',background:'transparent',borderBottom:`2px solid ${tab===t.id?GOLD:'transparent'}`,color:tab===t.id?GOLD3:'#6b5e50',fontWeight:tab===t.id?700:400,cursor:'pointer',fontSize:13,marginBottom:-2,whiteSpace:'nowrap',transition:'color 0.15s'}}>{t.label}</button>
+          ))}
+        </div>
+        {/* Save bar */}
+        <div style={{background:'#fff',padding:'10px 24px',borderBottom:'1px solid #e0d8cc',position:'sticky',top:0,zIndex:10,flexShrink:0,display:'flex',gap:8}}>
+          <button onClick={doSave} disabled={saving} style={{flex:1,padding:'9px',borderRadius:9,border:'none',background:saved?'#16a34a':BLACK,color:saved?'#fff':GOLD,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',gap:7}}>
+            {saving?<><Spinner size={14} color={GOLD}/>שומר...</>:saved?'✓ נשמר!':'💾 שמור שינויים'}
+          </button>
+          <button onClick={onClose} style={{padding:'9px 16px',borderRadius:9,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:13,color:'#6b5e50'}}>סגור</button>
+        </div>
+        {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{err}</div>}
+        {/* Content */}
+        <div style={{padding:'16px 24px',flex:1,overflowY:'auto',minHeight:0}}>
+          {tab==='main'&&<div>
+            <div style={sec}>
+              <SectionTitle icon="⚙️">סטטוס ותאריכים</SectionTitle>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                <div style={{gridColumn:'1/-1'}}><FLabel>סטטוס</FLabel>
+                  <select value={form.status||''} onChange={e=>set('status',e.target.value)} style={{...iS,fontFamily:'inherit'}}>
+                    <option value="">— בחר —</option>
+                    {STATUS_ORDER.map(s=><option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div><FLabel>תאריך לביצוע</FLabel>{dateInp('dueDate')}</div>
+                <div><FLabel>צפי לסיום</FLabel>{dateInp('expected')}</div>
+              </div>
+            </div>
+            <div style={sec}>
+              <SectionTitle icon="📋">משימות</SectionTitle>
+              {[['יוסי','yossi','#607060'],['מיכאל','michael',GOLD],['פייגי','feigi','#8c6239']].map(([l,k,c])=>(
+                <div key={k} style={{marginBottom:10}}><FLabel><span style={{color:c,fontWeight:700}}>{l}</span></FLabel>{inp(k)}</div>
+              ))}
+            </div>
+            <div style={sec}>
+              <SectionTitle icon="💬">הערות</SectionTitle>
+              {inp('notes',true)}
+            </div>
+          </div>}
+          {tab==='docs'&&<div>
+            <div style={sec}>
+              <SectionTitle icon="📁">מסמכים ופעולות</SectionTitle>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
+                {docChk('advance','דרישת מקדמה','#d9af34',ADVANCE_OPTS)}
+                {docChk('docs','השלמת מסמכים','#c49a28',DOCS_OPTS)}
+                {docChk('buildingFile','תיק בניין','#8c6239',BUILDING_OPTS)}
+                {docChk('transactions','עסקאות','#6a4520',TRANSACTIONS_OPTS)}
+                {docChk('visitSheet','דף ביקור','#4b3400',VISIT_SHEET_OPTS)}
+              </div>
+              <FLabel>⚠️ מסמכים חסרים</FLabel>{inp('missingDocs',true)}
+            </div>
+          </div>}
+          {tab==='visit'&&<div>
+            <div style={sec}>
+              <SectionTitle icon="🏠">פרטי ביקור</SectionTitle>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+                <div><FLabel>תאריך ביקור</FLabel>{dateInp('visitDate')}</div>
+                <div><FLabel>שעות</FLabel>{inp('visitHours')}</div>
+                <div><FLabel>נייד לתיאום</FLabel>{inp('visitPhone')}</div>
+                <div><FLabel>שם לתיאום</FLabel>{inp('visitName')}</div>
+                <div style={{gridColumn:'1/-1'}}><FLabel>שיוך לנכס</FLabel>{selF('visitRole',VISIT_ROLE_OPTS)}</div>
+              </div>
+              <FLabel>הערות לביקור</FLabel>{inp('visitNotes',true)}
+            </div>
+            <div style={sec}>
+              <SectionTitle icon="📬">לאחר ביקור</SectionTitle>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                <div><FLabel>דרישת מסמכים</FLabel>{dateInp('postVisitDocs')}</div>
+                <div><FLabel>השלמת מסמכים</FLabel>{dateInp('postVisitComplete')}</div>
+              </div>
+            </div>
+          </div>}
+          {tab==='fee'&&<div>
+            <div style={sec}>
+              <SectionTitle icon="💰">שכר טרחה</SectionTitle>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+                <div><FLabel>סכום שכ"ט (₪)</FLabel>{inp('fee')}</div>
+                <div><FLabel>סטטוס תשלום</FLabel>{inp('feeStatus')}</div>
+              </div>
+              <FLabel>הערות שכ"ט</FLabel>{inp('feeNotes',true)}
+              {form.fee&&<div style={{marginTop:16,padding:'14px 16px',background:'#fef9e8',borderRadius:10,border:`1px solid ${GOLD}66`}}>
+                <div style={{fontSize:22,fontWeight:900,color:GOLD3}}>₪{form.fee}</div>
+                {form.feeStatus&&<div style={{fontSize:12,color:'#6b5e50',marginTop:4}}>סטטוס: {form.feeStatus}</div>}
+                {form.feeNotes&&<div style={{fontSize:12,color:'#9a8e84',marginTop:2}}>{form.feeNotes}</div>}
+              </div>}
+            </div>
+          </div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════ PROJECTS VIEW (kanban groups) ═══════════════════
+function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
+  const [search,setSearch]=useState('');
+  const [personFilter,setPersonFilter]=useState('');
+  const [panelProject,setPanelProject]=useState(null);
+  const [collapsed,setCollapsed]=useState({});
+  const [viewMode,setViewMode]=useState('cards'); // 'cards' | 'table'
+  const [colGroup,setColGroup]=useState(0); // 0=ראשי 1=מסמכים 2=ביקור
+  const initFilterRef=useRef(false);
+  useEffect(()=>{
+    if(!initFilterRef.current){
+      initFilterRef.current=true;
+      const dp=(settings||DEFAULT_SETTINGS).defaultPerson;
+      if(dp==='__auto__'){
+        const name=USER_BY_EMAIL[(user?.email||'').toLowerCase()];
+        if(name)setPersonFilter(name);
+      } else {
+        setPersonFilter(dp||'');
+      }
+    }
+  },[user,settings]);
+
+  const activeProjects=useMemo(()=>projects.filter(p=>!CLIENT_STATUSES.includes(p.status)),[projects]);
+
+  const filtered=useMemo(()=>{
+    let arr=[...activeProjects];
+    const q=search.toLowerCase();
+    if(q)arr=arr.filter(p=>[p.name,p.yossi,p.michael,p.feigi,p.notes,p.missingDocs].some(v=>v.toLowerCase().includes(q)));
+    if(personFilter==='יוסי')arr=arr.filter(p=>p.yossi);
+    if(personFilter==='מיכאל')arr=arr.filter(p=>p.michael);
+    if(personFilter==='פייגי')arr=arr.filter(p=>p.feigi);
+    return arr;
+  },[activeProjects,search,personFilter]);
+
+  const groups=useMemo(()=>{
+    const byStatus={};
+    STATUS_ORDER.filter(s=>!CLIENT_STATUSES.includes(s)).forEach(s=>{
+      const items=filtered.filter(p=>p.status===s);
+      if(items.length)byStatus[s]=items;
+    });
+    return byStatus;
+  },[filtered]);
+
+  const handleSave=async(upd)=>{
+    const prev=projects.find(p=>p._row===upd._row)||{};
+    const finalNotes=withNoteDate(upd.notes);
+    const finalUpd={...upd,notes:finalNotes};
+    const row=buildProjectRow(finalUpd);
+    await api.put(`'פרויקטים בביצוע'!A${finalUpd._row}:${colLetter(row.length)}${finalUpd._row}`,[row]);
+    onUpdate(finalUpd._row,{...finalUpd,_raw:row});
+    // אוטומציות (רקע)
+    sendTaskEmails(prev,finalUpd,user?.email).catch(()=>{});
+    if(finalUpd.status!==prev.status&&managed)syncStatusToManaged(managed,finalUpd.name,finalUpd.status,onUpdateCase).catch(()=>{});
+    if(managed)sendMissingDocsEmailFn(finalUpd,prev,managed).catch(()=>{});
+  };
+
+  const toggle=(s)=>setCollapsed(c=>({...c,[s]:!c[s]}));
+
+  const inp={padding:'9px 14px',borderRadius:10,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none'};
+
+  return(
+    <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:1600}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
+        <div>
+          <h2 style={{fontSize:22,fontWeight:800,color:GOLD3}}>פרויקטים בביצוע</h2>
+          <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{filtered.length} תיקים פעילים</div>
+        </div>
+        <div style={{display:'flex',gap:6}}>
+          {[{id:'cards',label:'🃏 כרטיסים'},{id:'table',label:'📋 טבלה'}].map(m=>(
+            <button key={m.id} onClick={()=>{setViewMode(m.id);setSelectedRow(null);}} style={{
+              padding:'7px 14px',borderRadius:8,border:`1px solid ${viewMode===m.id?GOLD:'#ddd0bb'}`,
+              background:viewMode===m.id?`${GOLD}18`:'#faf8f4',color:viewMode===m.id?GOLD3:'#6b5e50',
+              fontWeight:viewMode===m.id?700:400,cursor:'pointer',fontSize:13,transition:'all 0.15s'
+            }}>{m.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div style={{display:'flex',gap:10,marginBottom:22,flexWrap:'wrap'}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 חיפוש — שם, עיר, לקוח, הערות..."
+          style={{...inp,flex:1,minWidth:220}}/>
+        <select value={personFilter} onChange={e=>setPersonFilter(e.target.value)} style={inp}>
+          <option value="">כל הנציגים</option>
+          {['יוסי','מיכאל','פייגי'].map(p=><option key={p} value={p}>{p}</option>)}
+        </select>
+        {(search||personFilter)&&<button onClick={()=>{setSearch('');setPersonFilter('');}}
+          style={{...inp,background:'#ede8e0',color:'#4b3400',border:'1px solid #ddd0bb',cursor:'pointer'}}>נקה ×</button>}
+      </div>
+
+      {/* Table view */}
+      {viewMode==='table'&&(()=>{
+        const today2=new Date();today2.setHours(0,0,0,0);
+        const Chk=({v})=>{if(!v)return<span style={{color:'#ccc',fontSize:11}}>—</span>;const ok=v==='בוצע'||v==='התקבל';return<span style={{fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:8,background:ok?'#d1fae5':'#fef3c7',color:ok?'#065f46':'#4b3400',whiteSpace:'nowrap'}}>{v}</span>;};
+        const groups3=[
+          {label:'ראשי',cols:[
+            {h:'שם תיק',w:'2.5fr',r:p=>{const d=p._dueD||p._expD;const ov=d&&d<today2;return<div style={{display:'flex',alignItems:'center',gap:6,overflow:'hidden'}}>{ov&&<span style={{color:'#dc2626',flexShrink:0,fontSize:11}}>⚠️</span>}<span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:600,fontSize:12}}>{p.name}</span></div>;}},
+            {h:'סטטוס',w:'120px',r:p=>{const m=STATUS_META[p.status]||{};return<span style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,background:m.bg,color:m.fg,whiteSpace:'nowrap'}}>{p.status}</span>;}},
+            {h:'יוסי',w:'90px',r:p=><Chk v={p.yossi}/>},
+            {h:'מיכאל',w:'90px',r:p=><Chk v={p.michael}/>},
+            {h:'פייגי',w:'70px',r:p=><Chk v={p.feigi}/>},
+            {h:'יעד',w:'80px',r:p=>{const d=p._dueD||p._expD;const ov=d&&d<today2;return p.dueDate||p.expected?<span style={{fontSize:11,color:ov?'#dc2626':'#6b5e50'}}>{p.dueDate||p.expected}</span>:<span style={{color:'#ccc'}}>—</span>;}},
+            {h:'צפוי',w:'80px',r:p=>p.expected?<span style={{fontSize:11,color:'#6b5e50'}}>{p.expected}</span>:<span style={{color:'#ccc'}}>—</span>},
+          ]},
+          {label:'מסמכים',cols:[
+            {h:'שם תיק',w:'2fr',r:p=><span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block',fontWeight:600,fontSize:12}}>{p.name}</span>},
+            {h:'תיק בניין',w:'90px',r:p=><Chk v={p.buildingFile}/>},
+            {h:'עסקאות',w:'90px',r:p=><Chk v={p.transactions}/>},
+            {h:'מסמכים',w:'90px',r:p=><Chk v={p.docs}/>},
+            {h:'מסמכים חסרים',w:'1.5fr',r:p=>p.missingDocs?<span style={{fontSize:11,color:'#9a3412',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}} title={p.missingDocs}>{p.missingDocs}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>},
+            {h:'הערות',w:'2fr',r:p=>p.notes?<span style={{fontSize:11,color:'#6b5e50',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}} title={p.notes}>{p.notes}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>},
+          ]},
+          {label:'ביקור',cols:[
+            {h:'שם תיק',w:'2fr',r:p=><span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block',fontWeight:600,fontSize:12}}>{p.name}</span>},
+            {h:'גיליון ביקור',w:'90px',r:p=><Chk v={p.visitSheet}/>},
+            {h:'תאריך ביקור',w:'90px',r:p=>p.visitDate?<span style={{fontSize:11}}>{p.visitDate}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>},
+            {h:'שעות',w:'80px',r:p=>p.visitHours?<span style={{fontSize:11}}>{p.visitHours}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>},
+            {h:'מסמכים אחרי ביקור',w:'100px',r:p=><Chk v={p.postVisitDocs}/>},
+            {h:'הערות ביקור',w:'2fr',r:p=>p.visitNotes?<span style={{fontSize:11,color:'#6b5e50',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}}>{p.visitNotes}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>},
+          ]},
+        ];
+        const grp=groups3[colGroup];
+        const cols=grp.cols;
+        const templateCols=cols.map(c=>c.w).join(' ');
+        return(
+          <div>
+            <div style={{display:'flex',gap:6,marginBottom:10}}>
+              {groups3.map((g,i)=>(
+                <button key={i} onClick={()=>setColGroup(i)} style={{padding:'5px 14px',borderRadius:20,border:`1.5px solid ${colGroup===i?GOLD:'#ddd0bb'}`,background:colGroup===i?'#fef9e8':'#fff',color:colGroup===i?GOLD3:'#6b5e50',cursor:'pointer',fontSize:12,fontWeight:colGroup===i?700:400}}>
+                  {g.label}
+                </button>
+              ))}
+              <span style={{marginRight:'auto',fontSize:12,color:'#9a8e84',alignSelf:'center'}}>{filtered.length} תיקים</span>
+            </div>
+            <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 8px rgba(0,0,0,0.07)',border:'1px solid #ede8e0',overflow:'hidden'}}>
+              <div style={{display:'grid',gridTemplateColumns:templateCols,gap:0,background:BLACK2,color:'#e8dfc9',fontSize:11,fontWeight:700,padding:'9px 14px',alignItems:'center'}}>
+                {cols.map((c,i)=><span key={i}>{c.h}</span>)}
+              </div>
+              {filtered.length===0?(
+                <div style={{padding:40,textAlign:'center',color:'#9a8e84'}}>לא נמצאו תיקים</div>
+              ):filtered.map((p,idx)=>(
+                <div key={p._row} onClick={()=>setPanelProject(p)}
+                  style={{display:'grid',gridTemplateColumns:templateCols,gap:0,padding:'8px 14px',alignItems:'center',cursor:'pointer',background:idx%2===0?'#fff':'#fdf9f5',borderBottom:'1px solid #f0ebe3',transition:'background 0.1s'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='#fdf8ee'}
+                  onMouseLeave={e=>e.currentTarget.style.background=idx%2===0?'#fff':'#fdf9f5'}>
+                  {cols.map((c,i)=><div key={i} style={{overflow:'hidden'}}>{c.r(p)}</div>)}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {viewMode==='cards'&&Object.keys(groups).length===0?(
+        <div style={{padding:60,textAlign:'center',color:'#9a8e84'}}>
+          <div style={{fontSize:48,marginBottom:12}}>🔍</div><div>לא נמצאו תיקים</div>
+        </div>
+      ):viewMode==='cards'&&(
+        Object.entries(groups).map(([status,items])=>{
+          const m=STATUS_META[status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
+          const isOpen=!collapsed[status];
+          return(
+            <div key={status} style={{marginBottom:18,boxShadow:'0 4px 14px rgba(0,0,0,0.13)',borderRadius:14}}>
+              <div onClick={()=>toggle(status)} style={{background:m.bg,padding:'13px 18px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:isOpen?`2px solid ${m.dot}88`:'none',borderRadius:isOpen?'14px 14px 0 0':14}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{width:12,height:12,borderRadius:'50%',background:m.dot,display:'inline-block',flexShrink:0,boxShadow:`0 0 5px ${m.dot}99`}}/>
+                  <span style={{fontSize:15,fontWeight:800,color:m.fg}}>{status}</span>
+                  <span style={{background:`${m.dot}33`,color:m.fg,border:`1px solid ${m.dot}66`,borderRadius:20,padding:'2px 10px',fontSize:13,fontWeight:700}}>{items.length}</span>
+                </div>
+                <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
+              </div>
+              {isOpen&&(
+                <div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px'}}>
+                  {items.map(p=><ProjectCard key={p._row} project={p} onClick={()=>setPanelProject(p)}/>)}
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} mode={settings?.expandMode||'side'}/>}
+    </div>
+  );
+}
+
+// ═══════════════ CLIENT VIEW ══════════════════════════════════════
+function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings}){
+  const [search,setSearch]=useState('');
+  const [statusFilter,setStatusFilter]=useState('');
+  const [panelProject,setPanelProject]=useState(null);
+  const [collapsed,setCollapsed]=useState({});
+
+  const clientProjects=useMemo(()=>projects.filter(p=>CLIENT_STATUSES.includes(p.status)),[projects]);
+  const filtered=useMemo(()=>{
+    let arr=[...clientProjects];
+    const q=search.toLowerCase();
+    if(q)arr=arr.filter(p=>[p.name,p.notes,p.missingDocs].some(v=>v.toLowerCase().includes(q)));
+    if(statusFilter)arr=arr.filter(p=>p.status===statusFilter);
+    return arr;
+  },[clientProjects,search,statusFilter]);
+
+  const groups=useMemo(()=>{
+    const by={};
+    CLIENT_STATUSES.forEach(s=>{const items=filtered.filter(p=>p.status===s);if(items.length)by[s]=items;});
+    return by;
+  },[filtered]);
+
+  const handleSave=async(upd)=>{
+    const prev=projects.find(p=>p._row===upd._row)||{};
+    const finalNotes=withNoteDate(upd.notes);
+    const finalUpd={...upd,notes:finalNotes};
+    const row=buildProjectRow(finalUpd);
+    await api.put(`'פרויקטים בביצוע'!A${finalUpd._row}:${colLetter(row.length)}${finalUpd._row}`,[row]);
+    onUpdate(finalUpd._row,{...finalUpd,_raw:row});
+    sendTaskEmails(prev,finalUpd,user?.email).catch(()=>{});
+    if(finalUpd.status!==prev.status&&managed)syncStatusToManaged(managed,finalUpd.name,finalUpd.status,onUpdateCase).catch(()=>{});
+    if(managed)sendMissingDocsEmailFn(finalUpd,prev,managed).catch(()=>{});
+  };
+
+  const counts=useMemo(()=>{const c={};clientProjects.forEach(p=>{c[p.status]=(c[p.status]||0)+1;});return c;},[clientProjects]);
+  const inp={padding:'9px 14px',borderRadius:10,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none'};
+
+  return(
+    <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:1600}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
+        <div>
+          <h2 style={{fontSize:22,fontWeight:800,color:GOLD3}}>ממתין ללקוח</h2>
+          <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{filtered.length} תיקים ממתינים לפעולה חיצונית</div>
+        </div>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+          {CLIENT_STATUSES.filter(s=>counts[s]).map(s=>{
+            const m=STATUS_META[s]||{};
+            return<button key={s} onClick={()=>setStatusFilter(statusFilter===s?'':s)}
+              style={{padding:'5px 11px',borderRadius:14,border:`1.5px solid ${statusFilter===s?m.dot||'#ccc':'#ddd0bb'}`,background:statusFilter===s?m.bg||'#f0ebe3':'#fff',cursor:'pointer',fontSize:12,fontWeight:600,color:statusFilter===s?m.fg||'#3a3228':'#6b5e50'}}>
+              {s} ({counts[s]})
+            </button>;
+          })}
+        </div>
+      </div>
+      <div style={{display:'flex',gap:10,marginBottom:22}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 חיפוש..." style={{...inp,flex:1}}/>
+        {search&&<button onClick={()=>setSearch('')} style={{...inp,background:'#ede8e0',color:'#4b3400',border:'1px solid #ddd0bb',cursor:'pointer'}}>נקה ×</button>}
+      </div>
+
+      {Object.keys(groups).length===0?(
+        <div style={{padding:60,textAlign:'center',color:'#9a8e84'}}>
+          <div style={{fontSize:48,marginBottom:12}}>✅</div><div>אין תיקים ממתינים ללקוח</div>
+        </div>
+      ):(
+        Object.entries(groups).map(([status,items])=>{
+          const m=STATUS_META[status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
+          const isOpen=!collapsed[status];
+          return(
+            <div key={status} style={{marginBottom:18,boxShadow:'0 4px 14px rgba(0,0,0,0.13)',borderRadius:14}}>
+              <div onClick={()=>setCollapsed(c=>({...c,[status]:!c[status]}))} style={{background:m.bg,padding:'13px 18px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:isOpen?`2px solid ${m.dot}88`:'none',borderRadius:isOpen?'14px 14px 0 0':14}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{width:12,height:12,borderRadius:'50%',background:m.dot,display:'inline-block',flexShrink:0,boxShadow:`0 0 5px ${m.dot}99`}}/>
+                  <span style={{fontSize:15,fontWeight:800,color:m.fg}}>{status}</span>
+                  <span style={{background:`${m.dot}33`,color:m.fg,border:`1px solid ${m.dot}66`,borderRadius:20,padding:'2px 10px',fontSize:13,fontWeight:700}}>{items.length}</span>
+                </div>
+                <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
+              </div>
+              {isOpen&&<div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px'}}>
+                {items.map(p=><ProjectCard key={p._row} project={p} onClick={()=>setPanelProject(p)} hideDate/>)}
+              </div>}
+            </div>
+          );
+        })
+      )}
+      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} mode={settings?.expandMode||'side'}/>}
+    </div>
+  );
+}
+
+// ═══════════════ MANAGED CASE PANEL ══════════════════════════════
+const MANAGED_STATUSES=['הסתיים','בביצוע','ממתין','בוטל'];
+const PURPOSE_OPTIONS=['שומה אחרת להיטל השבחה','תשלומי איזון','בטוחה - רכישה','בית משפט - הערכת שווי','בדיקת התאמה להיתר','בטוחה - הערכת נכס בשיפוץ','אישור שמאי - העדר פגיעה בשכנים','בטוחה - הערכת נכס קיים','תקן 19 - טרום רכישה','בטוחה - נכס להרחבה ושיפוץ','טבלת הקצאות - תב"ע','דמי שכירות ראויים - מקוצרת','שומה להפחתת מס שבח','דמי שכירות ראויים','ניקוד דירות','דיון בית דין','שמאות פנימית'];
+const PROP_TYPE_OPTIONS=['קרקע לבניה','דירת מגורים','צמוד קרקע','צמוד קרקע - דו משפחתי','קרקע חקלאית','מחסן','בניין מגורים','דירות מגורים וחניות'];
+
+function ManagedPanel({cas,onClose,onSave,allCases}){
+  const [form,setForm]=useState({...cas});
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+  const [err,setErr]=useState('');
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const handleAdvisorChange=(v)=>{
+    const updated={advisor:v};
+    if(v&&allCases){
+      const match=allCases.find(c=>c._row!==cas._row&&c.advisor&&c.advisor.trim()===v.trim()&&(c.advisorPhone||c.advisorEmail));
+      if(match){
+        if(match.advisorPhone)updated.advisorPhone=match.advisorPhone;
+        if(match.advisorEmail)updated.advisorEmail=match.advisorEmail;
+      }
+    }
+    setForm(f=>({...f,...updated}));
+  };
+
+  const handleSave=async()=>{
+    setSaving(true);setErr('');setSaved(false);
+    try{
+      const row=[...form._raw];
+      while(row.length<=23)row.push('');
+      // all cols except folder (5) are editable
+      [[M.openDate,'openDate'],[M.closeDate,'closeDate'],[M.fee,'fee'],
+       [M.caseNum,'caseNum'],[M.status,'status'],
+       [M.client,'client'],[M.phone,'phone'],[M.email,'email'],
+       [M.advisor,'advisor'],[M.advisorPhone,'advisorPhone'],[M.advisorEmail,'advisorEmail'],
+       [M.purpose,'purpose'],[M.propType,'propType'],[M.rights,'rights'],
+       [M.city,'city'],[M.street,'street'],[M.houseNum,'houseNum'],[M.aptNum,'aptNum'],
+       [M.block,'block'],[M.parcel,'parcel'],[M.subParcel,'subParcel'],[M.bank,'bank'],[M.michael,'michael'],
+      ].forEach(([i,k])=>row[i]=form[k]||'');
+      await onSave(form._row,row);
+      setSaved(true);setTimeout(()=>setSaved(false),2000);
+    }catch(e){setErr(e.message);}
+    finally{setSaving(false);}
+  };
+
+  const inp=(k,multi=false)=>{
+    const s={width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'};
+    return multi?<textarea value={form[k]||''} onChange={e=>set(k,e.target.value)} rows={2} style={{...s,resize:'vertical'}}/>
+      :<input value={form[k]||''} onChange={e=>set(k,e.target.value)} style={s}/>;
+  };
+
+  const selStyle={width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'};
+
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:600,display:'flex'}}>
+      <div style={{flex:1,background:'rgba(0,0,0,0.45)',backdropFilter:'blur(4px)'}} onClick={onClose}/>
+      <div style={{width:560,height:'100vh',background:'#f5f3ef',overflowY:'auto',boxShadow:'-10px 0 50px rgba(0,0,0,0.25)',animation:'slideIn 0.25s ease',flexShrink:0,display:'flex',flexDirection:'column'}}>
+        <div style={{background:BLACK,padding:'20px 24px',flexShrink:0}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div>
+              <div style={{fontSize:11,color:GOLD,fontWeight:700,letterSpacing:'1px',marginBottom:3}}>תיק #{cas.caseNum}</div>
+              <div style={{fontSize:14,fontWeight:700,color:'#fff',lineHeight:1.5,maxWidth:440}}>{cas.folder}</div>
+            </div>
+            <button onClick={onClose} style={{background:'rgba(255,255,255,0.1)',border:'none',borderRadius:8,width:32,height:32,color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+          </div>
+        </div>
+        <div style={{background:'#fff',padding:'10px 24px',borderBottom:'1px solid #e0d8cc',position:'sticky',top:0,zIndex:10,flexShrink:0,display:'flex',gap:8}}>
+          <button onClick={handleSave} disabled={saving} style={{flex:1,padding:'9px',borderRadius:9,border:'none',background:saved?'#16a34a':BLACK,color:saved?'#fff':GOLD,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',gap:7}}>
+            {saving?<><Spinner size={14} color={GOLD}/>שומר...</>:saved?'✓ נשמר!':'💾 שמור'}
+          </button>
+          <button onClick={()=>setForm({...cas})} style={{padding:'9px 14px',borderRadius:9,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:13,color:'#6b5e50'}}>שחזר</button>
+        </div>
+        {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:14}}>{err}</div>}
+
+        <div style={{padding:'16px 24px',flex:1}}>
+          {/* פרטי תיק */}
+          <div style={{background:'#fff',borderRadius:12,padding:16,marginBottom:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
+            <SectionTitle icon="📦">פרטי תיק</SectionTitle>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+              <div><FLabel>מספר תיק</FLabel>{inp('caseNum')}</div>
+              <div>
+                <FLabel>סטטוס</FLabel>
+                <select value={form.status||''} onChange={e=>set('status',e.target.value)}
+                  style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff'}}>
+                  <option value="">— בחר —</option>
+                  {MANAGED_STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
+                  {form.status&&!MANAGED_STATUSES.includes(form.status)&&<option value={form.status}>{form.status}</option>}
+                </select>
+              </div>
+              <div><FLabel>תאריך פתיחה</FLabel>{inp('openDate')}</div>
+              <div><FLabel>תאריך סגירה</FLabel>{inp('closeDate')}</div>
+              <div><FLabel>שכר טרחה (₪)</FLabel>{inp('fee')}</div>
+              <div><FLabel>מיכאל</FLabel>{inp('michael')}</div>
+            </div>
+            <FLabel>תיקייה (נוסחה — קריאה בלבד)</FLabel>
+            <div style={{padding:'8px 11px',borderRadius:8,background:'#f0ebe3',fontSize:13,color:'#6b5e50',border:'1px solid #e0d8cc'}}>{cas.folder||'—'}</div>
+          </div>
+
+          {/* לקוח */}
+          <div style={{background:'#fff',borderRadius:12,padding:16,marginBottom:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
+            <SectionTitle icon="👤">לקוח</SectionTitle>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div style={{gridColumn:'1/-1'}}><FLabel>שם לקוח</FLabel>{inp('client')}</div>
+              <div><FLabel>טלפון</FLabel>{inp('phone')}</div>
+              <div><FLabel>מייל</FLabel>{inp('email')}</div>
+            </div>
+          </div>
+
+          {/* יועץ */}
+          <div style={{background:'#fff',borderRadius:12,padding:16,marginBottom:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
+            <SectionTitle icon="🤝">יועץ משכנתאות</SectionTitle>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div style={{gridColumn:'1/-1'}}><FLabel>שם יועץ</FLabel><input value={form.advisor||''} onChange={e=>handleAdvisorChange(e.target.value)} style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit',boxSizing:'border-box'}}/></div>
+              <div><FLabel>טלפון</FLabel>{inp('advisorPhone')}</div>
+              <div><FLabel>מייל</FLabel>{inp('advisorEmail')}</div>
+            </div>
+          </div>
+
+          {/* נכס */}
+          <div style={{background:'#fff',borderRadius:12,padding:16,marginBottom:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
+            <SectionTitle icon="🏠">פרטי הנכס</SectionTitle>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div><FLabel>עיר / ישוב</FLabel>{inp('city')}</div>
+              <div><FLabel>בנק</FLabel>{inp('bank')}</div>
+              <div><FLabel>רחוב</FLabel>{inp('street')}</div>
+              <div><FLabel>מספר בית</FLabel>{inp('houseNum')}</div>
+              <div><FLabel>מספר דירה</FLabel>{inp('aptNum')}</div>
+              <div>
+                <FLabel>מטרת העבודה</FLabel>
+                <select value={form.purpose||''} onChange={e=>set('purpose',e.target.value)} style={selStyle}>
+                  <option value="">— בחר מטרה —</option>
+                  {PURPOSE_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
+                  {form.purpose&&!PURPOSE_OPTIONS.includes(form.purpose)&&<option value={form.purpose}>{form.purpose}</option>}
+                </select>
+              </div>
+              <div>
+                <FLabel>סוג נכס</FLabel>
+                <select value={form.propType||''} onChange={e=>set('propType',e.target.value)} style={selStyle}>
+                  <option value="">— בחר סוג —</option>
+                  {PROP_TYPE_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
+                  {form.propType&&!PROP_TYPE_OPTIONS.includes(form.propType)&&<option value={form.propType}>{form.propType}</option>}
+                </select>
+              </div>
+              <div><FLabel>סוג זכויות</FLabel>{inp('rights')}</div>
+              <div><FLabel>גוש</FLabel>{inp('block')}</div>
+              <div><FLabel>חלקה</FLabel>{inp('parcel')}</div>
+              <div><FLabel>תת חלקה</FLabel>{inp('subParcel')}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════ ADD CASE MODAL ══════════════════════════════════
+function AddCaseModal({onClose,onAdd}){
+  const [form,setForm]=useState({caseNum:'',client:'',city:'',street:'',houseNum:'',aptNum:'',
+    purpose:'',propType:'',bank:'',advisor:'',phone:'',email:'',openDate:'',status:'בביצוע',fee:'',rights:''});
+  const [saving,setSaving]=useState(false);
+  const [err,setErr]=useState('');
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+
+  const handleAdd=async()=>{
+    if(!form.caseNum){setErr('מספר תיק הוא שדה חובה');return;}
+    setSaving(true);setErr('');
+    try{await onAdd(form);}
+    catch(e){setErr(e.message);setSaving(false);}
+  };
+
+  const inp=(k,placeholder='')=>(
+    <input value={form[k]||''} onChange={e=>set(k,e.target.value)} placeholder={placeholder}
+      style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'}}/>
+  );
+
+  const selStyle={width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'};
+
+  return(
+    <div style={{position:'fixed',inset:0,zIndex:700,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{background:'#fff',borderRadius:20,padding:32,width:'100%',maxWidth:600,maxHeight:'90vh',overflow:'auto',boxShadow:'0 24px 60px rgba(0,0,0,0.3)',animation:'fadeIn 0.2s ease'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+          <h2 style={{fontSize:18,fontWeight:800,color:BLACK}}>הוסף תיק חדש</h2>
+          <button onClick={onClose} style={{background:'#f0ebe3',border:'none',borderRadius:8,width:32,height:32,fontSize:18,cursor:'pointer',color:'#6b5e50',display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+        </div>
+        {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 14px',borderRadius:8,fontSize:14,marginBottom:16}}>{err}</div>}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+          <div style={{gridColumn:'1/-1'}}><FLabel>מספר תיק *</FLabel>{inp('caseNum','5xxxx')}</div>
+          <div style={{gridColumn:'1/-1'}}><FLabel>שם לקוח</FLabel>{inp('client')}</div>
+          <div><FLabel>עיר</FLabel>{inp('city')}</div>
+          <div><FLabel>בנק</FLabel>{inp('bank')}</div>
+          <div><FLabel>רחוב</FLabel>{inp('street')}</div>
+          <div><FLabel>מספר בית</FLabel>{inp('houseNum')}</div>
+          <div><FLabel>דירה</FLabel>{inp('aptNum')}</div>
+          <div>
+            <FLabel>מטרת העבודה</FLabel>
+            <select value={form.purpose||''} onChange={e=>set('purpose',e.target.value)} style={selStyle}>
+              <option value="">— בחר מטרה —</option>
+              {PURPOSE_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+          <div>
+            <FLabel>סוג נכס</FLabel>
+            <select value={form.propType||''} onChange={e=>set('propType',e.target.value)} style={selStyle}>
+              <option value="">— בחר סוג —</option>
+              {PROP_TYPE_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+          <div><FLabel>סוג זכויות</FLabel>{inp('rights')}</div>
+          <div><FLabel>יועץ</FLabel>{inp('advisor')}</div>
+          <div><FLabel>טלפון</FLabel>{inp('phone')}</div>
+          <div><FLabel>מייל</FLabel>{inp('email')}</div>
+          <div><FLabel>תאריך פתיחה</FLabel>{inp('openDate')}</div>
+          <div><FLabel>שכר טרחה</FLabel>{inp('fee')}</div>
+          <div>
+            <FLabel>סטטוס</FLabel>
+            <select value={form.status} onChange={e=>set('status',e.target.value)}
+              style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff'}}>
+              {['בביצוע','הסתיים','ממתין','בוטל'].map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:10,marginTop:24}}>
+          <button onClick={handleAdd} disabled={saving} style={{flex:1,padding:'11px',borderRadius:10,border:'none',background:BLACK,color:GOLD,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',gap:7}}>
+            {saving?<><Spinner size={14} color={GOLD}/>שומר...</>:'➕ הוסף תיק'}
+          </button>
+          <button onClick={onClose} style={{padding:'11px 20px',borderRadius:10,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:14}}>ביטול</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════ MANAGED CASES VIEW ══════════════════════════════
+function ManagedView({cases,onUpdateCase,onAddCase}){
+  const [search,setSearch]=useState('');
+  const [filters,setFilters]=useState({status:'',bank:'',city:'',purpose:'',propType:'',advisor:''});
+  const [page,setPage]=useState(0);
+  const [selected,setSelected]=useState(null);
+  const [adding,setAdding]=useState(false);
+  const [sortKey,setSortKey]=useState('caseNum');
+  const [sortDir,setSortDir]=useState('desc');
+  const PAGE=500;
+
+  const setF=(k,v)=>setFilters(f=>({...f,[k]:v}));
+  const opts=(key)=>[...new Set(cases.map(c=>c[key]).filter(Boolean))].sort();
+
+  const toggleSort=(k)=>{if(sortKey===k){setSortDir(d=>d==='asc'?'desc':'asc');}else{setSortKey(k);setSortDir('asc');}};
+
+  const filtered=useMemo(()=>{
+    let arr=[...cases];
+    const q=search.toLowerCase();
+    if(q)arr=arr.filter(c=>[c.caseNum,c.client,c.city,c.street,c.folder,c.bank,c.purpose,c.advisor,c.propType].some(v=>String(v||'').toLowerCase().includes(q)));
+    if(filters.status)arr=arr.filter(c=>c.status===filters.status);
+    if(filters.bank)arr=arr.filter(c=>c.bank===filters.bank);
+    if(filters.city)arr=arr.filter(c=>c.city===filters.city);
+    if(filters.purpose)arr=arr.filter(c=>c.purpose===filters.purpose);
+    if(filters.propType)arr=arr.filter(c=>c.propType===filters.propType);
+    if(filters.advisor)arr=arr.filter(c=>c.advisor===filters.advisor);
+    arr.sort((a,b)=>{
+      let va=a[sortKey]||'', vb=b[sortKey]||'';
+      if(sortKey==='caseNum'||sortKey==='fee'){va=Number(va)||0;vb=Number(vb)||0;return sortDir==='asc'?va-vb:vb-va;}
+      const cmp=String(va).localeCompare(String(vb),'he');
+      return sortDir==='asc'?cmp:-cmp;
+    });
+    return arr;
+  },[cases,search,filters,sortKey,sortDir]);
+
+  const anyFilter=search||Object.values(filters).some(Boolean);
+  useEffect(()=>setPage(0),[search,filters]);
+  const paged=filtered.slice(page*PAGE,(page+1)*PAGE);
+  const total=Math.ceil(filtered.length/PAGE);
+
+  const STATUS_C={'הסתיים':{bg:'#dcfce7',fg:'#166534'},'בביצוע':{bg:'#fdf8ee',fg:'#4b3400'},'ממתין':{bg:'#ffedd5',fg:'#9a3412'},'בוטל':{bg:'#fee2e2',fg:'#991b1b'}};
+  const inp={padding:'8px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:13,background:'#fff',outline:'none'};
+  const sel=(k,ph)=>(
+    <select value={filters[k]} onChange={e=>setF(k,e.target.value)} style={inp}>
+      <option value="">{ph}</option>
+      {opts(k).map(v=><option key={v} value={v}>{v}</option>)}
+    </select>
+  );
+
+  const cols=[
+    {k:'caseNum',l:'#תיק',w:80},{k:'folder',l:'תיקייה',w:240},{k:'client',l:'לקוח',w:140},
+    {k:'city',l:'עיר',w:90},{k:'street',l:'רחוב',w:100},{k:'houseNum',l:'מס\'',w:50},{k:'aptNum',l:'דירה',w:50},
+    {k:'purpose',l:'מטרה',w:150},{k:'propType',l:'סוג נכס',w:100},{k:'rights',l:'זכויות',w:90},
+    {k:'bank',l:'בנק',w:100},{k:'advisor',l:'יועץ',w:120},
+    {k:'openDate',l:'פתיחה',w:85},{k:'closeDate',l:'סגירה',w:85},{k:'fee',l:'שכר טרחה',w:90},
+    {k:'status',l:'סטטוס',w:80},
+    {k:'phone',l:'טלפון',w:110},{k:'email',l:'מייל',w:140},
+  ];
+
+  return(
+    <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease'}}>
+      {adding&&<AddCaseModal onClose={()=>setAdding(false)} onAdd={async(form)=>{
+        // append new row to sheet
+        const row=new Array(24).fill('');
+        row[M.caseNum]=form.caseNum;row[M.client]=form.client;row[M.openDate]=form.openDate;
+        row[M.status]=form.status;row[M.city]=form.city;row[M.street]=form.street;
+        row[M.houseNum]=form.houseNum;row[M.aptNum]=form.aptNum;row[M.purpose]=form.purpose;
+        row[M.propType]=form.propType;row[M.bank]=form.bank;row[M.advisor]=form.advisor;
+        row[M.phone]=form.phone;row[M.email]=form.email;row[M.fee]=form.fee;row[M.rights]=form.rights;
+        await api.put(`'ניהול תיקים'!A${cases.length+2}:${colLetter(24)}${cases.length+2}`,[row]);
+        onAddCase({...form,_row:cases.length+2,_raw:row,folder:'',closeDate:'',advisorPhone:'',advisorEmail:'',block:'',parcel:'',subParcel:'',michael:''});
+        setAdding(false);
+      }}/>}
+
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:12}}>
+        <div>
+          <h2 style={{fontSize:22,fontWeight:800,color:GOLD3}}>כלל התיקים</h2>
+          <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{filtered.length} מתוך {cases.length} תיקים</div>
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          {MANAGED_STATUSES.map(s=>{const sc=STATUS_C[s]||{};return(
+            <span key={s} onClick={()=>setF('status',filters.status===s?'':s)} style={{...sc,padding:'5px 12px',borderRadius:14,fontSize:12,fontWeight:700,cursor:'pointer',border:`1.5px solid ${filters.status===s?'currentcolor':'transparent'}`}}>
+              {s} ({cases.filter(c=>c.status===s).length})
+            </span>
+          );})}
+          <button onClick={()=>setAdding(true)} style={{padding:'9px 18px',borderRadius:10,border:'none',background:BLACK,color:GOLD,fontWeight:700,cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(0,0,0,0.15)'}}>
+            ➕ הוסף תיק
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 חיפוש חופשי..."
+          style={{...inp,flex:'1 1 200px'}}/>
+        {sel('bank','בנק')}
+        {sel('city','עיר')}
+        {sel('purpose','מטרה')}
+        {sel('propType','סוג נכס')}
+        {sel('advisor','יועץ')}
+        {anyFilter&&<button onClick={()=>{setSearch('');setFilters({status:'',bank:'',city:'',purpose:'',propType:'',advisor:''});}}
+          style={{...inp,background:'#ede8e0',color:'#4b3400',border:'1px solid #ddd0bb',cursor:'pointer'}}>נקה הכל ×</button>}
+      </div>
+
+      <div style={{background:'#fff',borderRadius:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflow:'hidden'}}>
+        <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+            <thead>
+              <tr style={{background:BLACK,color:'#e8dfc9'}}>
+                {cols.map(c=>(
+                  <th key={c.k} onClick={()=>toggleSort(c.k)} style={{padding:'11px 12px',textAlign:'right',fontWeight:600,whiteSpace:'nowrap',fontSize:12,minWidth:c.w,cursor:'pointer',userSelect:'none',transition:'background 0.1s'}}
+                    onMouseEnter={e=>e.currentTarget.style.background='rgba(201,164,78,0.15)'}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    {c.l}
+                    <span style={{marginRight:4,opacity:sortKey===c.k?1:0.3,fontSize:10}}>
+                      {sortKey===c.k?(sortDir==='asc'?'▲':'▼'):'⇅'}
+                    </span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {paged.map((c,i)=>{
+                const sc=STATUS_C[c.status]||{bg:'#f0ebe3',fg:'#3a3228'};
+                return(
+                  <tr key={c._row} style={{borderBottom:'1px solid #ede8e0',background:i%2===0?'#fff':'#fdf9f5',cursor:'pointer',transition:'background 0.1s'}}
+                    onClick={()=>setSelected(c)}
+                    onMouseEnter={e=>e.currentTarget.style.background='#fdf8ee'}
+                    onMouseLeave={e=>e.currentTarget.style.background=i%2===0?'#fff':'#fdf9f5'}
+                  >
+                    <td style={{padding:'10px 12px',fontWeight:800,color:GOLD,whiteSpace:'nowrap'}}>{c.caseNum}</td>
+                    <td style={{padding:'10px 12px',maxWidth:240,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:500}} title={c.folder}>{c.folder||c.client}</td>
+                    <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{c.client}</td>
+                    <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{c.city}</td>
+                    <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{c.street}</td>
+                    <td style={{padding:'10px 12px'}}>{c.houseNum}</td>
+                    <td style={{padding:'10px 12px'}}>{c.aptNum}</td>
+                    <td style={{padding:'10px 12px',maxWidth:150,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#6b5e50'}} title={c.purpose}>{c.purpose}</td>
+                    <td style={{padding:'10px 12px',whiteSpace:'nowrap',color:'#6b5e50'}}>{c.propType}</td>
+                    <td style={{padding:'10px 12px',color:'#6b5e50'}}>{c.rights}</td>
+                    <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{c.bank}</td>
+                    <td style={{padding:'10px 12px',whiteSpace:'nowrap',color:'#6b5e50',maxWidth:130,overflow:'hidden',textOverflow:'ellipsis'}}>{c.advisor}</td>
+                    <td style={{padding:'10px 12px',whiteSpace:'nowrap',color:'#9a8e84'}}>{c.openDate}</td>
+                    <td style={{padding:'10px 12px',whiteSpace:'nowrap',color:'#9a8e84'}}>{c.closeDate}</td>
+                    <td style={{padding:'10px 12px',fontWeight:c.fee?700:400,color:c.fee?'#1a1510':'#9a8e84'}}>{c.fee?`₪${c.fee}`:''}</td>
+                    <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>
+                      {c.status&&<span style={{...sc,padding:'3px 8px',borderRadius:12,fontSize:11,fontWeight:700}}>{c.status}</span>}
+                    </td>
+                    <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>
+                      {c.phone&&<a href={`tel:${c.phone}`} onClick={e=>e.stopPropagation()} style={{color:'#4b3400',textDecoration:'none'}}>{c.phone}</a>}
+                    </td>
+                    <td style={{padding:'10px 12px',maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                      {c.email&&<a href={`mailto:${c.email}`} onClick={e=>e.stopPropagation()} style={{color:'#4b3400',textDecoration:'none',fontSize:12}}>{c.email}</a>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {filtered.length===0&&<div style={{padding:48,textAlign:'center',color:'#9a8e84'}}><div style={{fontSize:40,marginBottom:10}}>🗂️</div><div>לא נמצאו תיקים</div></div>}
+        </div>
+        {total>1&&<div style={{padding:'12px 20px',borderTop:'1px solid #ede8e0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <span style={{fontSize:13,color:'#6b5e50'}}>עמוד {page+1} / {total} ({filtered.length} תיקים)</span>
+          <div style={{display:'flex',gap:6}}>
+            <button disabled={page===0} onClick={()=>setPage(p=>p-1)} style={{padding:'6px 14px',borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:page===0?'not-allowed':'pointer',opacity:page===0?0.4:1,fontSize:13}}>הקודם</button>
+            <button disabled={page>=total-1} onClick={()=>setPage(p=>p+1)} style={{padding:'6px 14px',borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:page>=total-1?'not-allowed':'pointer',opacity:page>=total-1?0.4:1,fontSize:13}}>הבא</button>
+          </div>
+        </div>}
+      </div>
+
+      {selected&&<ManagedPanel cas={selected} allCases={cases} onClose={()=>setSelected(null)} onSave={async(rowNum,row)=>{
+        await api.put(`'ניהול תיקים'!A${rowNum}:${colLetter(row.length)}${rowNum}`,[row]);
+        onUpdateCase(rowNum,{...selected,...Object.fromEntries(Object.entries(M).map(([k,i])=>[k,String(row[i]||'').trim()]))});
+        setSelected(null);
+      }}/>}
+    </div>
+  );
+}
+
+// ═══════════════ SIDEBAR ══════════════════════════════════════════
+function Sidebar({view,setView,user,onLogout,loading,counts}){
+  const [logoSrc,setLogoSrc]=useState(CONFIG.LOGO_URL);
+  const [logoErr,setLogoErr]=useState(false);
+  const handleLogoErr=()=>{
+    if(logoSrc===CONFIG.LOGO_URL&&CONFIG.LOGO_FALLBACK){setLogoSrc(CONFIG.LOGO_FALLBACK);}
+    else{setLogoErr(true);}
+  };
+  const nav=[
+    {id:'home',icon:'🏠',label:'דף הבית'},
+    {id:'projects',icon:'📁',label:'פרויקטים בביצוע',count:counts.active},
+    {id:'client',icon:'⏳',label:'ממתין ללקוח',count:counts.client},
+    {id:'managed',icon:'🗂️',label:'כלל התיקים',count:counts.managed},
+    {id:'reports',icon:'📊',label:'דוחות'},
+    {id:'settings',icon:'⚙️',label:'הגדרות'},
+  ];
+  return(
+    <div style={{width:230,background:BLACK,color:'#e8dfc9',display:'flex',flexDirection:'column',height:'100vh',position:'fixed',right:0,top:0,zIndex:200,borderLeft:`1px solid ${GOLD}22`}}>
+      {/* Logo */}
+      <div style={{padding:'14px 12px 12px',borderBottom:`1px solid ${GOLD}33`,display:'flex',flexDirection:'column',alignItems:'center'}}>
+        {!logoErr?(
+          <div style={{background:'#fff',borderRadius:10,padding:'8px 10px',width:'100%',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 2px 10px rgba(0,0,0,0.3)`}}>
+            <img src={logoSrc} alt="לוגו" onError={handleLogoErr}
+              style={{width:'100%',maxWidth:170,height:54,objectFit:'contain'}}/>
+          </div>
+        ):(
+          <div style={{background:'#fff',borderRadius:10,padding:'10px 14px',width:'100%',textAlign:'right'}}>
+            <div style={{fontSize:14,fontWeight:900,color:'#0d0d0d',letterSpacing:'-0.3px'}}>רובינשטיין רוזנטל</div>
+            <div style={{fontSize:11,fontWeight:700,color:GOLD3}}>שמאות מקרקעין</div>
+          </div>
+        )}
+      </div>
+
+      {/* Nav */}
+      <nav style={{flex:1,padding:'12px 10px',overflowY:'auto'}}>
+        {nav.map(item=>{
+          const active=view===item.id;
+          return(
+            <button key={item.id} onClick={()=>setView(item.id)} style={{
+              display:'flex',alignItems:'center',gap:9,width:'100%',padding:'11px 14px',
+              borderRadius:10,border:'none',cursor:'pointer',marginBottom:3,fontSize:14,
+              background:active?`${GOLD}22`:'transparent',
+              color:active?GOLD:'rgba(255,255,255,0.65)',fontWeight:active?700:400,
+              borderRight:`3px solid ${active?GOLD:'transparent'}`,transition:'all 0.15s',textAlign:'right',
+            }}
+            onMouseEnter={e=>{if(!active){e.currentTarget.style.background='rgba(255,255,255,0.06)';e.currentTarget.style.color='rgba(255,255,255,0.9)';}}}
+            onMouseLeave={e=>{if(!active){e.currentTarget.style.background='transparent';e.currentTarget.style.color='rgba(255,255,255,0.65)';}}}
+            >
+              <span style={{fontSize:17,flexShrink:0}}>{item.icon}</span>
+              <span style={{flex:1}}>{item.label}</span>
+              {item.count>0&&<span style={{background:active?GOLD:`${GOLD}44`,color:active?BLACK:'#fff',borderRadius:20,padding:'1px 8px',fontSize:12,fontWeight:700}}>{item.count}</span>}
+              {loading&&active&&<Spinner size={13} color={GOLD}/>}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* User */}
+      <div style={{padding:14,borderTop:`1px solid ${GOLD}22`}}>
+        {user&&<div style={{display:'flex',alignItems:'center',gap:9,marginBottom:10}}>
+          {user.picture?<img src={user.picture} style={{width:34,height:34,borderRadius:'50%',border:`1.5px solid ${GOLD}55`,flexShrink:0}} alt=""/>
+            :<div style={{width:34,height:34,borderRadius:'50%',background:GOLD,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:800,color:BLACK,flexShrink:0}}>{(user.name||'?')[0]}</div>}
+          <div style={{overflow:'hidden'}}>
+            <div style={{fontSize:13,fontWeight:600,color:'#fff',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{user.name}</div>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.35)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{user.email}</div>
+          </div>
+        </div>}
+        <button onClick={onLogout} style={{width:'100%',padding:'7px',borderRadius:8,border:`1px solid ${GOLD}33`,background:'transparent',color:`${GOLD}77`,cursor:'pointer',fontSize:12,transition:'all 0.15s'}}
+          onMouseEnter={e=>{e.currentTarget.style.background=`${GOLD}18`;e.currentTarget.style.color=GOLD;}}
+          onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color=`${GOLD}77`;}}>
+          התנתקות
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════ LOGIN ════════════════════════════════════════════
+function LoginScreen({onLogin}){
+  const [busy,setBusy]=useState(false);
+  const [logoSrc,setLogoSrc]=useState(CONFIG.LOGO_URL);
+  const [logoErr,setLogoErr]=useState(false);
+  const handleLogoErr=()=>{
+    if(logoSrc===CONFIG.LOGO_URL&&CONFIG.LOGO_FALLBACK){setLogoSrc(CONFIG.LOGO_FALLBACK);}
+    else{setLogoErr(true);}
+  };
+  const handle=()=>{
+    setBusy(true);
+    try{
+      const c=google.accounts.oauth2.initTokenClient({
+        client_id:CONFIG.CLIENT_ID,scope:CONFIG.SCOPES,
+        callback:(r)=>{setBusy(false);if(r.access_token)onLogin(r.access_token);},
+        error_callback:()=>setBusy(false),
+      });
+      c.requestAccessToken();
+    }catch(e){setBusy(false);alert(e.message);}
+  };
+  return(
+    <div style={{minHeight:'100vh',background:`radial-gradient(ellipse at 55% 35%,#252010 0%,${BLACK} 65%)`,display:'flex',alignItems:'center',justifyContent:'center',padding:20,overflow:'hidden',position:'relative'}}>
+      {[[320,-80,-100,'0.08'],[500,'58%',-180,'0.05'],[200,'8%','68%','0.07']].map(([s,l,t,o],i)=>(
+        <div key={i} style={{position:'absolute',width:s,height:s,borderRadius:'50%',background:`radial-gradient(circle,${GOLD},transparent)`,opacity:o,left:l,top:t,pointerEvents:'none'}}/>
+      ))}
+      <div style={{background:'rgba(255,255,255,0.04)',backdropFilter:'blur(24px)',border:`1px solid ${GOLD}22`,borderRadius:28,padding:'50px 44px',maxWidth:420,width:'100%',textAlign:'center',boxShadow:`0 32px 80px rgba(0,0,0,0.5)`,animation:'fadeIn 0.6s ease'}}>
+        <div style={{marginBottom:28,display:'flex',justifyContent:'center'}}>
+          {!logoErr?(
+            <div style={{background:'#fff',borderRadius:14,padding:'14px 20px',boxShadow:`0 4px 20px rgba(0,0,0,0.35), 0 0 0 1px ${GOLD}33`}}>
+              <img src={logoSrc} alt="לוגו" onError={handleLogoErr}
+                style={{height:80,maxWidth:280,objectFit:'contain',display:'block'}}/>
+            </div>
+          ):(
+            <div style={{background:'#fff',borderRadius:14,padding:'14px 20px',boxShadow:`0 4px 20px rgba(0,0,0,0.35)`,textAlign:'right'}}>
+              <div style={{fontSize:18,fontWeight:900,color:'#0d0d0d'}}>רובינשטיין רוזנטל</div>
+              <div style={{fontSize:13,fontWeight:700,color:GOLD3}}>שמאות מקרקעין</div>
+              <div style={{fontSize:11,color:'#6b5e50'}}>Real Estate Appraisal</div>
+            </div>
+          )}
+        </div>
+        <p style={{color:`${GOLD}99`,fontSize:14,marginBottom:36,letterSpacing:'0.3px'}}>מערכת ניהול תיקי שמאות מקרקעין</p>
+        <button onClick={handle} disabled={busy} style={{
+          background:busy?'rgba(255,255,255,0.07)':'#fff',color:BLACK,border:`1px solid ${GOLD}55`,
+          borderRadius:14,padding:'15px 32px',fontSize:15,fontWeight:700,cursor:busy?'not-allowed':'pointer',
+          display:'flex',alignItems:'center',gap:12,margin:'0 auto',width:'100%',justifyContent:'center',
+          boxShadow:'0 4px 20px rgba(0,0,0,0.3)',transition:'all 0.2s',
+        }}
+        onMouseEnter={e=>{if(!busy){e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow=`0 8px 28px rgba(0,0,0,0.4), 0 0 0 1px ${GOLD}55`;}}}
+        onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 20px rgba(0,0,0,0.3)';}}>
+          {busy?<Spinner size={18} color={BLACK}/>:(
+            <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          )}
+          {busy?'מתחבר...':'כניסה עם Google'}
+        </button>
+        <p style={{color:'rgba(255,255,255,0.18)',fontSize:11,marginTop:24}}>גישה פנימית בלבד — עובדי המשרד</p>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════ DASHBOARD VIEW ══════════════════════════════════
+function DashboardView({projects,managed,user,onSetView}){
+  const today=new Date();today.setHours(0,0,0,0);
+  const in7=new Date(today);in7.setDate(in7.getDate()+7);
+  const in14=new Date(today);in14.setDate(in14.getDate()+14);
+
+  const activeProjs=projects.filter(p=>!CLIENT_STATUSES.includes(p.status));
+  const clientProjs=projects.filter(p=>CLIENT_STATUSES.includes(p.status));
+
+  const overdueProjs=activeProjs.filter(p=>{const d=p._dueD||p._expD;return d&&d<today;})
+    .sort((a,b)=>(a._dueD||a._expD)-(b._dueD||b._expD));
+  const urgentProjs=activeProjs.filter(p=>{const d=p._dueD||p._expD;return d&&d>=today&&d<=in14;})
+    .sort((a,b)=>(a._dueD||a._expD)-(b._dueD||b._expD));
+  const thisWeek=urgentProjs.filter(p=>{const d=p._dueD||p._expD;return d&&d<=in7;});
+
+  const parseNum=v=>{if(!v)return 0;const n=parseFloat(String(v).replace(/[^0-9.]/g,''));return isNaN(n)?0:n;};
+  const totalFee=managed.reduce((s,c)=>s+parseNum(c.fee),0);
+
+  const teamStats=[
+    {name:'יוסי',count:activeProjs.filter(p=>p.yossi).length,color:'#2563eb'},
+    {name:'מיכאל',count:activeProjs.filter(p=>p.michael).length,color:'#7c3aed'},
+    {name:'פייגי',count:activeProjs.filter(p=>p.feigi).length,color:'#059669'},
+  ];
+
+  const userName=USER_BY_EMAIL[(user?.email||'').toLowerCase()]||'';
+  const hour=new Date().getHours();
+  const greet=hour<12?'בוקר טוב':hour<17?'צהריים טובים':'ערב טוב';
+
+  function KpiCard({icon,label,value,color,sub,onClick}){
+    return(
+      <div onClick={onClick} style={{background:'#fff',borderRadius:14,padding:'20px 22px',
+        boxShadow:'0 2px 8px rgba(0,0,0,0.07)',border:'1px solid #ede8e0',flex:1,minWidth:160,
+        cursor:onClick?'pointer':'default',transition:'box-shadow 0.15s,transform 0.15s'}}
+        onMouseEnter={e=>{if(onClick){e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.13)';e.currentTarget.style.transform='translateY(-2px)';}}}
+        onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.07)';e.currentTarget.style.transform='none';}}>
+        <div style={{fontSize:26,marginBottom:6}}>{icon}</div>
+        <div style={{fontSize:34,fontWeight:900,color,lineHeight:1}}>{value}</div>
+        <div style={{fontSize:13,color:'#6b5e50',marginTop:6,fontWeight:600}}>{label}</div>
+        {sub&&<div style={{fontSize:11,color:'#9a8e84',marginTop:3}}>{sub}</div>}
+      </div>
+    );
+  }
+
+  function UrgentRow({p,isOverdue}){
+    const d=p._dueD||p._expD;
+    const dStr=p.dueDate||p.expected||'';
+    const daysLeft=d?Math.round((d-today)/86400000):null;
+    const person=p.yossi?'יוסי':p.michael?'מיכאל':p.feigi?'פייגי':'';
+    const m=STATUS_META[p.status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
+    return(
+      <div style={{display:'flex',alignItems:'center',gap:10,padding:'9px 14px',borderBottom:'1px solid #f5f3ef',fontSize:13,flexWrap:'wrap'}}>
+        <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:'nowrap',
+          background:isOverdue?'#fef2f2':'#fff7ed',color:isOverdue?'#dc2626':'#d97706',
+          border:`1px solid ${isOverdue?'#fca5a5':'#fcd34d'}`}}>
+          {isOverdue?`⚠️ ${Math.abs(daysLeft)} ימים`:daysLeft===0?'🔴 היום':`📅 ${daysLeft} ימים`}
+        </span>
+        <span style={{flex:1,fontWeight:600,color:'#1a1510',minWidth:120}}>{p.name}</span>
+        <span style={{color:'#9a8e84',fontSize:12}}>{dStr}</span>
+        {person&&<span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:'#fef3c7',color:'#4b3400',border:'1px solid #d9af34'}}>{person}</span>}
+        <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:600,background:m.bg,color:m.fg,border:`1px solid ${m.dot}44`}}>{p.status}</span>
+      </div>
+    );
+  }
+
+  const sec={background:'#fff',borderRadius:14,padding:'20px 22px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
+  const secTitle=(icon,t,count)=>(
+    <div style={{fontSize:14,fontWeight:800,color:GOLD3,marginBottom:14,display:'flex',alignItems:'center',gap:8}}>
+      <span style={{fontSize:17}}>{icon}</span>{t}
+      {count!==undefined&&<span style={{background:`${GOLD}22`,color:GOLD3,borderRadius:20,padding:'1px 9px',fontSize:12,fontWeight:700}}>{count}</span>}
+    </div>
+  );
+
+  return(
+    <div style={{padding:'28px 32px',maxWidth:1400,animation:'fadeIn 0.3s ease'}}>
+      <div style={{marginBottom:24}}>
+        <h2 style={{fontSize:26,fontWeight:900,color:GOLD3}}>{greet}{userName?` ${userName}`:''} 👋</h2>
+        <div style={{fontSize:13,color:'#9a8e84',marginTop:3}}>
+          {new Date().toLocaleDateString('he-IL',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}
+        </div>
+      </div>
+
+      <div style={{display:'flex',gap:14,marginBottom:20,flexWrap:'wrap'}}>
+        <KpiCard icon="📁" label="פרויקטים פעילים" value={activeProjs.length} color={GOLD3}
+          sub={overdueProjs.length>0?`${overdueProjs.length} באיחור`:'הכל בזמן ✓'} onClick={()=>onSetView('projects')}/>
+        <KpiCard icon="⏳" label="ממתין ללקוח" value={clientProjs.length} color="#7c3aed" onClick={()=>onSetView('client')}/>
+        <KpiCard icon="⚡" label="דד-ליין השבוע" value={thisWeek.length} color="#d97706"
+          sub={urgentProjs.length>thisWeek.length?`${urgentProjs.length} ב-14 יום`:''}/>
+        <KpiCard icon="🗂️" label="כלל התיקים" value={managed.length} color="#2563eb"
+          onClick={()=>onSetView('managed')}/>
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
+        <div style={sec}>
+          {secTitle('🔴','באיחור',overdueProjs.length)}
+          {overdueProjs.length===0?(
+            <div style={{textAlign:'center',color:'#9a8e84',padding:'24px 0',fontSize:13}}>אין תיקים באיחור 🎉</div>
+          ):(
+            <div style={{borderRadius:10,overflow:'hidden',border:'1px solid #fee2e2'}}>
+              {overdueProjs.slice(0,8).map(p=><UrgentRow key={p._row} p={p} isOverdue={true}/>)}
+              {overdueProjs.length>8&&<div style={{padding:'8px 14px',fontSize:12,color:'#9a8e84',textAlign:'center'}}>ועוד {overdueProjs.length-8}...</div>}
+            </div>
+          )}
+        </div>
+        <div style={sec}>
+          {secTitle('📅','דד-ליין — 14 יום קרובים',urgentProjs.length)}
+          {urgentProjs.length===0?(
+            <div style={{textAlign:'center',color:'#9a8e84',padding:'24px 0',fontSize:13}}>אין תאריכי יעד קרובים</div>
+          ):(
+            <div style={{borderRadius:10,overflow:'hidden',border:'1px solid #fed7aa'}}>
+              {urgentProjs.slice(0,8).map(p=><UrgentRow key={p._row} p={p} isOverdue={false}/>)}
+              {urgentProjs.length>8&&<div style={{padding:'8px 14px',fontSize:12,color:'#9a8e84',textAlign:'center'}}>ועוד {urgentProjs.length-8}...</div>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={sec}>
+        {secTitle('👥','ביצועי הצוות')}
+        <div style={{display:'flex',gap:14,flexWrap:'wrap'}}>
+          {teamStats.map(({name,count,color})=>(
+            <div key={name} style={{flex:1,minWidth:120,background:'#faf8f4',borderRadius:12,padding:'18px',textAlign:'center',border:'1px solid #ede8e0'}}>
+              <div style={{fontSize:32,fontWeight:900,color}}>{count}</div>
+              <div style={{fontSize:14,fontWeight:700,color:'#4b3400',marginTop:6}}>{name}</div>
+              <div style={{fontSize:11,color:'#9a8e84',marginTop:2}}>תיקים פעילים</div>
+            </div>
+          ))}
+          <div style={{flex:1,minWidth:120,background:'#faf8f4',borderRadius:12,padding:'18px',textAlign:'center',border:'1px solid #ede8e0'}}>
+            <div style={{fontSize:32,fontWeight:900,color:'#6b5e50'}}>{activeProjs.length}</div>
+            <div style={{fontSize:14,fontWeight:700,color:'#4b3400',marginTop:6}}>סה"כ</div>
+            <div style={{fontSize:11,color:'#9a8e84',marginTop:2}}>בביצוע</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════ REPORTS VIEW ════════════════════════════════════
+function ReportsView({managed,projects}){
+  const [tab,setTab]=useState('summary');
+  const [search,setSearch]=useState('');
+  const [statusFilter,setStatusFilter]=useState('');
+  const [sortKey,setSortKey]=useState('caseNum');
+  const [sortDir,setSortDir]=useState('desc');
+
+  const parseNum=v=>{if(!v)return 0;const n=parseFloat(String(v).replace(/[^0-9.]/g,''));return isNaN(n)?0:n;};
+
+  // Financial stats
+  const withFee=managed.filter(c=>parseNum(c.fee)>0);
+  const totalFee=withFee.reduce((s,c)=>s+parseNum(c.fee),0);
+  const completedCases=managed.filter(c=>c.status==='הסתיים');
+  const completedFee=completedCases.reduce((s,c)=>s+parseNum(c.fee),0);
+  const activeCases=managed.filter(c=>c.status==='בביצוע');
+  const activeFee=activeCases.reduce((s,c)=>s+parseNum(c.fee),0);
+  const pendingCases=managed.filter(c=>c.status==='ממתין');
+  const pendingFee=pendingCases.reduce((s,c)=>s+parseNum(c.fee),0);
+
+  // Monthly (last 12 months)
+  const monthKey=s=>{if(!s)return null;const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}`:null;};
+  const now=new Date();
+  const months=Array.from({length:12},(_,i)=>{
+    const d=new Date(now.getFullYear(),now.getMonth()-11+i,1);
+    return{key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`,label:d.toLocaleDateString('he-IL',{month:'short',year:'2-digit'})};
+  });
+  const monthlyData=months.map(m=>({...m,count:managed.filter(c=>monthKey(c.openDate)===m.key).length,fee:managed.filter(c=>monthKey(c.openDate)===m.key).reduce((s,c)=>s+parseNum(c.fee),0)}));
+  const maxMonthCount=Math.max(...monthlyData.map(m=>m.count),1);
+
+  // Group helpers
+  const groupBy=(arr,key)=>{
+    const map={};
+    arr.forEach(c=>{const k=c[key]||'—';if(!map[k])map[k]={count:0,fee:0};map[k].count++;map[k].fee+=parseNum(c.fee);});
+    return Object.entries(map).sort((a,b)=>b[1].count-a[1].count);
+  };
+  const bankStats=groupBy(managed,'bank').slice(0,10);
+  const cityStats=groupBy(managed,'city').slice(0,10);
+  const purposeStats=groupBy(managed,'purpose').slice(0,8);
+  const maxBar=Math.max(...[...bankStats,...cityStats].map(([,v])=>v.count),1);
+
+  // Filtered table
+  const filtered=useMemo(()=>{
+    let arr=[...managed];
+    const q=search.toLowerCase();
+    if(q)arr=arr.filter(c=>[c.caseNum,c.client,c.city,c.bank,c.folder,c.purpose].some(v=>String(v||'').toLowerCase().includes(q)));
+    if(statusFilter)arr=arr.filter(c=>c.status===statusFilter);
+    arr.sort((a,b)=>{
+      let va=a[sortKey]||'',vb=b[sortKey]||'';
+      if(sortKey==='caseNum'||sortKey==='fee'){va=Number(va)||0;vb=Number(vb)||0;return sortDir==='asc'?va-vb:vb-va;}
+      return sortDir==='asc'?String(va).localeCompare(String(vb),'he'):String(vb).localeCompare(String(va),'he');
+    });
+    return arr;
+  },[managed,search,statusFilter,sortKey,sortDir]);
+  const toggleSort=k=>{if(sortKey===k){setSortDir(d=>d==='asc'?'desc':'asc');}else{setSortKey(k);setSortDir('asc');}};
+
+  const STATUS_C={'הסתיים':{bg:'#dcfce7',fg:'#166534',bar:'#22c55e'},'בביצוע':{bg:'#fdf8ee',fg:'#4b3400',bar:GOLD},'ממתין':{bg:'#ffedd5',fg:'#9a3412',bar:'#f97316'},'בוטל':{bg:'#fee2e2',fg:'#991b1b',bar:'#ef4444'}};
+  const tabBtns=[{id:'summary',label:'📊 סיכום'},{id:'cases',label:'📋 דוח תיקים'},{id:'stats',label:'📈 ניתוח'}];
+  const inp={padding:'8px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:13,background:'#fff',outline:'none'};
+  const sec={background:'#fff',borderRadius:14,padding:'20px 22px',border:'1px solid #ede8e0',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',marginBottom:16};
+  const KpiCard=({icon,label,value,sub,color})=>(
+    <div style={{background:'#fff',borderRadius:14,padding:'20px 22px',flex:1,minWidth:155,border:'1px solid #ede8e0',boxShadow:'0 2px 8px rgba(0,0,0,0.07)'}}>
+      <div style={{fontSize:24,marginBottom:6}}>{icon}</div>
+      <div style={{fontSize:26,fontWeight:900,color,lineHeight:1}}>{value}</div>
+      <div style={{fontSize:12,color:'#6b5e50',marginTop:6,fontWeight:600}}>{label}</div>
+      {sub&&<div style={{fontSize:11,color:'#9a8e84',marginTop:3}}>{sub}</div>}
+    </div>
+  );
+
+  return(
+    <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:1400}}>
+      <div style={{marginBottom:20}}>
+        <h2 style={{fontSize:22,fontWeight:800,color:GOLD3}}>📊 דוחות</h2>
+        <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{managed.length} תיקים במסד הנתונים</div>
+      </div>
+
+      {/* Sub-tabs */}
+      <div style={{display:'flex',gap:4,marginBottom:24,background:'#fff',borderRadius:12,padding:4,border:'1px solid #ede8e0',width:'fit-content'}}>
+        {tabBtns.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'8px 18px',borderRadius:9,border:'none',background:tab===t.id?BLACK:'transparent',color:tab===t.id?GOLD:'#6b5e50',fontWeight:tab===t.id?700:400,cursor:'pointer',fontSize:13,transition:'all 0.15s'}}>{t.label}</button>
+        ))}
+      </div>
+
+      {/* ── SUMMARY ── */}
+      {tab==='summary'&&<div>
+        <div style={{display:'flex',gap:14,marginBottom:20,flexWrap:'wrap'}}>
+          <KpiCard icon="🗂️" label="סה״כ תיקים" value={managed.length} color={GOLD3}/>
+          <KpiCard icon="✅" label="הסתיים" value={completedCases.length} sub={`${managed.length>0?Math.round(completedCases.length/managed.length*100):0}%`} color="#059669"/>
+          <KpiCard icon="🔄" label="בביצוע" value={activeCases.length} sub={`${managed.length>0?Math.round(activeCases.length/managed.length*100):0}%`} color="#2563eb"/>
+          <KpiCard icon="⏳" label="ממתין" value={pendingCases.length} sub={`${managed.length>0?Math.round(pendingCases.length/managed.length*100):0}%`} color="#d97706"/>
+        </div>
+
+        {/* Monthly bar chart */}
+        <div style={sec}>
+          <div style={{fontSize:14,fontWeight:800,color:GOLD3,marginBottom:16}}>📅 פתיחת תיקים — 12 חודשים אחרונים</div>
+          <div style={{display:'flex',alignItems:'flex-end',gap:5,height:110}}>
+            {monthlyData.map(m=>(
+              <div key={m.key} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
+                {m.count>0&&<div style={{fontSize:10,color:'#9a8e84',fontWeight:700}}>{m.count}</div>}
+                <div style={{width:'100%',background:m.count>0?GOLD:'#e8e3da',borderRadius:'4px 4px 0 0',height:`${Math.max(3,m.count/maxMonthCount*85)}px`,transition:'height 0.4s'}}/>
+                <div style={{fontSize:9,color:'#9a8e84',textAlign:'center',lineHeight:1.2,whiteSpace:'nowrap'}}>{m.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Status breakdown */}
+        <div style={sec}>
+          <div style={{fontSize:14,fontWeight:800,color:GOLD3,marginBottom:16}}>👥 ביצועי צוות — פרויקטים פעילים</div>
+          {(()=>{
+            const teamData=[
+              {name:'יוסי',color:'#2563eb',icon:'👤'},
+              {name:'מיכאל',color:'#7c3aed',icon:'👤'},
+              {name:'פייגי',color:'#059669',icon:'👤'},
+            ].map(t=>{
+              const teamCases=managed.filter(c=>c.michael===t.name||c.folder?.includes(t.name));
+              const done=managed.filter(c=>c.status==='הסתיים'&&(c.michael===t.name||c.folder?.includes(t.name))).length;
+              const active=managed.filter(c=>c.status==='בביצוע'&&(c.michael===t.name||c.folder?.includes(t.name))).length;
+              return{...t,total:teamCases.length,done,active,pct:teamCases.length>0?Math.round(done/teamCases.length*100):0};
+            });
+            const maxTotal=Math.max(...teamData.map(t=>t.total),1);
+            // Also: monthly open rate (last 6 months)
+            const recentMonths=monthlyData.slice(-6);
+            const avgPerMonth=recentMonths.length?Math.round(recentMonths.reduce((s,m)=>s+m.count,0)/recentMonths.length):0;
+            const thisMonth=recentMonths[recentMonths.length-1]?.count||0;
+            const trend=thisMonth>avgPerMonth?'↑':'↓';
+            const trendColor=thisMonth>=avgPerMonth?'#059669':'#d97706';
+            return(
+              <div>
+                {teamData.map(t=>(
+                  <div key={t.name} style={{marginBottom:16}}>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,fontSize:13,alignItems:'center'}}>
+                      <span style={{fontWeight:700,color:t.color}}>{t.name}</span>
+                      <div style={{display:'flex',gap:14,fontSize:12}}>
+                        <span style={{background:'#f0ebe3',borderRadius:10,padding:'2px 8px',color:'#6b5e50'}}>{t.total} תיקים</span>
+                        <span style={{background:'#dcfce7',borderRadius:10,padding:'2px 8px',color:'#166534'}}>✓ {t.done} הסתיים</span>
+                        <span style={{background:'#fdf8ee',borderRadius:10,padding:'2px 8px',color:GOLD3}}>🔄 {t.active} פעיל</span>
+                        <span style={{fontWeight:800,color:t.color}}>{t.pct}%</span>
+                      </div>
+                    </div>
+                    <div style={{height:10,background:'#f0ebe3',borderRadius:5,overflow:'hidden',position:'relative'}}>
+                      <div style={{height:'100%',width:`${t.total/maxTotal*100}%`,background:`${t.color}33`,borderRadius:5,position:'absolute'}}/>
+                      <div style={{height:'100%',width:`${t.done/maxTotal*100}%`,background:t.color,borderRadius:5,position:'absolute',transition:'width 0.6s'}}/>
+                    </div>
+                  </div>
+                ))}
+                <div style={{marginTop:20,padding:'14px 16px',background:'#faf8f4',borderRadius:10,border:'1px solid #ede8e0',display:'flex',gap:24,alignItems:'center'}}>
+                  <div style={{textAlign:'center'}}>
+                    <div style={{fontSize:22,fontWeight:900,color:trendColor}}>{trend} {thisMonth}</div>
+                    <div style={{fontSize:11,color:'#9a8e84'}}>תיקים החודש</div>
+                  </div>
+                  <div style={{height:36,width:1,background:'#ede8e0'}}/>
+                  <div style={{textAlign:'center'}}>
+                    <div style={{fontSize:22,fontWeight:900,color:GOLD3}}>{avgPerMonth}</div>
+                    <div style={{fontSize:11,color:'#9a8e84'}}>ממוצע 6 חודשים</div>
+                  </div>
+                  <div style={{height:36,width:1,background:'#ede8e0'}}/>
+                  <div style={{flex:1}}>
+                    <div style={{display:'flex',gap:3,alignItems:'flex-end',height:32}}>
+                      {recentMonths.map(m=>(
+                        <div key={m.key} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:1}}>
+                          <div style={{width:'100%',background:m.count>=avgPerMonth?GOLD:'#e0d8cc',borderRadius:'3px 3px 0 0',height:`${Math.max(3,m.count/Math.max(...recentMonths.map(x=>x.count),1)*26)}px`}}/>
+                          <div style={{fontSize:8,color:'#9a8e84'}}>{m.label.split(' ')[0]}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      </div>}
+
+      {/* ── CASES TABLE ── */}
+      {tab==='cases'&&<div>
+        <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 חיפוש..." style={{...inp,flex:1,minWidth:220}}/>
+          <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={inp}>
+            <option value="">כל הסטטוסים</option>
+            {['הסתיים','בביצוע','ממתין','בוטל'].map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+          {(search||statusFilter)&&<button onClick={()=>{setSearch('');setStatusFilter('');}} style={{...inp,background:'#ede8e0',color:'#4b3400',cursor:'pointer'}}>נקה ×</button>}
+          <div style={{marginRight:'auto',display:'flex',gap:16,fontSize:13,fontWeight:700}}>
+            <span style={{color:'#6b5e50'}}>{filtered.length} תיקים</span>
+
+          </div>
+        </div>
+        <div style={{background:'#fff',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'}}>
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+              <thead>
+                <tr style={{background:BLACK,color:'#e8dfc9'}}>
+                  {[{k:'caseNum',l:'#תיק'},{k:'folder',l:'תיקייה/לקוח'},{k:'city',l:'עיר'},{k:'bank',l:'בנק'},{k:'purpose',l:'מטרה'},{k:'openDate',l:'פתיחה'},{k:'status',l:'סטטוס'}].map(c=>(
+                    <th key={c.k} onClick={()=>toggleSort(c.k)} style={{padding:'10px 12px',textAlign:'right',fontWeight:600,whiteSpace:'nowrap',fontSize:12,cursor:'pointer',userSelect:'none'}}
+                      onMouseEnter={e=>e.currentTarget.style.background='rgba(201,164,78,0.15)'}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      {c.l}<span style={{marginRight:4,opacity:sortKey===c.k?1:0.3,fontSize:10}}>{sortKey===c.k?(sortDir==='asc'?'▲':'▼'):'⇅'}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((c,i)=>{
+                  const sc=STATUS_C[c.status]||{bg:'#f0ebe3',fg:'#6b5e50'};
+                  const fee=parseNum(c.fee);
+                  return(
+                    <tr key={c._row} style={{borderBottom:'1px solid #ede8e0',background:i%2===0?'#fff':'#fdf9f5',transition:'background 0.1s'}}
+                      onMouseEnter={e=>e.currentTarget.style.background='#fdf8ee'}
+                      onMouseLeave={e=>e.currentTarget.style.background=i%2===0?'#fff':'#fdf9f5'}>
+                      <td style={{padding:'10px 12px',fontWeight:800,color:GOLD,whiteSpace:'nowrap'}}>{c.caseNum}</td>
+                      <td style={{padding:'10px 12px',maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={c.folder||c.client}>{c.folder||c.client}</td>
+                      <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{c.city}</td>
+                      <td style={{padding:'10px 12px',whiteSpace:'nowrap',color:'#6b5e50',maxWidth:110,overflow:'hidden',textOverflow:'ellipsis'}}>{c.bank}</td>
+                      <td style={{padding:'10px 12px',maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#6b5e50'}} title={c.purpose}>{c.purpose}</td>
+                      <td style={{padding:'10px 12px',whiteSpace:'nowrap',color:'#9a8e84'}}>{c.openDate}</td>
+                      <td style={{padding:'10px 12px'}}>
+                        {c.status&&<span style={{...sc,padding:'3px 9px',borderRadius:12,fontSize:11,fontWeight:700}}>{c.status}</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {filtered.length===0&&<div style={{padding:48,textAlign:'center',color:'#9a8e84'}}><div style={{fontSize:40,marginBottom:10}}>📊</div><div>לא נמצאו תיקים</div></div>}
+          </div>
+        </div>
+      </div>}
+
+      {/* Stats */}
+      {tab==='stats'&&<div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
+          <div style={sec}>
+            <div style={{fontSize:14,fontWeight:800,color:GOLD3,marginBottom:16}}>🏦 לפי בנק (top 10)</div>
+            {bankStats.length===0?<div style={{color:'#9a8e84',textAlign:'center',padding:'16px 0',fontSize:13}}>אין נתוני בנק</div>:bankStats.map(([bank,{count,fee}])=>(
+              <div key={bank} style={{marginBottom:10}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:3,fontSize:12}}>
+                  <span style={{fontWeight:600,color:'#1a1510',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'58%'}}>{bank==='—'?'לא צוין':bank}</span>
+                  <div style={{display:'flex',gap:10,flexShrink:0}}>
+                    <span style={{color:'#6b5e50'}}>{count}</span>
+
+                  </div>
+                </div>
+                <div style={{height:6,background:'#f0ebe3',borderRadius:3,overflow:'hidden'}}>
+                  <div style={{height:'100%',width:`${count/maxBar*100}%`,background:GOLD,borderRadius:3}}/>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={sec}>
+            <div style={{fontSize:14,fontWeight:800,color:GOLD3,marginBottom:16}}>🏙️ לפי עיר (top 10)</div>
+            {cityStats.length===0?<div style={{color:'#9a8e84',textAlign:'center',padding:'16px 0',fontSize:13}}>אין נתוני עיר</div>:cityStats.map(([city,{count,fee}])=>(
+              <div key={city} style={{marginBottom:10}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:3,fontSize:12}}>
+                  <span style={{fontWeight:600,color:'#1a1510'}}>{city==='—'?'לא צוין':city}</span>
+                  <div style={{display:'flex',gap:10}}>
+                    <span style={{color:'#6b5e50'}}>{count}</span>
+
+                  </div>
+                </div>
+                <div style={{height:6,background:'#f0ebe3',borderRadius:3,overflow:'hidden'}}>
+                  <div style={{height:'100%',width:`${count/maxBar*100}%`,background:'#7c3aed',borderRadius:3}}/>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{...sec,marginBottom:0}}>
+          <div style={{fontSize:14,fontWeight:800,color:GOLD3,marginBottom:16}}>🎯 לפי מטרת עבודה</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:10}}>
+            {purposeStats.map(([purpose,{count,fee}])=>{
+              const pct=managed.length>0?Math.round(count/managed.length*100):0;
+              return(
+                <div key={purpose} style={{background:'#faf8f4',borderRadius:10,padding:'12px 14px',border:'1px solid #ede8e0'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+                    <span style={{fontSize:12,fontWeight:700,color:'#1a1510',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1,marginLeft:8}} title={purpose}>{purpose==='—'?'לא צוין':purpose}</span>
+                    <span style={{fontSize:13,fontWeight:900,color:GOLD3,flexShrink:0}}>{count}</span>
+                  </div>
+                  <div style={{height:5,background:'#e0d8cc',borderRadius:3,overflow:'hidden',marginBottom:5}}>
+                    <div style={{height:'100%',width:`${pct}%`,background:GOLD,borderRadius:3}}/>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#9a8e84'}}>
+                    <span>{pct}% מהתיקים</span>
+
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+// ══════════════ SETTINGS VIEW ════════════════════════════════════
+function SettingsView({user,settings,onSetting}){
+  const sec={background:'#fff',borderRadius:14,padding:'20px 22px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
+  const secTitle=(icon,t)=><div style={{fontSize:14,fontWeight:800,color:GOLD3,marginBottom:14,display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:17}}>{icon}</span>{t}</div>;
+  const row={display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10};
+  const lbl={fontSize:13,color:'#4b3400',fontWeight:600};
+  const chip=(val,cur,key)=>(
+    <button onClick={()=>onSetting(key,val)} style={{padding:'5px 14px',borderRadius:20,border:`1.5px solid ${cur===val?GOLD:'#ddd0bb'}`,background:cur===val?'#fef9e8':'#fff',color:cur===val?GOLD3:'#6b5e50',cursor:'pointer',fontSize:13,fontWeight:cur===val?700:400,transition:'all 0.15s'}}>
+      {val==='__auto__'?'אוטומטי לפי משתמש':val===''?'כולם':val}
+    </button>
+  );
+  const expandLabels={tall:'📋 צף כלפי מטה',side:'🪟 צף לצד',full:'🖥️ פתיחה מלאה'};
+  const userName=(USER_BY_EMAIL||{})[(user?.email||'').toLowerCase().trim()]||'—';
+  return(
+    <div style={{padding:'28px 32px',maxWidth:720,animation:'fadeIn 0.3s ease'}}>
+      <h2 style={{fontSize:22,fontWeight:800,color:GOLD3,marginBottom:20}}>⚙️ הגדרות</h2>
+      <div style={sec}>
+        {secTitle('👤','פרופיל משתמש')}
+        {user&&<div style={{display:'flex',alignItems:'center',gap:14}}>
+          {user.picture?<img src={user.picture} style={{width:56,height:56,borderRadius:'50%',border:`2px solid ${GOLD}55`}} alt=""/>
+            :<div style={{width:56,height:56,borderRadius:'50%',background:GOLD,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,fontWeight:800,color:BLACK}}>{(user.name||'?')[0]}</div>}
+          <div>
+            <div style={{fontSize:16,fontWeight:700,color:BLACK}}>{user.name}</div>
+            <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{user.email}</div>
+            <div style={{fontSize:12,color:GOLD3,marginTop:4,fontWeight:600}}>{userName||'לא מזוהה'} <span style={{color:'#9a8e84',fontWeight:400}}>(מזוהה לפי כתובת המייל)</span></div>
+          </div>
+        </div>}
+      </div>
+      <div style={sec}>
+        {secTitle('🖥️','תצוגה')}
+        <div style={row}><span style={lbl}>גודל גופן</span>
+          <div style={{display:'flex',gap:6}}>
+            {['small','medium','large'].map(v=><button key={v} onClick={()=>onSetting('fontSize',v)} style={{padding:'5px 14px',borderRadius:20,border:`1.5px solid ${settings?.fontSize===v?GOLD:'#ddd0bb'}`,background:settings?.fontSize===v?'#fef9e8':'#fff',color:settings?.fontSize===v?GOLD3:'#6b5e50',cursor:'pointer',fontSize:v==='small'?11:v==='large'?15:13,fontWeight:settings?.fontSize===v?700:400}}>
+              {v==='small'?'קטן':v==='medium'?'רגיל':'גדול'}
+            </button>)}
+          </div>
+        </div>
+        <div style={row}><span style={lbl}>פתיחת תיק</span>
+          <div style={{display:'flex',gap:6}}>
+            {['tall','side','full'].map(v=><button key={v} onClick={()=>onSetting('expandMode',v)} style={{padding:'5px 14px',borderRadius:20,border:`1.5px solid ${settings?.expandMode===v?GOLD:'#ddd0bb'}`,background:settings?.expandMode===v?'#fef9e8':'#fff',color:settings?.expandMode===v?GOLD3:'#6b5e50',cursor:'pointer',fontSize:12,fontWeight:settings?.expandMode===v?700:400,whiteSpace:'nowrap'}}>
+              {expandLabels[v]||v}
+            </button>)}
+          </div>
+        </div>
+      </div>
+      <div style={sec}>
+        {secTitle('🗂️','ברירת מחדל פרויקטים')}
+        <div style={row}><span style={lbl}>הצגת פרויקטים של</span>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            {['__auto__','','יוסי','מיכאל','פייגי'].map(v=>chip(v,settings?.defaultPerson||'__auto__','defaultPerson'))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════ APP ══════════════════════════════════════════════
+function App(){
+  const [token,setToken]=useState(null);
+  const [user,setUser]=useState(null);
+  const [view,setView]=useState('home');
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState('');
+  const [projects,setProjects]=useState([]);
+  const [managed,setManaged]=useState([]);
+  const [settings,setSettings]=useState(loadSettings);
+  const onSetting=useCallback((key,val)=>setSettings(s=>{const n={...s,[key]:val};saveSettings(n);return n;}),[]);
+
+  const loadAll=useCallback(async(tok)=>{
+    if(tok)api.token=tok;
+    setLoading(true);setError('');
+    try{
+      dynamicCheckOpts=new Set(['','בוצע','לא בוצע','לא אותר','חלקי','נשלח בקשה ללקוח','התקבל','נשלחה דרישה']);
+      const [pR,mR]=await Promise.all([
+        api.get("'פרויקטים בביצוע'!A1:Y500"),
+        api.get("'ניהול תיקים'!A1:X2000"),
+      ]);
+      setProjects(pR.slice(1).map((r,i)=>parseProject(r,i)).filter(p=>p.name));
+      setManaged(mR.slice(1).map((r,i)=>parseManagedCase(r,i)).filter(c=>c.caseNum||c.client));
+    }catch(e){setError(e.message);}
+    finally{setLoading(false);}
+  },[]);
+
+  const handleLogin=useCallback(async(tok)=>{
+    api.token=tok;setToken(tok);
+    try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:`Bearer ${tok}`}});
+      const u=await r.json();setUser({name:u.name,email:u.email,picture:u.picture});}catch(e){}
+    loadAll(tok);
+  },[loadAll]);
+
+  const updateProject=useCallback((rowNum,updated)=>setProjects(prev=>prev.map(p=>p._row===rowNum?updated:p)),[]);
+  const updateCase=useCallback((rowNum,updated)=>setManaged(prev=>prev.map(c=>c._row===rowNum?{...c,...updated}:c)),[]);
+  const addCase=useCallback((newCase)=>setManaged(prev=>[...prev,newCase]),[]);
+
+  const counts=useMemo(()=>({
+    active:projects.filter(p=>!CLIENT_STATUSES.includes(p.status)).length,
+    client:projects.filter(p=>CLIENT_STATUSES.includes(p.status)).length,
+    managed:managed.length,
+  }),[projects,managed]);
+
+  if(!token)return<LoginScreen onLogin={handleLogin}/>;
+
+  return(
+    <div style={{direction:'rtl',fontFamily:"'Segoe UI',Arial,sans-serif",background:'#f5f3ef',minHeight:'100vh',zoom:FONT_ZOOM[settings.fontSize]||1}}>
+      <Sidebar view={view} setView={setView} user={user} onLogout={()=>{api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);}} loading={loading} counts={counts}/>
+      <div style={{marginRight:230,minHeight:'100vh'}}>
+        <div style={{background:'#fff',borderBottom:'1px solid #e0d8cc',padding:'0 28px',height:52,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100,boxShadow:'0 1px 3px rgba(0,0,0,0.05)'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            {loading&&<><Spinner size={16}/><span style={{fontSize:13,color:'#6b5e50'}}>טוען...</span></>}
+            {error&&<span style={{fontSize:13,color:'#dc2626'}}>⚠️ {error}</span>}
+          </div>
+          <button onClick={()=>loadAll()} disabled={loading} style={{background:'#faf8f4',border:'1px solid #ddd0bb',borderRadius:8,padding:'6px 16px',cursor:loading?'not-allowed':'pointer',fontSize:13,color:'#3a3228',display:'flex',alignItems:'center',gap:6,opacity:loading?0.6:1}}
+            onMouseEnter={e=>{if(!loading)e.currentTarget.style.background='#f0ebe3';}}
+            onMouseLeave={e=>{e.currentTarget.style.background='#faf8f4';}}>
+            🔄 רענן
+          </button>
+        </div>
+        {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView}/>}
+        {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings}/>}
+        {view==='client'&&<ClientView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings}/>}
+        {view==='managed'&&<ManagedView cases={managed} onUpdateCase={updateCase} onAddCase={addCase}/>}
+        {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
+        {view==='settings'&&<SettingsView user={user} settings={settings} onSetting={onSetting}/>}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
