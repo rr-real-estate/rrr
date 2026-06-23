@@ -7,20 +7,24 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',Arial,sans-serif;background:#f5f3ef;direction:rtl;color:#1a1510;font-size:14px}
-::-webkit-scrollbar{width:5px;height:5px}
-::-webkit-scrollbar-thumb{background:#d9af3455;border-radius:3px}
-::-webkit-scrollbar-thumb:hover{background:#d9af34}
+body{font-family:'Rubik',sans-serif;background:#f0ede8;direction:rtl;color:#1a1510;font-size:14px;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#d9af3466;border-radius:6px}
+::-webkit-scrollbar-thumb:hover{background:#d9af34aa}
 @keyframes spin{to{transform:rotate(360deg)}}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes slideIn{from{transform:translateX(110%)}to{transform:translateX(0)}}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-@keyframes zoomIn{from{transform:scale(0.92);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes zoomIn{from{transform:scale(0.94);opacity:0}to{transform:scale(1);opacity:1}}
 @keyframes expandDown{from{transform:scaleY(0);opacity:0}to{transform:scaleY(1);opacity:1}}
-input,select,textarea{font-family:inherit;font-size:14px}
+input,select,textarea{font-family:'Rubik',sans-serif;font-size:14px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#d9af34 !important;box-shadow:0 0 0 3px rgba(217,175,52,0.15) !important}
+button{font-family:'Rubik',sans-serif}
 </style>
 </head>
 <body>
@@ -38,7 +42,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
-const DEFAULT_SETTINGS={fontSize:'medium',expandMode:'side',defaultPerson:'__auto__'};
+const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__'};
 function loadSettings(){try{return{...DEFAULT_SETTINGS,...JSON.parse(localStorage.getItem('rrSettings')||'{}')};}catch{return DEFAULT_SETTINGS;}}
 function saveSettings(s){try{localStorage.setItem('rrSettings',JSON.stringify(s));}catch{}}
 const FONT_ZOOM={small:0.88,medium:1,large:1.14};
@@ -257,18 +261,19 @@ function Spinner({size=18,color=GOLD}){
 }
 function Badge({status,size='md'}){
   const m=STATUS_META[status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
-  return<span style={{background:m.bg,color:m.fg,padding:size==='sm'?'3px 9px':'5px 13px',borderRadius:20,fontSize:size==='sm'?12:13,fontWeight:700,whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:5}}>
-    <span style={{width:7,height:7,borderRadius:'50%',background:m.dot,flexShrink:0}}/>
+  return<span style={{background:m.bg,color:m.fg,padding:size==='sm'?'3px 10px':'5px 14px',borderRadius:20,fontSize:size==='sm'?11:12,fontWeight:600,whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:6,letterSpacing:'0.01em',border:`1px solid ${m.dot}33`}}>
+    <span style={{width:6,height:6,borderRadius:'50%',background:m.dot,flexShrink:0,boxShadow:`0 0 4px ${m.dot}88`}}/>
     {status||'—'}
   </span>;
 }
 function SectionTitle({children,icon}){
-  return<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12,paddingBottom:8,borderBottom:`2px solid ${GOLD}44`}}>
-    {icon&&<span style={{fontSize:17}}>{icon}</span>}
-    <span style={{fontSize:14,fontWeight:700,color:GOLD}}>{children}</span>
+  return<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14,paddingBottom:10,borderBottom:`1px solid #e8e0d4`}}>
+    {icon&&<span style={{fontSize:16,opacity:0.85}}>{icon}</span>}
+    <span style={{fontSize:13,fontWeight:700,color:'#3a2a00',letterSpacing:'0.03em',textTransform:'uppercase'}}>{children}</span>
+    <div style={{flex:1,height:1,background:`linear-gradient(to left, transparent, ${GOLD}33)`,marginRight:4}}/>
   </div>;
 }
-function FLabel({children}){return<div style={{fontSize:12,fontWeight:600,color:'#6b5e50',marginBottom:4}}>{children}</div>;}
+function FLabel({children}){return<div style={{fontSize:12,fontWeight:500,color:'#7a6a58',marginBottom:5,letterSpacing:'0.01em'}}>{children}</div>;}
 
 // ═══════════════ SAVE ROW HELPER ════════════════════════════════
 function buildProjectRow(upd){
@@ -484,12 +489,14 @@ function ProjectCard({project,onClick,hideDate}){
 
   return(
     <div onClick={e=>onClick&&onClick(e)} style={{
-      background:'#fff',borderRadius:13,padding:'15px 17px',cursor:'pointer',
-      boxShadow:'0 1px 4px rgba(0,0,0,0.07)',borderRight:`5px solid ${m.dot}`,
-      transition:'all 0.16s',outline:overdue?'1.5px solid #fca5a5':'none',
+      background:'#fff',borderRadius:14,padding:'16px 18px',cursor:'pointer',
+      boxShadow:'0 2px 8px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)',
+      borderRight:`4px solid ${m.dot}`,
+      transition:'all 0.18s cubic-bezier(0.4,0,0.2,1)',
+      outline:overdue?'1.5px solid #fca5a5':'none',
     }}
-    onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 5px 18px rgba(0,0,0,0.13)';e.currentTarget.style.transform='translateY(-2px)';}}
-    onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,0.07)';e.currentTarget.style.transform='translateY(0)';}}
+    onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 8px 24px rgba(0,0,0,0.12),0 2px 8px rgba(0,0,0,0.06)';e.currentTarget.style.transform='translateY(-3px)';}}
+    onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)';e.currentTarget.style.transform='translateY(0)';}}
     >
       {/* Title */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:9,gap:6}}>
@@ -564,24 +571,37 @@ function ProjectCard({project,onClick,hideDate}){
 }
 
 // ═══════════════ PROJECT DETAIL PANEL ════════════════════════════
-function ProjectDetailPanel({project,onClose,onSave,mode='side',inline=false,anchor=null}){
+function ProjectDetailPanel({project,onClose,onSave}){
   const [form,setForm]=useState({...project});
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
   const [err,setErr]=useState('');
   const [tab,setTab]=useState('main');
   const savingRef=useRef(false);
-  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
-  const doSave=async()=>{
+  const debounceRef=useRef(null);
+  const formRef=useRef({...project});
+  const dirtyRef=useRef(false);
+  const set=(k,v)=>{
+    dirtyRef.current=true;
+    setForm(f=>{const next={...f,[k]:v};formRef.current=next;return next;});
+    clearTimeout(debounceRef.current);
+    debounceRef.current=setTimeout(()=>{autoSave();},800);
+  };
+  const autoSave=async()=>{
     if(savingRef.current)return;
-    savingRef.current=true;setSaving(true);setErr('');
-    try{await onSave({...form});setSaved(true);setTimeout(()=>setSaved(false),1800);}
+    savingRef.current=true;setSaving(true);setErr('');dirtyRef.current=false;
+    try{await onSave({...formRef.current});setSaved(true);setTimeout(()=>setSaved(false),1500);}
     catch(e){setErr(e.message);}
     finally{setSaving(false);savingRef.current=false;}
   };
-  const iS={width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
+  const handleClose=async()=>{
+    clearTimeout(debounceRef.current);
+    if(dirtyRef.current)await autoSave();
+    onClose();
+  };
+  const iS={width:'100%',padding:'9px 12px',borderRadius:9,border:'1px solid #e0d5c5',fontSize:14,background:'#fefcf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box',transition:'border-color 0.15s,box-shadow 0.15s',color:'#1a1510'};
   const inp=(k,multi=false)=>multi
-    ?<textarea value={form[k]||''} onChange={e=>set(k,e.target.value)} rows={2} style={{...iS,resize:'vertical'}}/>
+    ?<textarea value={form[k]||''} onChange={e=>set(k,e.target.value)} rows={2} style={{...iS,resize:'vertical',lineHeight:1.5}}/>
     :<input value={form[k]||''} onChange={e=>set(k,e.target.value)} style={iS}/>;
   const toISO=v=>{if(!v)return'';const m=v.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);if(m)return`${m[3]||new Date().getFullYear()}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return v;};
   const fromISO=v=>{if(!v)return'';const m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return`${m[3]}/${m[2]}/${m[1]}`;return v;};
@@ -589,9 +609,9 @@ function ProjectDetailPanel({project,onClose,onSave,mode='side',inline=false,anc
   const selF=(k,opts)=><select value={form[k]||''} onChange={e=>set(k,e.target.value)} style={{...iS,fontFamily:'inherit'}}>{opts.map(o=><option key={o} value={o}>{o||'— בחר —'}</option>)}{form[k]&&!opts.includes(form[k])&&<option value={form[k]}>{form[k]}</option>}</select>;
   const docChk=(k,label,ac,opts)=>(
     <div key={k}>
-      <div style={{fontSize:11,fontWeight:700,color:ac,marginBottom:3}}>{label}</div>
+      <div style={{fontSize:11,fontWeight:600,color:ac,marginBottom:4,letterSpacing:'0.02em'}}>{label}</div>
       <select value={form[k]||''} onChange={e=>set(k,e.target.value)}
-        style={{width:'100%',padding:'7px 9px',borderRadius:8,border:`1.5px solid ${ac}55`,fontSize:12,background:`${ac}0d`,outline:'none',color:'#1a1510',fontFamily:'inherit'}}>
+        style={{width:'100%',padding:'8px 10px',borderRadius:9,border:`1.5px solid ${ac}44`,fontSize:12,background:`${ac}0a`,outline:'none',color:'#1a1510',fontFamily:'inherit',transition:'border-color 0.15s'}}>
         {opts.map(o=><option key={o} value={o}>{o||'—'}</option>)}
         {form[k]&&!opts.includes(form[k])&&<option value={form[k]}>{form[k]}</option>}
       </select>
@@ -600,7 +620,7 @@ function ProjectDetailPanel({project,onClose,onSave,mode='side',inline=false,anc
   const numMatch=project.name.match(/\b(5\d{4})\b/);
   const caseNum=numMatch?numMatch[1]:'';
   const dot=STATUS_META[form.status]?.dot||GOLD;
-  const sec={background:'#fff',borderRadius:12,padding:16,marginBottom:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'};
+  const sec={background:'#fff',borderRadius:14,padding:18,marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
   const panelTabs=[{id:'main',label:'📋 ראשי'},{id:'docs',label:'📁 מסמכים'},{id:'visit',label:'🏠 ביקור'},{id:'fee',label:'💰 שכ"ט'}];
   if(inline)return(
     <div style={{background:'#f5f3ef',borderRadius:12,overflow:'hidden',border:`1.5px solid ${dot}33`,boxShadow:'0 4px 20px rgba(0,0,0,0.12)',animation:'zoomIn 0.22s ease'}}>
@@ -680,47 +700,38 @@ function ProjectDetailPanel({project,onClose,onSave,mode='side',inline=false,anc
       </div>
     </div>
   );
-  const panelStyle=mode==='full'
-    ?{width:'min(920px,96vw)',height:'94vh',margin:'auto',borderRadius:18,overflow:'hidden',boxShadow:'0 24px 80px rgba(0,0,0,0.35)',animation:'zoomIn 0.22s ease',display:'flex',flexDirection:'column'}
-    :mode==='tall'
-    ?{position:'absolute',top:anchor?.top||100,left:anchor?.left||'50%',transform:anchor?'none':'translateX(-50%)',width:Math.min(anchor?.width||520,window.innerWidth-20),maxHeight:`calc(100vh - ${(anchor?.top||100)+12}px)`,borderRadius:'0 0 14px 14px',overflow:'hidden',boxShadow:'0 8px 40px rgba(0,0,0,0.22)',animation:'expandDown 0.22s ease',transformOrigin:'top',display:'flex',flexDirection:'column'}
-    :{width:520,height:'100vh',overflow:'hidden',boxShadow:'-4px 0 30px rgba(0,0,0,0.2)',animation:'slideIn 0.25s ease',flexShrink:0,display:'flex',flexDirection:'column'};
-  const wrapStyle=mode==='full'
-    ?{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.5)',backdropFilter:'blur(5px)'}
-    :mode==='tall'
-    ?{position:'fixed',inset:0,zIndex:600,background:'transparent'}
-    :{position:'fixed',top:0,left:0,bottom:0,right:230,zIndex:600,display:'flex',direction:'ltr',background:'transparent'};
   return(
-    <div style={wrapStyle} onClick={onClose}>
-      {mode==='side'&&<div style={{flex:1}} onClick={onClose}/>}
-      <div style={{background:'#f5f3ef',...panelStyle}} onClick={e=>e.stopPropagation()}>
+    <div style={{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(8px)'}} onClick={handleClose}>
+      <div style={{background:'#f0ede8',width:'min(940px,96vw)',height:'94vh',margin:'auto',borderRadius:20,overflow:'hidden',boxShadow:'0 32px 100px rgba(0,0,0,0.45)',animation:'zoomIn 0.2s cubic-bezier(0.4,0,0.2,1)',display:'flex',flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
         {/* Header */}
-        <div style={{background:BLACK,padding:'18px 24px',flexShrink:0,borderLeft:`4px solid ${dot}`}}>
+        <div style={{background:`linear-gradient(135deg, #0f0f0f 0%, #1a1410 100%)`,padding:'20px 26px',flexShrink:0,borderBottom:`3px solid ${dot}`}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
             <div style={{flex:1,minWidth:0}}>
-              {caseNum&&<span style={{fontSize:11,fontWeight:700,color:GOLD,background:`${GOLD}22`,border:`1px solid ${GOLD}44`,borderRadius:20,padding:'2px 9px',display:'inline-block',marginBottom:6}}>#{caseNum}</span>}
-              <div style={{fontSize:15,fontWeight:700,color:'#fff',lineHeight:1.4,marginBottom:8}}>{project.name}</div>
-              <Badge status={form.status}/>
+              {caseNum&&<span style={{fontSize:11,fontWeight:700,color:GOLD,background:`${GOLD}18`,border:`1px solid ${GOLD}55`,borderRadius:20,padding:'3px 10px',display:'inline-block',marginBottom:7,letterSpacing:'0.05em'}}>תיק #{caseNum}</span>}
+              <div style={{fontSize:16,fontWeight:700,color:'#fff',lineHeight:1.4,marginBottom:9,letterSpacing:'-0.01em'}}>{project.name}</div>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <Badge status={form.status}/>
+                {saving&&<span style={{fontSize:12,color:'rgba(255,255,255,0.45)',display:'flex',alignItems:'center',gap:5}}><Spinner size={11} color='rgba(255,255,255,0.45)'/>שומר...</span>}
+                {saved&&!saving&&<span style={{fontSize:12,color:'#4ade80',fontWeight:500}}>✓ נשמר</span>}
+              </div>
             </div>
-            <button onClick={onClose} style={{background:'rgba(255,255,255,0.12)',border:'none',borderRadius:8,width:34,height:34,color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>×</button>
+            <button onClick={handleClose} style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:10,width:36,height:36,color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all 0.15s'}}
+              onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.2)';e.currentTarget.style.color='#fff';}}
+              onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.1)';e.currentTarget.style.color='rgba(255,255,255,0.7)';}}>×</button>
           </div>
         </div>
         {/* Tabs */}
-        <div style={{background:'#fff',display:'flex',borderBottom:'2px solid #ede8e0',padding:'0 16px',flexShrink:0,overflowX:'auto'}}>
+        <div style={{background:'#fff',display:'flex',borderBottom:'1px solid #e8e0d4',padding:'0 20px',flexShrink:0,overflowX:'auto',gap:4}}>
           {panelTabs.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'12px 14px',border:'none',background:'transparent',borderBottom:`2px solid ${tab===t.id?GOLD:'transparent'}`,color:tab===t.id?GOLD3:'#6b5e50',fontWeight:tab===t.id?700:400,cursor:'pointer',fontSize:13,marginBottom:-2,whiteSpace:'nowrap',transition:'color 0.15s'}}>{t.label}</button>
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'13px 16px',border:'none',background:'transparent',borderBottom:`2.5px solid ${tab===t.id?GOLD:'transparent'}`,color:tab===t.id?GOLD3:'#8a7a6a',fontWeight:tab===t.id?700:400,cursor:'pointer',fontSize:13,marginBottom:-1,whiteSpace:'nowrap',transition:'all 0.15s',letterSpacing:'0.01em'}}
+              onMouseEnter={e=>{if(tab!==t.id)e.currentTarget.style.color='#3a2a00';}}
+              onMouseLeave={e=>{if(tab!==t.id)e.currentTarget.style.color='#8a7a6a';}}
+            >{t.label}</button>
           ))}
         </div>
-        {/* Save bar */}
-        <div style={{background:'#fff',padding:'10px 24px',borderBottom:'1px solid #e0d8cc',position:'sticky',top:0,zIndex:10,flexShrink:0,display:'flex',gap:8}}>
-          <button onClick={doSave} disabled={saving} style={{flex:1,padding:'9px',borderRadius:9,border:'none',background:saved?'#16a34a':BLACK,color:saved?'#fff':GOLD,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',gap:7}}>
-            {saving?<><Spinner size={14} color={GOLD}/>שומר...</>:saved?'✓ נשמר!':'💾 שמור שינויים'}
-          </button>
-          <button onClick={onClose} style={{padding:'9px 16px',borderRadius:9,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:13,color:'#6b5e50'}}>סגור</button>
-        </div>
-        {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{err}</div>}
+        {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 26px',fontSize:13,borderBottom:'1px solid #fca5a5'}}>{err}</div>}
         {/* Content */}
-        <div style={{padding:'16px 24px',flex:1,overflowY:'auto',minHeight:0}}>
+        <div style={{padding:'20px 26px',flex:1,overflowY:'auto',minHeight:0}}>
           {tab==='main'&&<div>
             <div style={sec}>
               <SectionTitle icon="⚙️">סטטוס ותאריכים</SectionTitle>
@@ -758,6 +769,13 @@ function ProjectDetailPanel({project,onClose,onSave,mode='side',inline=false,anc
               </div>
               <FLabel>⚠️ מסמכים חסרים</FLabel>{inp('missingDocs',true)}
             </div>
+            <div style={sec}>
+              <SectionTitle icon="📬">לאחר ביקור</SectionTitle>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                <div><FLabel>דרישת מסמכים</FLabel>{dateInp('postVisitDocs')}</div>
+                <div><FLabel>השלמת מסמכים</FLabel>{dateInp('postVisitComplete')}</div>
+              </div>
+            </div>
           </div>}
           {tab==='visit'&&<div>
             <div style={sec}>
@@ -770,13 +788,6 @@ function ProjectDetailPanel({project,onClose,onSave,mode='side',inline=false,anc
                 <div style={{gridColumn:'1/-1'}}><FLabel>שיוך לנכס</FLabel>{selF('visitRole',VISIT_ROLE_OPTS)}</div>
               </div>
               <FLabel>הערות לביקור</FLabel>{inp('visitNotes',true)}
-            </div>
-            <div style={sec}>
-              <SectionTitle icon="📬">לאחר ביקור</SectionTitle>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-                <div><FLabel>דרישת מסמכים</FLabel>{dateInp('postVisitDocs')}</div>
-                <div><FLabel>השלמת מסמכים</FLabel>{dateInp('postVisitComplete')}</div>
-              </div>
             </div>
           </div>}
           {tab==='fee'&&<div>
@@ -859,28 +870,28 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
 
   const toggle=(s)=>setCollapsed(c=>({...c,[s]:!c[s]}));
 
-  const inp={padding:'9px 14px',borderRadius:10,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none'};
+  const inp={padding:'9px 14px',borderRadius:10,border:'1px solid #e0d5c5',fontSize:14,background:'#fff',outline:'none',fontFamily:'Rubik,sans-serif',transition:'border-color 0.15s,box-shadow 0.15s'};
 
   return(
     <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:1600}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
         <div>
-          <h2 style={{fontSize:22,fontWeight:800,color:GOLD3}}>פרויקטים בביצוע</h2>
-          <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{filtered.length} תיקים פעילים</div>
+          <h2 style={{fontSize:22,fontWeight:800,color:'#1a1510',letterSpacing:'-0.01em'}}>פרויקטים בביצוע</h2>
+          <div style={{fontSize:13,color:'#9a8e84',marginTop:3,fontWeight:400}}>{filtered.length} תיקים פעילים</div>
         </div>
         <div style={{display:'flex',gap:6}}>
           {[{id:'cards',label:'🃏 כרטיסים'},{id:'table',label:'📋 טבלה'}].map(m=>(
             <button key={m.id} onClick={()=>{setViewMode(m.id);setSelectedRow(null);}} style={{
-              padding:'7px 14px',borderRadius:8,border:`1px solid ${viewMode===m.id?GOLD:'#ddd0bb'}`,
-              background:viewMode===m.id?`${GOLD}18`:'#faf8f4',color:viewMode===m.id?GOLD3:'#6b5e50',
-              fontWeight:viewMode===m.id?700:400,cursor:'pointer',fontSize:13,transition:'all 0.15s'
+              padding:'8px 16px',borderRadius:9,border:`1.5px solid ${viewMode===m.id?GOLD:'#e0d5c5'}`,
+              background:viewMode===m.id?`${GOLD}15`:'#fff',color:viewMode===m.id?GOLD3:'#6b5e50',
+              fontWeight:viewMode===m.id?700:400,cursor:'pointer',fontSize:13,transition:'all 0.15s',fontFamily:'Rubik,sans-serif'
             }}>{m.label}</button>
           ))}
         </div>
       </div>
 
       {/* Filters */}
-      <div style={{display:'flex',gap:10,marginBottom:22,flexWrap:'wrap'}}>
+      <div style={{display:'flex',gap:10,marginBottom:24,flexWrap:'wrap',background:'#fff',padding:'14px 16px',borderRadius:14,border:'1px solid #e8e0d4',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 חיפוש — שם, עיר, לקוח, הערות..."
           style={{...inp,flex:1,minWidth:220}}/>
         <select value={personFilter} onChange={e=>setPersonFilter(e.target.value)} style={inp}>
@@ -888,7 +899,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
           {['יוסי','מיכאל','פייגי'].map(p=><option key={p} value={p}>{p}</option>)}
         </select>
         {(search||personFilter)&&<button onClick={()=>{setSearch('');setPersonFilter('');}}
-          style={{...inp,background:'#ede8e0',color:'#4b3400',border:'1px solid #ddd0bb',cursor:'pointer'}}>נקה ×</button>}
+          style={{...inp,background:'#f5f0e8',color:'#4b3400',border:'1px solid #d9c5a0',cursor:'pointer',fontWeight:500}}>נקה ×</button>}
       </div>
 
       {/* Table view */}
@@ -981,7 +992,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
           );
         })
       )}
-      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} mode={settings?.expandMode||'side'} anchor={panelAnchor}/>}
+      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave}/>}
     </div>
   );
 }
@@ -1070,7 +1081,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings}){
           );
         })
       )}
-      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} mode={settings?.expandMode||'side'}/>}
+      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave}/>}
     </div>
   );
 }
@@ -1501,7 +1512,7 @@ function Sidebar({view,setView,user,onLogout,loading,counts}){
     {id:'settings',icon:'⚙️',label:'הגדרות'},
   ];
   return(
-    <div style={{width:230,background:BLACK,color:'#e8dfc9',display:'flex',flexDirection:'column',height:'100vh',position:'fixed',right:0,top:0,zIndex:200,borderLeft:`1px solid ${GOLD}22`}}>
+    <div style={{width:232,background:`linear-gradient(180deg, #111008 0%, #0d0c06 100%)`,color:'#e8dfc9',display:'flex',flexDirection:'column',height:'100vh',position:'fixed',right:0,top:0,zIndex:200,borderLeft:`1px solid ${GOLD}1a`,boxShadow:'-4px 0 20px rgba(0,0,0,0.25)'}}>
       {/* Logo */}
       <div style={{padding:'14px 12px 12px',borderBottom:`1px solid ${GOLD}33`,display:'flex',flexDirection:'column',alignItems:'center'}}>
         {!logoErr?(
@@ -1523,14 +1534,15 @@ function Sidebar({view,setView,user,onLogout,loading,counts}){
           const active=view===item.id;
           return(
             <button key={item.id} onClick={()=>setView(item.id)} style={{
-              display:'flex',alignItems:'center',gap:9,width:'100%',padding:'11px 14px',
-              borderRadius:10,border:'none',cursor:'pointer',marginBottom:3,fontSize:14,
-              background:active?`${GOLD}22`:'transparent',
-              color:active?GOLD:'rgba(255,255,255,0.65)',fontWeight:active?700:400,
+              display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',
+              borderRadius:10,border:'none',cursor:'pointer',marginBottom:2,fontSize:14,
+              background:active?`linear-gradient(90deg,${GOLD}28 0%,${GOLD}10 100%)`:'transparent',
+              color:active?GOLD:'rgba(255,255,255,0.6)',fontWeight:active?700:400,
               borderRight:`3px solid ${active?GOLD:'transparent'}`,transition:'all 0.15s',textAlign:'right',
+              letterSpacing: active?'0.01em':'0',
             }}
-            onMouseEnter={e=>{if(!active){e.currentTarget.style.background='rgba(255,255,255,0.06)';e.currentTarget.style.color='rgba(255,255,255,0.9)';}}}
-            onMouseLeave={e=>{if(!active){e.currentTarget.style.background='transparent';e.currentTarget.style.color='rgba(255,255,255,0.65)';}}}
+            onMouseEnter={e=>{if(!active){e.currentTarget.style.background='rgba(255,255,255,0.05)';e.currentTarget.style.color='rgba(255,255,255,0.88)';}}}
+            onMouseLeave={e=>{if(!active){e.currentTarget.style.background='transparent';e.currentTarget.style.color='rgba(255,255,255,0.6)';}}}
             >
               <span style={{fontSize:17,flexShrink:0}}>{item.icon}</span>
               <span style={{flex:1}}>{item.label}</span>
@@ -1582,40 +1594,41 @@ function LoginScreen({onLogin}){
     }catch(e){setBusy(false);alert(e.message);}
   };
   return(
-    <div style={{minHeight:'100vh',background:`radial-gradient(ellipse at 55% 35%,#252010 0%,${BLACK} 65%)`,display:'flex',alignItems:'center',justifyContent:'center',padding:20,overflow:'hidden',position:'relative'}}>
-      {[[320,-80,-100,'0.08'],[500,'58%',-180,'0.05'],[200,'8%','68%','0.07']].map(([s,l,t,o],i)=>(
-        <div key={i} style={{position:'absolute',width:s,height:s,borderRadius:'50%',background:`radial-gradient(circle,${GOLD},transparent)`,opacity:o,left:l,top:t,pointerEvents:'none'}}/>
+    <div style={{minHeight:'100vh',background:`radial-gradient(ellipse at 60% 30%, #2a1f06 0%, #12100a 40%, ${BLACK} 100%)`,display:'flex',alignItems:'center',justifyContent:'center',padding:20,overflow:'hidden',position:'relative'}}>
+      {[[380,-60,-120,'0.07'],[550,'55%',-200,'0.04'],[220,'6%','65%','0.06'],[160,'80%','70%','0.05']].map(([s,l,t,o],i)=>(
+        <div key={i} style={{position:'absolute',width:s,height:s,borderRadius:'50%',background:`radial-gradient(circle,${GOLD},transparent)`,opacity:o,left:l,top:t,pointerEvents:'none',filter:'blur(1px)'}}/>
       ))}
-      <div style={{background:'rgba(255,255,255,0.04)',backdropFilter:'blur(24px)',border:`1px solid ${GOLD}22`,borderRadius:28,padding:'50px 44px',maxWidth:420,width:'100%',textAlign:'center',boxShadow:`0 32px 80px rgba(0,0,0,0.5)`,animation:'fadeIn 0.6s ease'}}>
-        <div style={{marginBottom:28,display:'flex',justifyContent:'center'}}>
+      {/* Subtle grid pattern */}
+      <div style={{position:'absolute',inset:0,backgroundImage:`linear-gradient(${GOLD}08 1px,transparent 1px),linear-gradient(90deg,${GOLD}08 1px,transparent 1px)`,backgroundSize:'60px 60px',pointerEvents:'none'}}/>
+      <div style={{background:'rgba(255,255,255,0.03)',backdropFilter:'blur(32px)',border:`1px solid ${GOLD}1a`,borderRadius:28,padding:'52px 46px',maxWidth:430,width:'100%',textAlign:'center',boxShadow:`0 40px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)`,animation:'fadeIn 0.5s ease',position:'relative'}}>
+        <div style={{marginBottom:30,display:'flex',justifyContent:'center'}}>
           {!logoErr?(
-            <div style={{background:'#fff',borderRadius:14,padding:'14px 20px',boxShadow:`0 4px 20px rgba(0,0,0,0.35), 0 0 0 1px ${GOLD}33`}}>
+            <div style={{background:'#fff',borderRadius:14,padding:'14px 22px',boxShadow:`0 8px 28px rgba(0,0,0,0.4), 0 0 0 1px ${GOLD}33`}}>
               <img src={logoSrc} alt="לוגו" onError={handleLogoErr}
-                style={{height:80,maxWidth:280,objectFit:'contain',display:'block'}}/>
+                style={{height:78,maxWidth:280,objectFit:'contain',display:'block'}}/>
             </div>
           ):(
-            <div style={{background:'#fff',borderRadius:14,padding:'14px 20px',boxShadow:`0 4px 20px rgba(0,0,0,0.35)`,textAlign:'right'}}>
-              <div style={{fontSize:18,fontWeight:900,color:'#0d0d0d'}}>רובינשטיין רוזנטל</div>
-              <div style={{fontSize:13,fontWeight:700,color:GOLD3}}>שמאות מקרקעין</div>
-              <div style={{fontSize:11,color:'#6b5e50'}}>Real Estate Appraisal</div>
+            <div style={{background:'#fff',borderRadius:14,padding:'16px 22px',boxShadow:`0 8px 28px rgba(0,0,0,0.4)`,textAlign:'right'}}>
+              <div style={{fontSize:19,fontWeight:800,color:'#0d0d0d',letterSpacing:'-0.02em'}}>רובינשטיין רוזנטל</div>
+              <div style={{fontSize:13,fontWeight:600,color:GOLD3,marginTop:2}}>שמאות מקרקעין</div>
             </div>
           )}
         </div>
-        <p style={{color:`${GOLD}99`,fontSize:14,marginBottom:36,letterSpacing:'0.3px'}}>מערכת ניהול תיקי שמאות מקרקעין</p>
+        <p style={{color:`${GOLD}88`,fontSize:14,marginBottom:36,letterSpacing:'0.05em',fontWeight:400}}>מערכת ניהול תיקי שמאות מקרקעין</p>
         <button onClick={handle} disabled={busy} style={{
-          background:busy?'rgba(255,255,255,0.07)':'#fff',color:BLACK,border:`1px solid ${GOLD}55`,
-          borderRadius:14,padding:'15px 32px',fontSize:15,fontWeight:700,cursor:busy?'not-allowed':'pointer',
+          background:busy?'rgba(255,255,255,0.06)':'rgba(255,255,255,0.97)',color:BLACK,border:`1px solid ${GOLD}44`,
+          borderRadius:14,padding:'15px 32px',fontSize:15,fontWeight:600,cursor:busy?'not-allowed':'pointer',
           display:'flex',alignItems:'center',gap:12,margin:'0 auto',width:'100%',justifyContent:'center',
-          boxShadow:'0 4px 20px rgba(0,0,0,0.3)',transition:'all 0.2s',
+          boxShadow:'0 4px 24px rgba(0,0,0,0.35)',transition:'all 0.2s cubic-bezier(0.4,0,0.2,1)',letterSpacing:'0.01em',
         }}
-        onMouseEnter={e=>{if(!busy){e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow=`0 8px 28px rgba(0,0,0,0.4), 0 0 0 1px ${GOLD}55`;}}}
-        onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 20px rgba(0,0,0,0.3)';}}>
+        onMouseEnter={e=>{if(!busy){e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow=`0 10px 32px rgba(0,0,0,0.45), 0 0 0 1px ${GOLD}55`;}}}
+        onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='0 4px 24px rgba(0,0,0,0.35)';}}>
           {busy?<Spinner size={18} color={BLACK}/>:(
             <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
           )}
           {busy?'מתחבר...':'כניסה עם Google'}
         </button>
-        <p style={{color:'rgba(255,255,255,0.18)',fontSize:11,marginTop:24}}>גישה פנימית בלבד — עובדי המשרד</p>
+        <p style={{color:'rgba(255,255,255,0.15)',fontSize:11,marginTop:26,letterSpacing:'0.03em'}}>גישה פנימית בלבד — עובדי המשרד</p>
       </div>
     </div>
   );
@@ -1651,15 +1664,18 @@ function DashboardView({projects,managed,user,onSetView}){
 
   function KpiCard({icon,label,value,color,sub,onClick}){
     return(
-      <div onClick={onClick} style={{background:'#fff',borderRadius:14,padding:'20px 22px',
-        boxShadow:'0 2px 8px rgba(0,0,0,0.07)',border:'1px solid #ede8e0',flex:1,minWidth:160,
-        cursor:onClick?'pointer':'default',transition:'box-shadow 0.15s,transform 0.15s'}}
-        onMouseEnter={e=>{if(onClick){e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.13)';e.currentTarget.style.transform='translateY(-2px)';}}}
-        onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.07)';e.currentTarget.style.transform='none';}}>
-        <div style={{fontSize:26,marginBottom:6}}>{icon}</div>
-        <div style={{fontSize:34,fontWeight:900,color,lineHeight:1}}>{value}</div>
-        <div style={{fontSize:13,color:'#6b5e50',marginTop:6,fontWeight:600}}>{label}</div>
-        {sub&&<div style={{fontSize:11,color:'#9a8e84',marginTop:3}}>{sub}</div>}
+      <div onClick={onClick} style={{background:'#fff',borderRadius:16,padding:'22px 24px',
+        boxShadow:'0 2px 10px rgba(0,0,0,0.06),0 1px 3px rgba(0,0,0,0.04)',
+        border:'1px solid #e8e0d4',flex:1,minWidth:160,
+        cursor:onClick?'pointer':'default',transition:'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+        position:'relative',overflow:'hidden'}}
+        onMouseEnter={e=>{if(onClick){e.currentTarget.style.boxShadow='0 8px 24px rgba(0,0,0,0.12)';e.currentTarget.style.transform='translateY(-3px)';}}}
+        onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 2px 10px rgba(0,0,0,0.06),0 1px 3px rgba(0,0,0,0.04)';e.currentTarget.style.transform='none';}}>
+        <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:color,opacity:0.7,borderRadius:'16px 16px 0 0'}}/>
+        <div style={{fontSize:24,marginBottom:8,opacity:0.85}}>{icon}</div>
+        <div style={{fontSize:36,fontWeight:800,color,lineHeight:1,letterSpacing:'-0.02em'}}>{value}</div>
+        <div style={{fontSize:13,color:'#5a4e44',marginTop:7,fontWeight:500}}>{label}</div>
+        {sub&&<div style={{fontSize:11,color:'#9a8e84',marginTop:4,fontWeight:400}}>{sub}</div>}
       </div>
     );
   }
@@ -1685,19 +1701,19 @@ function DashboardView({projects,managed,user,onSetView}){
     );
   }
 
-  const sec={background:'#fff',borderRadius:14,padding:'20px 22px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
+  const sec={background:'#fff',borderRadius:16,padding:'22px 24px',marginBottom:16,boxShadow:'0 2px 10px rgba(0,0,0,0.06)',border:'1px solid #e8e0d4'};
   const secTitle=(icon,t,count)=>(
-    <div style={{fontSize:14,fontWeight:800,color:GOLD3,marginBottom:14,display:'flex',alignItems:'center',gap:8}}>
-      <span style={{fontSize:17}}>{icon}</span>{t}
-      {count!==undefined&&<span style={{background:`${GOLD}22`,color:GOLD3,borderRadius:20,padding:'1px 9px',fontSize:12,fontWeight:700}}>{count}</span>}
+    <div style={{fontSize:14,fontWeight:700,color:'#3a2a00',marginBottom:16,display:'flex',alignItems:'center',gap:8,letterSpacing:'0.01em'}}>
+      <span style={{fontSize:16,opacity:0.8}}>{icon}</span>{t}
+      {count!==undefined&&<span style={{background:`${GOLD}1a`,color:GOLD3,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:700,border:`1px solid ${GOLD}33`}}>{count}</span>}
     </div>
   );
 
   return(
     <div style={{padding:'28px 32px',maxWidth:1400,animation:'fadeIn 0.3s ease'}}>
-      <div style={{marginBottom:24}}>
-        <h2 style={{fontSize:26,fontWeight:900,color:GOLD3}}>{greet}{userName?` ${userName}`:''} 👋</h2>
-        <div style={{fontSize:13,color:'#9a8e84',marginTop:3}}>
+      <div style={{marginBottom:26}}>
+        <h2 style={{fontSize:27,fontWeight:800,color:'#1a1510',letterSpacing:'-0.02em'}}>{greet}{userName?` ${userName}`:''} 👋</h2>
+        <div style={{fontSize:13,color:'#9a8e84',marginTop:4,fontWeight:400}}>
           {new Date().toLocaleDateString('he-IL',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}
         </div>
       </div>
@@ -2157,15 +2173,15 @@ function App(){
   if(!token)return<LoginScreen onLogin={handleLogin}/>;
 
   return(
-    <div style={{direction:'rtl',fontFamily:"'Segoe UI',Arial,sans-serif",background:'#f5f3ef',minHeight:'100vh',zoom:FONT_ZOOM[settings.fontSize]||1}}>
+    <div style={{direction:'rtl',fontFamily:"'Rubik',sans-serif",background:'#f0ede8',minHeight:'100vh',zoom:FONT_ZOOM[settings.fontSize]||1}}>
       <Sidebar view={view} setView={setView} user={user} onLogout={()=>{api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);}} loading={loading} counts={counts}/>
-      <div style={{marginRight:230,minHeight:'100vh'}}>
-        <div style={{background:'#fff',borderBottom:'1px solid #e0d8cc',padding:'0 28px',height:52,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100,boxShadow:'0 1px 3px rgba(0,0,0,0.05)'}}>
+      <div style={{marginRight:232,minHeight:'100vh'}}>
+        <div style={{background:'rgba(255,255,255,0.95)',backdropFilter:'blur(8px)',borderBottom:'1px solid #e8e0d4',padding:'10px 24px 10px 28px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,position:'sticky',top:0,zIndex:100}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
-            {loading&&<><Spinner size={16}/><span style={{fontSize:13,color:'#6b5e50'}}>טוען...</span></>}
+            {loading&&<><Spinner size={14} color={GOLD}/><span style={{fontSize:13,color:'#9a8e84'}}>טוען...</span></>}
             {error&&<span style={{fontSize:13,color:'#dc2626'}}>⚠️ {error}</span>}
           </div>
-          <button onClick={()=>loadAll()} disabled={loading} style={{background:'#faf8f4',border:'1px solid #ddd0bb',borderRadius:8,padding:'6px 16px',cursor:loading?'not-allowed':'pointer',fontSize:13,color:'#3a3228',display:'flex',alignItems:'center',gap:6,opacity:loading?0.6:1}}
+          <button onClick={()=>loadAll()} disabled={loading} style={{background:'#faf8f4',border:'1px solid #e0d5c5',borderRadius:9,padding:'6px 16px',cursor:loading?'not-allowed':'pointer',fontSize:13,color:'#3a3228',display:'flex',alignItems:'center',gap:6,opacity:loading?0.6:1,fontFamily:"'Rubik',sans-serif",transition:'all 0.15s'}}
             onMouseEnter={e=>{if(!loading)e.currentTarget.style.background='#f0ebe3';}}
             onMouseLeave={e=>{e.currentTarget.style.background='#faf8f4';}}>
             🔄 רענן
