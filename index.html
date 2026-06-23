@@ -133,45 +133,34 @@ async function syncStatusToManaged(managedCases,projectName,newStatus,onUpdateCa
   }catch(e){console.warn('שגיאת סנכרון סטטוס:',e.message);}
 }
 
-// שליחת מייל חוסרי מסמכים ללקוח/יועץ — תמיד מ-office@yrr.co.il
-const OFFICE_FROM='משרד רובינשטיין רוזנטל שמאות <office@yrr.co.il>';
-const OFFICE_EMAIL='office@yrr.co.il';
+// שליחת מייל חוסרי מסמכים — דרך Apps Script (רץ תחת office@yrr.co.il)
+const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycbx_r20bpxzfpDJzZxQy8Nk88Ex_Ql9i4PyRji28kOveJORxsJn84crheH8gGvZEiCQGMw/exec';
 async function sendMissingDocsEmailFn(upd,prev,managedCases){
   if(!upd.postVisitDocs||upd.postVisitDocs===prev.postVisitDocs)return;
   const match=managedCases.find(c=>c.folder&&c.folder.trim()===upd.name.trim());
-  // בונה שורת נמענים (יועץ + לקוח אם קיים)
   const advisorEmail=(match?.advisorEmail||'').trim();
   const clientEmail=(match?.email||'').trim();
-  const primaryRecipient=advisorEmail||clientEmail;
-  if(!primaryRecipient){
+  const recipient=advisorEmail||clientEmail;
+  if(!recipient){
     alert('לא נמצא מייל ללקוח/יועץ בתיק "'+upd.name+'" — מייל לא נשלח');
     return;
   }
-  const toLine=advisorEmail&&clientEmail&&advisorEmail!==clientEmail
-    ?advisorEmail+', '+clientEmail:primaryRecipient;
   const missingDocs=upd.missingDocs||'אנא צור קשר עם המשרד לבירור המסמכים החסרים.';
-  const clientName=match?.client||'';
   const ok=window.confirm(
     'הזנת תאריך דרישת מסמכים לתיק:\n"'+upd.name+'"\n\n'
-    +'ישלח מייל ל: '+toLine+'\n'
-    +'מאת: '+OFFICE_EMAIL+'\n\n'
+    +'ישלח מייל ל: '+recipient+'\n'
+    +'מאת: office@yrr.co.il\n\n'
     +'האם לשלוח?'
   );
   if(!ok)return;
-  const html="<div dir='rtl' style='font-family:Arial,sans-serif;font-size:14px;line-height:1.6'>"
-    +"<p>שלום"+(clientName?' '+clientName:'')+" וברכה,</p>"
-    +"<p>לצורך השלמת כתיבת חוות הדעת לנכס, יש להשלים את המסמכים הבאים:</p>"
-    +"<div style='background:#fef9e8;padding:15px;border-right:5px solid #d9af34;margin:15px 0;white-space:pre-wrap;border-radius:0 8px 8px 0'><b>"+missingDocs+"</b></div>"
-    +"<p>נשמח לקבלם בהקדם האפשרי כדי שנוכל לקדם את התיק.</p>"
-    +"<p>לכל שאלה ניתן לפנות אלינו בחזרה למייל זה או בטלפון.</p>"
-    +"<br><p>בברכה,<br><b>צוות משרד רובינשטיין רוזנטל שמאות</b><br>"
-    +"<a href='mailto:"+OFFICE_EMAIL+"'>"+OFFICE_EMAIL+"</a></p>"
-    +"<hr style='border:none;border-top:1px solid #e0d8cc;margin:15px 0'>"
-    +"<img src='https://drive.google.com/uc?export=view&id=1ytQ6Uptt18RjfX5VIPxRTKbDv9VFA6a5' alt='לוגו' style='width:180px;height:auto;display:block'>"
-    +"</div>";
   try{
-    await api.sendEmail(toLine,'חוסרים לתיק: '+upd.name,html,OFFICE_FROM,OFFICE_EMAIL);
-    alert('✅ מייל חוסרים נשלח בהצלחה ל: '+toLine);
+    const r=await fetch(APPS_SCRIPT_URL,{
+      method:'POST',
+      body:JSON.stringify({type:'missingDocs',recipient,caseName:upd.name,missingDocs}),
+    });
+    const d=await r.json();
+    if(d.success){alert('✅ מייל חוסרים נשלח בהצלחה ל: '+recipient);}
+    else{alert('❌ שגיאה בשליחת מייל: '+(d.error||'שגיאה לא ידועה'));}
   }catch(e){alert('❌ שגיאה בשליחת מייל חוסרים: '+e.message);}
 }
 
