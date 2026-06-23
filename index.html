@@ -154,13 +154,12 @@ async function sendMissingDocsEmailFn(upd,prev,managedCases){
   );
   if(!ok)return;
   try{
-    const r=await fetch(APPS_SCRIPT_URL,{
+    await fetch(APPS_SCRIPT_URL,{
       method:'POST',
+      mode:'no-cors',
       body:JSON.stringify({type:'missingDocs',recipient,caseName:upd.name,missingDocs}),
     });
-    const d=await r.json();
-    if(d.success){alert('✅ מייל חוסרים נשלח בהצלחה ל: '+recipient);}
-    else{alert('❌ שגיאה בשליחת מייל: '+(d.error||'שגיאה לא ידועה'));}
+    alert('✅ מייל חוסרים נשלח ל: '+recipient);
   }catch(e){alert('❌ שגיאה בשליחת מייל חוסרים: '+e.message);}
 }
 
