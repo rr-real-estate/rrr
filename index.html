@@ -1163,11 +1163,19 @@ function ManagedPanel({cas,onClose,onSave,allCases}){
 }
 
 // ═══════════════ ADD CASE MODAL ══════════════════════════════════
-function AddCaseModal({onClose,onAdd}){
-  const [form,setForm]=useState({caseNum:'',client:'',city:'',street:'',houseNum:'',aptNum:'',
-    purpose:'',propType:'',bank:'',advisor:'',phone:'',email:'',openDate:'',status:'בביצוע',fee:'',rights:''});
+function AddCaseModal({onClose,onAdd,cases}){
+  const nextNum=React.useMemo(()=>{
+    const nums=(cases||[]).map(c=>Number(c.caseNum)||0).filter(n=>n>0);
+    return nums.length?Math.max(...nums)+1:'';
+  },[cases]);
+  const today=new Date().toISOString().split('T')[0];
+  const [form,setForm]=useState({caseNum:String(nextNum),client:'',city:'',street:'',houseNum:'',aptNum:'',
+    purpose:'',propType:'',bank:'',advisor:'',phone:'',email:'',advisorPhone:'',advisorEmail:'',
+    openDate:today,status:'בביצוע',fee:'',rights:'',block:'',parcel:'',subParcel:''});
   const [saving,setSaving]=useState(false);
   const [err,setErr]=useState('');
+  const [showClientContact,setShowClientContact]=useState(false);
+  const [showAdvisorContact,setShowAdvisorContact]=useState(false);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   const handleAdd=async()=>{
@@ -1177,58 +1185,101 @@ function AddCaseModal({onClose,onAdd}){
     catch(e){setErr(e.message);setSaving(false);}
   };
 
-  const inp=(k,placeholder='')=>(
-    <input value={form[k]||''} onChange={e=>set(k,e.target.value)} placeholder={placeholder}
-      style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'}}/>
+  const iS={width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
+  const inp=(k,placeholder='')=>(<input value={form[k]||''} onChange={e=>set(k,e.target.value)} placeholder={placeholder} style={iS}/>);
+  const selStyle={...iS};
+  const secStyle={background:'#faf7f2',borderRadius:12,padding:14,marginBottom:12,border:'1px solid #ede5d8'};
+  const secTitle=(icon,label)=>(<div style={{fontSize:11,fontWeight:800,color:GOLD,letterSpacing:'0.1em',marginBottom:10,textTransform:'uppercase'}}>{icon} {label}</div>);
+  const expandBtn=(label,open,setOpen)=>(
+    <button type="button" onClick={()=>setOpen(o=>!o)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',background:'#f0ebe3',border:'1px solid #ddd0bb',borderRadius:8,padding:'7px 12px',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,color:'#5a4e44',marginTop:4}}>
+      <span>📞 {label}</span><span style={{fontSize:10}}>{open?'▲':'▼'}</span>
+    </button>
   );
-
-  const selStyle={width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'};
 
   return(
     <div style={{position:'fixed',inset:0,zIndex:700,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:'#fff',borderRadius:20,padding:32,width:'100%',maxWidth:600,maxHeight:'90vh',overflow:'auto',boxShadow:'0 24px 60px rgba(0,0,0,0.3)',animation:'fadeIn 0.2s ease'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+      <div style={{background:'#fff',borderRadius:20,padding:28,width:'100%',maxWidth:620,maxHeight:'92vh',overflow:'auto',boxShadow:'0 24px 60px rgba(0,0,0,0.3)',animation:'fadeIn 0.2s ease'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
           <h2 style={{fontSize:18,fontWeight:800,color:BLACK}}>הוסף תיק חדש</h2>
           <button onClick={onClose} style={{background:'#f0ebe3',border:'none',borderRadius:8,width:32,height:32,fontSize:18,cursor:'pointer',color:'#6b5e50',display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
         </div>
-        {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 14px',borderRadius:8,fontSize:14,marginBottom:16}}>{err}</div>}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-          <div style={{gridColumn:'1/-1'}}><FLabel>מספר תיק *</FLabel>{inp('caseNum','5xxxx')}</div>
-          <div style={{gridColumn:'1/-1'}}><FLabel>שם לקוח</FLabel>{inp('client')}</div>
-          <div><FLabel>עיר</FLabel>{inp('city')}</div>
-          <div><FLabel>בנק</FLabel>{inp('bank')}</div>
-          <div><FLabel>רחוב</FLabel>{inp('street')}</div>
-          <div><FLabel>מספר בית</FLabel>{inp('houseNum')}</div>
-          <div><FLabel>דירה</FLabel>{inp('aptNum')}</div>
-          <div>
-            <FLabel>מטרת העבודה</FLabel>
-            <select value={form.purpose||''} onChange={e=>set('purpose',e.target.value)} style={selStyle}>
-              <option value="">— בחר מטרה —</option>
-              {PURPOSE_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
-            </select>
-          </div>
-          <div>
-            <FLabel>סוג נכס</FLabel>
-            <select value={form.propType||''} onChange={e=>set('propType',e.target.value)} style={selStyle}>
-              <option value="">— בחר סוג —</option>
-              {PROP_TYPE_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
-            </select>
-          </div>
-          <div><FLabel>סוג זכויות</FLabel>{inp('rights')}</div>
-          <div><FLabel>יועץ</FLabel>{inp('advisor')}</div>
-          <div><FLabel>טלפון</FLabel>{inp('phone')}</div>
-          <div><FLabel>מייל</FLabel>{inp('email')}</div>
-          <div><FLabel>תאריך פתיחה</FLabel>{inp('openDate')}</div>
-          <div><FLabel>שכר טרחה</FLabel>{inp('fee')}</div>
-          <div>
-            <FLabel>סטטוס</FLabel>
-            <select value={form.status} onChange={e=>set('status',e.target.value)}
-              style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff'}}>
-              {['בביצוע','הסתיים','ממתין','בוטל'].map(s=><option key={s} value={s}>{s}</option>)}
-            </select>
+        {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 14px',borderRadius:8,fontSize:14,marginBottom:14}}>{err}</div>}
+
+        {/* פרטי תיק */}
+        <div style={secStyle}>
+          {secTitle('📦','פרטי תיק')}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <div><FLabel>מספר תיק *</FLabel>{inp('caseNum')}</div>
+            <div><FLabel>תאריך פתיחה</FLabel>
+              <input type="date" value={form.openDate} onChange={e=>set('openDate',e.target.value)} style={iS}/>
+            </div>
+            <div>
+              <FLabel>סטטוס</FLabel>
+              <select value={form.status} onChange={e=>set('status',e.target.value)} style={selStyle}>
+                {['בביצוע','הסתיים','ממתין','בוטל'].map(s=><option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div><FLabel>שכר טרחה (₪)</FLabel>{inp('fee')}</div>
           </div>
         </div>
-        <div style={{display:'flex',gap:10,marginTop:24}}>
+
+        {/* פרטי לקוח */}
+        <div style={secStyle}>
+          {secTitle('👤','פרטי לקוח')}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <div style={{gridColumn:'1/-1'}}><FLabel>שם לקוח</FLabel>{inp('client')}</div>
+          </div>
+          {expandBtn('נייד ומייל לקוח',showClientContact,setShowClientContact)}
+          {showClientContact&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:8}}>
+            <div><FLabel>נייד לקוח</FLabel>{inp('phone')}</div>
+            <div><FLabel>מייל לקוח</FLabel>{inp('email')}</div>
+          </div>}
+        </div>
+
+        {/* פרטי יועץ */}
+        <div style={secStyle}>
+          {secTitle('🤝','פרטי יועץ משכנתאות')}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <div style={{gridColumn:'1/-1'}}><FLabel>שם יועץ</FLabel>{inp('advisor')}</div>
+          </div>
+          {expandBtn('נייד ומייל יועץ',showAdvisorContact,setShowAdvisorContact)}
+          {showAdvisorContact&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:8}}>
+            <div><FLabel>נייד יועץ</FLabel>{inp('advisorPhone')}</div>
+            <div><FLabel>מייל יועץ</FLabel>{inp('advisorEmail')}</div>
+          </div>}
+        </div>
+
+        {/* פרטי נכס */}
+        <div style={secStyle}>
+          {secTitle('🏠','פרטי הנכס')}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <div><FLabel>ישוב / עיר</FLabel>{inp('city')}</div>
+            <div><FLabel>בנק</FLabel>{inp('bank')}</div>
+            <div><FLabel>רחוב</FLabel>{inp('street')}</div>
+            <div><FLabel>מס׳ בית</FLabel>{inp('houseNum')}</div>
+            <div><FLabel>מס׳ דירה</FLabel>{inp('aptNum')}</div>
+            <div><FLabel>גוש</FLabel>{inp('block')}</div>
+            <div><FLabel>חלקה</FLabel>{inp('parcel')}</div>
+            <div><FLabel>תת חלקה</FLabel>{inp('subParcel')}</div>
+            <div>
+              <FLabel>מטרת העבודה</FLabel>
+              <select value={form.purpose||''} onChange={e=>set('purpose',e.target.value)} style={selStyle}>
+                <option value="">— בחר מטרה —</option>
+                {PURPOSE_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <FLabel>סוג נכס</FLabel>
+              <select value={form.propType||''} onChange={e=>set('propType',e.target.value)} style={selStyle}>
+                <option value="">— בחר סוג —</option>
+                {PROP_TYPE_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <div><FLabel>סוג זכויות</FLabel>{inp('rights')}</div>
+          </div>
+        </div>
+
+        <div style={{display:'flex',gap:10}}>
           <button onClick={handleAdd} disabled={saving} style={{flex:1,padding:'11px',borderRadius:10,border:'none',background:BLACK,color:GOLD,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',gap:7}}>
             {saving?<><Spinner size={14} color={GOLD}/>שומר...</>:'➕ הוסף תיק'}
           </button>
@@ -1300,16 +1351,17 @@ function ManagedView({cases,onUpdateCase,onAddCase}){
 
   return(
     <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease'}}>
-      {adding&&<AddCaseModal onClose={()=>setAdding(false)} onAdd={async(form)=>{
-        // append new row to sheet
+      {adding&&<AddCaseModal cases={cases} onClose={()=>setAdding(false)} onAdd={async(form)=>{
         const row=new Array(24).fill('');
         row[M.caseNum]=form.caseNum;row[M.client]=form.client;row[M.openDate]=form.openDate;
         row[M.status]=form.status;row[M.city]=form.city;row[M.street]=form.street;
         row[M.houseNum]=form.houseNum;row[M.aptNum]=form.aptNum;row[M.purpose]=form.purpose;
         row[M.propType]=form.propType;row[M.bank]=form.bank;row[M.advisor]=form.advisor;
-        row[M.phone]=form.phone;row[M.email]=form.email;row[M.fee]=form.fee;row[M.rights]=form.rights;
+        row[M.phone]=form.phone;row[M.email]=form.email;row[M.fee]=form.fee;
+        row[M.advisorPhone]=form.advisorPhone;row[M.advisorEmail]=form.advisorEmail;
+        row[M.block]=form.block;row[M.parcel]=form.parcel;row[M.subParcel]=form.subParcel;
         await api.put(`'ניהול תיקים'!A${cases.length+2}:${colLetter(24)}${cases.length+2}`,[row]);
-        onAddCase({...form,_row:cases.length+2,_raw:row,folder:'',closeDate:'',advisorPhone:'',advisorEmail:'',block:'',parcel:'',subParcel:'',michael:''});
+        onAddCase({...form,_row:cases.length+2,_raw:row,folder:'',closeDate:'',michael:''});
         setAdding(false);
       }}/>}
 
@@ -2084,31 +2136,29 @@ function App(){
   },[loadAll]);
 
   const updateProject=useCallback((rowNum,updated)=>setProjects(prev=>prev.map(p=>p._row===rowNum?updated:p)),[]);
-  const updateCase=useCallback((rowNum,updated)=>setManaged(prev=>prev.map(c=>c._row===rowNum?{...c,...updated}:c)),[]);
+
+  const updateCase=useCallback((rowNum,updated)=>setManaged(prev=>prev.map(c=>c._row===rowNum?updated:c)),[]);
   const addCase=useCallback((newCase)=>setManaged(prev=>[...prev,newCase]),[]);
 
-  const counts=useMemo(()=>({
-    active:projects.filter(p=>!CLIENT_STATUSES.includes(p.status)).length,
-    client:projects.filter(p=>CLIENT_STATUSES.includes(p.status)).length,
+  const counts=React.useMemo(()=>({
+    active:projects.filter(p=>p.status&&p.status!=='הסתיים'&&p.status!=='בוטל').length,
+    client:managed.filter(c=>CLIENT_STATUSES.includes(c.status)).length,
     managed:managed.length,
   }),[projects,managed]);
 
-  if(!token)return<LoginScreen onLogin={handleLogin}/>;
+  if(!token){
+    return <LoginScreen onLogin={handleLogin}/>;
+  }
 
   return(
     <div style={{direction:'rtl',fontFamily:"'Rubik',sans-serif",background:'#f0ede8',minHeight:'100vh',zoom:FONT_ZOOM[settings.fontSize]||1}}>
       <Sidebar view={view} setView={setView} user={user} onLogout={()=>{api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);}} loading={loading} counts={counts}/>
       <div style={{marginRight:232,minHeight:'100vh'}}>
-        <div style={{background:'rgba(255,255,255,0.95)',backdropFilter:'blur(8px)',borderBottom:'1px solid #e8e0d4',padding:'10px 24px 10px 28px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,position:'sticky',top:0,zIndex:100}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            {loading&&<><Spinner size={14} color={GOLD}/><span style={{fontSize:13,color:'#9a8e84'}}>טוען...</span></>}
-            {error&&<span style={{fontSize:13,color:'#dc2626'}}>⚠️ {error}</span>}
-          </div>
-          <button onClick={()=>loadAll()} disabled={loading} style={{background:'#faf8f4',border:'1px solid #e0d5c5',borderRadius:9,padding:'6px 16px',cursor:loading?'not-allowed':'pointer',fontSize:13,color:'#3a3228',display:'flex',alignItems:'center',gap:6,opacity:loading?0.6:1,fontFamily:"'Rubik',sans-serif",transition:'all 0.15s'}}
-            onMouseEnter={e=>{if(!loading)e.currentTarget.style.background='#f0ebe3';}}
-            onMouseLeave={e=>{e.currentTarget.style.background='#faf8f4';}}>
-            🔄 רענן
-          </button>
+        <div style={{background:'rgba(255,255,255,0.95)',backdropFilter:'blur(8px)',borderBottom:'1px solid #e8e0d4',padding:'10px 24px 10px 28px',display:'flex',alignItems:'center',gap:12,position:'sticky',top:0,zIndex:100}}>
+          {loading&&<><Spinner size={14} color={GOLD}/><span style={{fontSize:13,color:GOLD}}>טוען...</span></>}
+          {error&&<span style={{fontSize:13,color:'#dc2626'}}>⚠️ {error}</span>}
+          <div style={{flex:1}}/>
+          <button onClick={()=>loadAll()} style={{padding:'6px 14px',borderRadius:8,border:`1px solid ${GOLD}44`,background:'transparent',color:GOLD,fontSize:12,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>🔄 רענן</button>
         </div>
         {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView}/>}
         {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings}/>}
@@ -2121,7 +2171,8 @@ function App(){
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+const root=ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App/>);
 </script>
 </body>
 </html>
