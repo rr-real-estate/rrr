@@ -1636,10 +1636,14 @@ function LoginScreen({onLogin}){
     }catch(e){setBusy(false);alert(e.message);}
   };
   return(
-    <div style={{minHeight:'100vh',backgroundImage:'url(RR.png)',backgroundSize:'cover',backgroundPosition:'center',backgroundRepeat:'no-repeat',display:'flex',alignItems:'center',justifyContent:'center',padding:20,overflow:'hidden',position:'relative'}}>
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20,overflow:'hidden',position:'relative'}}>
+      {/* Video background */}
+      <video autoPlay loop muted playsInline style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',zIndex:0}}>
+        <source src="RR_logo.mp4" type="video/mp4"/>
+      </video>
       {/* Dark overlay for readability */}
-      <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.45)',pointerEvents:'none'}}/>
-      <div style={{background:'rgba(255,255,255,0.03)',backdropFilter:'blur(32px)',border:`1px solid ${GOLD}1a`,borderRadius:28,padding:'52px 46px',maxWidth:430,width:'100%',textAlign:'center',boxShadow:`0 40px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)`,animation:'fadeIn 0.5s ease',position:'relative'}}>
+      <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.45)',pointerEvents:'none',zIndex:1}}/>
+      <div style={{background:'rgba(255,255,255,0.03)',backdropFilter:'blur(32px)',border:`1px solid ${GOLD}1a`,borderRadius:28,padding:'52px 46px',maxWidth:430,width:'100%',textAlign:'center',boxShadow:`0 40px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)`,animation:'fadeIn 0.5s ease',position:'relative',zIndex:2}}>
         <div style={{marginBottom:30,display:'flex',justifyContent:'center'}}>
           {!logoErr?(
             <div style={{background:'#fff',borderRadius:14,padding:'14px 22px',boxShadow:`0 8px 28px rgba(0,0,0,0.4), 0 0 0 1px ${GOLD}33`}}>
@@ -2228,8 +2232,7 @@ function App(){
         {view==='client'&&<ClientView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings}/>}
         {view==='managed'&&<ManagedView cases={managed} onUpdateCase={updateCase} onAddCase={addCase}/>}
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
-        {view==='settings'&&<SettingsView user={user} settings={settings} onSetting={onSetting}/>}
-      </div>
+        {view==='settings'&&<SettingsView user={user} settings={settings} onSetting={onSetting}/>}      </div>
     </div>
   );
 }
@@ -2239,4 +2242,5 @@ root.render(<App/>);
 </script>
 </body>
 </html>
+
 
