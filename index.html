@@ -1118,8 +1118,11 @@ function ManagedPanel({cas,onClose,onSave,allCases}){
           {/* יועץ */}
           <div style={{background:'#fff',borderRadius:12,padding:16,marginBottom:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
             <SectionTitle icon="🤝">יועץ משכנתאות</SectionTitle>
+            <datalist id="panel-advisors">{[...new Set((allCases||[]).map(c=>c.advisor||'').filter(Boolean))].sort().map(n=><option key={n} value={n}/>)}</datalist>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-              <div style={{gridColumn:'1/-1'}}><FLabel>שם יועץ</FLabel><input value={form.advisor||''} onChange={e=>handleAdvisorChange(e.target.value)} style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit',boxSizing:'border-box'}}/></div>
+              <div style={{gridColumn:'1/-1'}}><FLabel>שם יועץ</FLabel>
+                <input list="panel-advisors" value={form.advisor||''} onChange={e=>handleAdvisorChange(e.target.value)} placeholder="הקלד או בחר מהרשימה" style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit',boxSizing:'border-box'}}/>
+              </div>
               <div><FLabel>טלפון</FLabel>{inp('advisorPhone')}</div>
               <div><FLabel>מייל</FLabel>{inp('advisorEmail')}</div>
             </div>
@@ -1130,7 +1133,10 @@ function ManagedPanel({cas,onClose,onSave,allCases}){
             <SectionTitle icon="🏠">פרטי הנכס</SectionTitle>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
               <div><FLabel>עיר / ישוב</FLabel>{inp('city')}</div>
-              <div><FLabel>בנק</FLabel>{inp('bank')}</div>
+              <div><FLabel>בנק</FLabel>
+                <datalist id="panel-banks">{[...new Set((allCases||[]).map(c=>c.bank||'').filter(Boolean))].sort().map(b=><option key={b} value={b}/>)}</datalist>
+                <input list="panel-banks" value={form.bank||''} onChange={e=>set('bank',e.target.value)} placeholder="בחר או הקלד" style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit',boxSizing:'border-box'}}/>
+              </div>
               <div><FLabel>רחוב</FLabel>{inp('street')}</div>
               <div><FLabel>מספר בית</FLabel>{inp('houseNum')}</div>
               <div><FLabel>מספר דירה</FLabel>{inp('aptNum')}</div>
@@ -1177,6 +1183,25 @@ function AddCaseModal({onClose,onAdd,cases}){
   const [showClientContact,setShowClientContact]=useState(false);
   const [showAdvisorContact,setShowAdvisorContact]=useState(false);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+
+  // Unique advisor names + banks from existing cases
+  const advisorList=React.useMemo(()=>{
+    const map={};
+    (cases||[]).forEach(c=>{if(c.advisor&&c.advisor.trim())map[c.advisor.trim()]={phone:c.advisorPhone||'',email:c.advisorEmail||''};});
+    return map;
+  },[cases]);
+  const bankList=React.useMemo(()=>[...new Set((cases||[]).map(c=>c.bank||'').filter(Boolean))].sort(),[cases]);
+
+  const handleAdvisorChange=(v)=>{
+    const updated={advisor:v};
+    const match=advisorList[v.trim()];
+    if(match){
+      if(match.phone)updated.advisorPhone=match.phone;
+      if(match.email)updated.advisorEmail=match.email;
+      if(match.phone||match.email)setShowAdvisorContact(true);
+    }
+    setForm(f=>({...f,...updated}));
+  };
 
   const handleAdd=async()=>{
     if(!form.caseNum){setErr('מספר תיק הוא שדה חובה');return;}
@@ -1239,8 +1264,11 @@ function AddCaseModal({onClose,onAdd,cases}){
         {/* פרטי יועץ */}
         <div style={secStyle}>
           {secTitle('🤝','פרטי יועץ משכנתאות')}
+          <datalist id="modal-advisors">{Object.keys(advisorList).map(n=><option key={n} value={n}/>)}</datalist>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            <div style={{gridColumn:'1/-1'}}><FLabel>שם יועץ</FLabel>{inp('advisor')}</div>
+            <div style={{gridColumn:'1/-1'}}><FLabel>שם יועץ</FLabel>
+              <input list="modal-advisors" value={form.advisor||''} onChange={e=>handleAdvisorChange(e.target.value)} style={iS} placeholder="הקלד או בחר מהרשימה"/>
+            </div>
           </div>
           {expandBtn('נייד ומייל יועץ',showAdvisorContact,setShowAdvisorContact)}
           {showAdvisorContact&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:8}}>
@@ -1254,7 +1282,10 @@ function AddCaseModal({onClose,onAdd,cases}){
           {secTitle('🏠','פרטי הנכס')}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             <div><FLabel>ישוב / עיר</FLabel>{inp('city')}</div>
-            <div><FLabel>בנק</FLabel>{inp('bank')}</div>
+            <div><FLabel>בנק</FLabel>
+              <datalist id="modal-banks">{bankList.map(b=><option key={b} value={b}/>)}</datalist>
+              <input list="modal-banks" value={form.bank||''} onChange={e=>set('bank',e.target.value)} style={iS} placeholder="בחר או הקלד"/>
+            </div>
             <div><FLabel>רחוב</FLabel>{inp('street')}</div>
             <div><FLabel>מס׳ בית</FLabel>{inp('houseNum')}</div>
             <div><FLabel>מס׳ דירה</FLabel>{inp('aptNum')}</div>
