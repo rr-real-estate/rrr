@@ -1600,12 +1600,9 @@ function LoginScreen({onLogin}){
     }catch(e){setBusy(false);alert(e.message);}
   };
   return(
-    <div style={{minHeight:'100vh',background:`radial-gradient(ellipse at 60% 30%, #2a1f06 0%, #12100a 40%, ${BLACK} 100%)`,display:'flex',alignItems:'center',justifyContent:'center',padding:20,overflow:'hidden',position:'relative'}}>
-      {[[380,-60,-120,'0.07'],[550,'55%',-200,'0.04'],[220,'6%','65%','0.06'],[160,'80%','70%','0.05']].map(([s,l,t,o],i)=>(
-        <div key={i} style={{position:'absolute',width:s,height:s,borderRadius:'50%',background:`radial-gradient(circle,${GOLD},transparent)`,opacity:o,left:l,top:t,pointerEvents:'none',filter:'blur(1px)'}}/>
-      ))}
-      {/* Subtle grid pattern */}
-      <div style={{position:'absolute',inset:0,backgroundImage:`linear-gradient(${GOLD}08 1px,transparent 1px),linear-gradient(90deg,${GOLD}08 1px,transparent 1px)`,backgroundSize:'60px 60px',pointerEvents:'none'}}/>
+    <div style={{minHeight:'100vh',backgroundImage:'url(RR.png)',backgroundSize:'cover',backgroundPosition:'center',backgroundRepeat:'no-repeat',display:'flex',alignItems:'center',justifyContent:'center',padding:20,overflow:'hidden',position:'relative'}}>
+      {/* Dark overlay for readability */}
+      <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.45)',pointerEvents:'none'}}/>
       <div style={{background:'rgba(255,255,255,0.03)',backdropFilter:'blur(32px)',border:`1px solid ${GOLD}1a`,borderRadius:28,padding:'52px 46px',maxWidth:430,width:'100%',textAlign:'center',boxShadow:`0 40px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)`,animation:'fadeIn 0.5s ease',position:'relative'}}>
         <div style={{marginBottom:30,display:'flex',justifyContent:'center'}}>
           {!logoErr?(
