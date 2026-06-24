@@ -80,6 +80,11 @@ const USER_BY_EMAIL={
   'yr@yrr.co.il':'יוסי','a0504105070@gmail.com':'יוסי',
   'office@yrr.co.il':'פייגי','mr@mrr.co.il':'מיכאל',
 };
+const USER_ROLES={
+  'מיכאל':'שמאי מקרקעין וכלכלן',
+  'יוסי':'שמאי מקרקעין, כלכלן והנדסאי בניין',
+  'פייגי':'מזכירה',
+};
 // עמודות משימה → בעלים + מייל
 const TASK_FIELDS=[
   ['yossi','יוסי','yr@yrr.co.il'],
@@ -534,10 +539,10 @@ function ProjectCard({project,onClick,hideDate}){
     onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)';e.currentTarget.style.transform='translateY(0)';}}
     >
       {/* Title */}
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:9,gap:6}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10,gap:6}}>
         <div style={{flex:1,minWidth:0}}>
-          {caseNum&&<span style={{fontSize:11,fontWeight:500,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 8px',display:'inline-flex',alignItems:'center',gap:4,marginBottom:4,userSelect:'none'}}><span style={{width:6,height:6,borderRadius:'50%',background:'#d9af34',flexShrink:0}}/>{`#${caseNum}`}</span>}
-          <div style={{fontSize:14,fontWeight:500,color:'#0d0d0d',lineHeight:1.4}}>
+          {caseNum&&<span style={{fontSize:12,fontWeight:500,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 9px',display:'inline-flex',alignItems:'center',gap:4,marginBottom:5,userSelect:'none'}}><span style={{width:6,height:6,borderRadius:'50%',background:'#d9af34',flexShrink:0}}/>{`#${caseNum}`}</span>}
+          <div style={{fontSize:15,fontWeight:500,color:'#0d0d0d',lineHeight:1.4}}>
             <span style={{color:GOLD}}>{city}</span>
             {parts[1]&&<span style={{color:'#4a3e30'}}>{' — '}{parts.slice(1).join(' — ')}</span>}
           </div>
@@ -545,61 +550,58 @@ function ProjectCard({project,onClick,hideDate}){
         <Badge status={project.status} size="sm"/>
       </div>
 
-      {/* Dates — hidden for client-side */}
-      {!hideDate&&(project.dueDate||project.expected||project.visitDate)&&(
-        <div style={{display:'flex',gap:10,marginBottom:9,flexWrap:'wrap'}}>
-          {project.dueDate&&<span style={{fontSize:12,color:'#6b5e50'}}>⏰ {project.dueDate}</span>}
-          {project.expected&&(
-            <span style={{fontSize:12,fontWeight:600,color:overdue?'#dc2626':soon?'#d97706':'#6b5e50'}}>
-              {overdue?'⚠️':'📅'} {project.expected}
-              {diff!==null&&<span style={{marginRight:4,fontSize:11}}>({Math.abs(diff)} ימים {overdue?'איחור':'נותרו'})</span>}
-            </span>
-          )}
-          {project.visitDate&&<span style={{fontSize:12,color:'#6b5e50'}}>🏠 {project.visitDate}</span>}
-        </div>
-      )}
-
-      {/* Tasks */}
-      {tasks.length>0&&(
-        <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:8}}>
-          {tasks.map(t=>(
-            <div key={t.n} style={{background:`${t.c}14`,border:`1px solid ${t.c}33`,borderRadius:7,padding:'3px 9px',fontSize:12}}>
-              <span style={{color:t.c,fontWeight:500}}>{t.n}: </span>
-              <span style={{color:'#3a3228',verticalAlign:'bottom'}}>{t.v}</span>
+      {/* Active projects: show dates + tasks only (ראשי) */}
+      {!hideDate&&(
+        <>
+          {(project.dueDate||project.expected||project.visitDate)&&(
+            <div style={{display:'flex',gap:10,marginBottom:10,flexWrap:'wrap'}}>
+              {project.dueDate&&<span style={{fontSize:13,color:'#6b5e50'}}>⏰ {project.dueDate}</span>}
+              {project.expected&&(
+                <span style={{fontSize:13,fontWeight:600,color:overdue?'#dc2626':soon?'#d97706':'#6b5e50'}}>
+                  {overdue?'⚠️':'📅'} {project.expected}
+                  {diff!==null&&<span style={{marginRight:4,fontSize:12}}>({Math.abs(diff)} ימים {overdue?'איחור':'נותרו'})</span>}
+                </span>
+              )}
+              {project.visitDate&&<span style={{fontSize:13,color:'#6b5e50'}}>🏠 {project.visitDate}</span>}
             </div>
-          ))}
-        </div>
+          )}
+          {tasks.length>0&&(
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {tasks.map(t=>(
+                <div key={t.n} style={{background:`${t.c}14`,border:`1px solid ${t.c}33`,borderRadius:8,padding:'4px 11px',fontSize:13}}>
+                  <span style={{color:t.c,fontWeight:500}}>{t.n}: </span>
+                  <span style={{color:'#3a3228'}}>{t.v}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Checklist badges */}
-      {checks.length>0&&(
-        <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:project.notes?6:0}}>
-          {checks.map(c=>{
-            const ok=c.v&&c.v!=='לא בוצע'&&c.v!=='לא אותר';
-            const partial=c.v==='חלקי';
-            const notDone=c.v==='לא בוצע'||c.v==='לא אותר';
-            const color=partial?'#3a2000':ok?'#1a0e00':notDone?'#606060':'#6b5e50';
-            const bg=partial?'#f5e8d5':ok?'#fef9e8':notDone?'#e8e8e8':'#f0ebe3';
-            const border=partial?'#8c6239':ok?'#d9af34':notDone?'#b8b8b8':'#ddd0bb';
-            return<span key={c.l} style={{fontSize:11,padding:'2px 7px',borderRadius:6,background:bg,color,fontWeight:600,border:`1px solid ${border}`}}>
-              {partial?'~':ok?'✓':'✗'} {c.l}
-            </span>;
-          })}
-        </div>
-      )}
-
-      {/* Notes */}
-      {project.notes&&(
-        <div style={{fontSize:12,color:'#9a8e84',marginTop:5,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',borderTop:'1px solid #ede8e0',paddingTop:5}}>
-          💬 {project.notes}
-        </div>
-      )}
-
-      {/* Missing docs */}
-      {project.missingDocs&&(
-        <div style={{marginTop:5,fontSize:12,color:'#9a3412',background:'#fff7ed',padding:'4px 8px',borderRadius:6,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-          ⚠️ {project.missingDocs}
-        </div>
+      {/* Client projects: show documents checklist only */}
+      {hideDate&&(
+        <>
+          {checks.length>0&&(
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:project.missingDocs?6:0}}>
+              {checks.map(c=>{
+                const ok=c.v&&c.v!=='לא בוצע'&&c.v!=='לא אותר';
+                const partial=c.v==='חלקי';
+                const notDone=c.v==='לא בוצע'||c.v==='לא אותר';
+                const color=partial?'#3a2000':ok?'#1a0e00':notDone?'#606060':'#6b5e50';
+                const bg=partial?'#f5e8d5':ok?'#fef9e8':notDone?'#e8e8e8':'#f0ebe3';
+                const border=partial?'#8c6239':ok?'#d9af34':notDone?'#b8b8b8':'#ddd0bb';
+                return<span key={c.l} style={{fontSize:12,padding:'3px 9px',borderRadius:7,background:bg,color,fontWeight:600,border:`1px solid ${border}`}}>
+                  {partial?'~':ok?'✓':'✗'} {c.l}
+                </span>;
+              })}
+            </div>
+          )}
+          {project.missingDocs&&(
+            <div style={{fontSize:13,color:'#9a3412',background:'#fff7ed',padding:'5px 9px',borderRadius:7,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:4}}>
+              ⚠️ {project.missingDocs}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -1696,9 +1698,9 @@ function DashboardView({projects,managed,user,onSetView}){
   const totalFee=managed.reduce((s,c)=>s+parseNum(c.fee),0);
 
   const teamStats=[
-    {name:'יוסי',count:activeProjs.filter(p=>p.yossi).length,color:'#2563eb'},
-    {name:'מיכאל',count:activeProjs.filter(p=>p.michael).length,color:'#7c3aed'},
-    {name:'פייגי',count:activeProjs.filter(p=>p.feigi).length,color:'#059669'},
+    {name:'יוסי',role:'שמאי',count:activeProjs.filter(p=>p.yossi).length,color:'#1e40af'},
+    {name:'מיכאל',role:'שמאי',count:activeProjs.filter(p=>p.michael).length,color:GOLD3},
+    {name:'פייגי',role:'מזכירה',count:activeProjs.filter(p=>p.feigi).length,color:'#7c3aed'},
   ];
 
   const userName=USER_BY_EMAIL[(user?.email||'').toLowerCase()]||'';
@@ -1765,9 +1767,9 @@ function DashboardView({projects,managed,user,onSetView}){
         <KpiCard icon="📁" label="פרויקטים פעילים" value={activeProjs.length} color={GOLD3}
           sub={overdueProjs.length>0?`${overdueProjs.length} באיחור`:'הכל בזמן ✓'} onClick={()=>onSetView('projects')}/>
         <KpiCard icon="⏳" label="ממתין ללקוח" value={clientProjs.length} color="#7c3aed" onClick={()=>onSetView('client')}/>
-        <KpiCard icon="⚡" label="דד-ליין השבוע" value={thisWeek.length} color="#d97706"
-          sub={urgentProjs.length>thisWeek.length?`${urgentProjs.length} ב-14 יום`:''}/>
-        <KpiCard icon="🗂️" label="כלל התיקים" value={managed.length} color="#2563eb"
+        <KpiCard icon="⚡" label="דד-ליין השבוע" value={thisWeek.length} color="#c2410c"
+          sub={urgentProjs.length>thisWeek.length?`${urgentProjs.length} ב-14 יום`:''} onClick={()=>onSetView('projects')}/>
+        <KpiCard icon="🗂️" label="כלל התיקים" value={managed.length} color="#1e40af"
           onClick={()=>onSetView('managed')}/>
       </div>
 
@@ -1799,10 +1801,11 @@ function DashboardView({projects,managed,user,onSetView}){
       <div style={sec}>
         {secTitle('👥','ביצועי הצוות')}
         <div style={{display:'flex',gap:14,flexWrap:'wrap'}}>
-          {teamStats.map(({name,count,color})=>(
-            <div key={name} style={{flex:1,minWidth:120,background:'#faf8f4',borderRadius:12,padding:'18px',textAlign:'center',border:'1px solid #ede8e0'}}>
-              <div style={{fontSize:32,fontWeight:500,color}}>{count}</div>
-              <div style={{fontSize:14,fontWeight:500,color:'#4b3400',marginTop:6}}>{name}</div>
+          {teamStats.map(({name,role,count,color})=>(
+            <div key={name} style={{flex:1,minWidth:120,background:`linear-gradient(135deg,${color}08 0%,${color}03 100%)`,borderRadius:12,padding:'18px',textAlign:'center',border:`1px solid ${color}22`,position:'relative',overflow:'hidden'}}>
+              <div style={{position:'absolute',top:0,right:0,left:0,height:3,background:color,opacity:0.7,borderRadius:'12px 12px 0 0'}}/>
+              <div style={{fontSize:36,fontWeight:500,color,lineHeight:1,letterSpacing:'-0.02em'}}>{count}</div>
+              <div style={{fontSize:14,fontWeight:500,color:'#1a1510',marginTop:7}}>{name}</div>
               <div style={{fontSize:11,color:'#9a8e84',marginTop:2}}>תיקים פעילים</div>
             </div>
           ))}
@@ -2136,7 +2139,8 @@ function SettingsView({user,settings,onSetting}){
           <div>
             <div style={{fontSize:16,fontWeight:500,color:BLACK}}>{user.name}</div>
             <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{user.email}</div>
-            <div style={{fontSize:12,color:GOLD3,marginTop:4,fontWeight:600}}>{userName||'לא מזוהה'} <span style={{color:'#9a8e84',fontWeight:400}}>(מזוהה לפי כתובת המייל)</span></div>
+            <div style={{fontSize:13,color:GOLD3,marginTop:4,fontWeight:500}}>{USER_ROLES[userName]||'—'}</div>
+            <div style={{fontSize:11,color:'#9a8e84',marginTop:2}}>{userName||'לא מזוהה'} · מזוהה לפי כתובת המייל</div>
           </div>
         </div>}
       </div>
@@ -2146,13 +2150,6 @@ function SettingsView({user,settings,onSetting}){
           <div style={{display:'flex',gap:6}}>
             {['small','medium','large'].map(v=><button key={v} onClick={()=>onSetting('fontSize',v)} style={{padding:'5px 14px',borderRadius:20,border:`1.5px solid ${settings?.fontSize===v?GOLD:'#ddd0bb'}`,background:settings?.fontSize===v?'#fef9e8':'#fff',color:settings?.fontSize===v?GOLD3:'#6b5e50',cursor:'pointer',fontSize:v==='small'?11:v==='large'?15:13,fontWeight:settings?.fontSize===v?700:400}}>
               {v==='small'?'קטן':v==='medium'?'רגיל':'גדול'}
-            </button>)}
-          </div>
-        </div>
-        <div style={row}><span style={lbl}>פתיחת תיק</span>
-          <div style={{display:'flex',gap:6}}>
-            {['tall','side','full'].map(v=><button key={v} onClick={()=>onSetting('expandMode',v)} style={{padding:'5px 14px',borderRadius:20,border:`1.5px solid ${settings?.expandMode===v?GOLD:'#ddd0bb'}`,background:settings?.expandMode===v?'#fef9e8':'#fff',color:settings?.expandMode===v?GOLD3:'#6b5e50',cursor:'pointer',fontSize:12,fontWeight:settings?.expandMode===v?700:400,whiteSpace:'nowrap'}}>
-              {expandLabels[v]||v}
             </button>)}
           </div>
         </div>
