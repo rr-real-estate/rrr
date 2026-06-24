@@ -270,7 +270,7 @@ function Badge({status,size='md'}){
 function SectionTitle({children,icon}){
   return<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14,paddingBottom:10,borderBottom:`1px solid #e8e0d4`}}>
     {icon&&<span style={{fontSize:16,opacity:0.85}}>{icon}</span>}
-    <span style={{fontSize:13,fontWeight:700,color:'#3a2a00',letterSpacing:'0.03em',textTransform:'uppercase'}}>{children}</span>
+    <span style={{fontSize:13,fontWeight:500,color:'#3a2a00',letterSpacing:'0.03em',textTransform:'uppercase'}}>{children}</span>
     <div style={{flex:1,height:1,background:`linear-gradient(to left, transparent, ${GOLD}33)`,marginRight:4}}/>
   </div>;
 }
@@ -344,7 +344,7 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
   );
   const docChk=(k,label,ac,opts)=>(
     <div key={k}>
-      <div style={{fontSize:11,fontWeight:700,color:ac,marginBottom:3}}>{label}</div>
+      <div style={{fontSize:11,fontWeight:500,color:ac,marginBottom:3}}>{label}</div>
       <select value={form[k]||''} onChange={e=>{set(k,e.target.value);schedSave();}}
         style={{width:'100%',padding:'6px 8px',borderRadius:7,border:`1.5px solid ${ac}55`,fontSize:12,background:`${ac}0d`,outline:'none',color:'#1a1510',fontFamily:'inherit'}}>
         {opts.map(o=><option key={o} value={o}>{o||'—'}</option>)}
@@ -360,14 +360,14 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
       <div style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid #ede8e0'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:6}}>
           <div style={{flex:1,minWidth:0}}>
-            {caseNum&&<span style={{fontSize:11,fontWeight:700,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 8px',display:'inline-flex',alignItems:'center',gap:4,marginBottom:4,userSelect:'none'}}><span style={{width:6,height:6,borderRadius:'50%',background:'#d9af34',flexShrink:0}}/>{`#${caseNum}`}</span>}
-            <div style={{fontSize:14,fontWeight:700,color:'#0d0d0d',lineHeight:1.4}}>{project.name}</div>
+            {caseNum&&<span style={{fontSize:11,fontWeight:500,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 8px',display:'inline-flex',alignItems:'center',gap:4,marginBottom:4,userSelect:'none'}}><span style={{width:6,height:6,borderRadius:'50%',background:'#d9af34',flexShrink:0}}/>{`#${caseNum}`}</span>}
+            <div style={{fontSize:14,fontWeight:500,color:'#0d0d0d',lineHeight:1.4}}>{project.name}</div>
           </div>
           <Badge status={form.status} size="sm"/>
         </div>
         <div style={{marginTop:4,height:15,display:'flex',alignItems:'center',gap:8}}>
           {saving&&<Spinner size={11} color={GOLD}/>}
-          {flashSaved&&<span style={{fontSize:11,color:'#16a34a',fontWeight:700}}>✓ נשמר</span>}
+          {flashSaved&&<span style={{fontSize:11,color:'#16a34a',fontWeight:500}}>✓ נשמר</span>}
           {err&&<span style={{fontSize:11,color:'#dc2626'}}>{err}</span>}
           {!saving&&!flashSaved&&!err&&<span style={{fontSize:11,color:'#c8bfb5'}}>לחץ על הכותרת לסגירה</span>}
         </div>
@@ -395,7 +395,7 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
           <SectionTitle icon="📋">משימות</SectionTitle>
           {[['יוסי','yossi','#607060'],['מיכאל','michael',GOLD],['פייגי','feigi','#8c6239']].map(([l,k,c])=>(
             <div key={k} style={{marginBottom:7}}>
-              <FLabel><span style={{color:c,fontWeight:700}}>{l}</span></FLabel>
+              <FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
               {inp(k)}
             </div>
           ))}
@@ -502,8 +502,8 @@ function ProjectCard({project,onClick,hideDate}){
       {/* Title */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:9,gap:6}}>
         <div style={{flex:1,minWidth:0}}>
-          {caseNum&&<span style={{fontSize:11,fontWeight:700,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 8px',display:'inline-flex',alignItems:'center',gap:4,marginBottom:4,userSelect:'none'}}><span style={{width:6,height:6,borderRadius:'50%',background:'#d9af34',flexShrink:0}}/>{`#${caseNum}`}</span>}
-          <div style={{fontSize:14,fontWeight:700,color:'#0d0d0d',lineHeight:1.4}}>
+          {caseNum&&<span style={{fontSize:11,fontWeight:500,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 8px',display:'inline-flex',alignItems:'center',gap:4,marginBottom:4,userSelect:'none'}}><span style={{width:6,height:6,borderRadius:'50%',background:'#d9af34',flexShrink:0}}/>{`#${caseNum}`}</span>}
+          <div style={{fontSize:14,fontWeight:500,color:'#0d0d0d',lineHeight:1.4}}>
             <span style={{color:GOLD}}>{city}</span>
             {parts[1]&&<span style={{color:'#4a3e30'}}>{' — '}{parts.slice(1).join(' — ')}</span>}
           </div>
@@ -530,7 +530,7 @@ function ProjectCard({project,onClick,hideDate}){
         <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:8}}>
           {tasks.map(t=>(
             <div key={t.n} style={{background:`${t.c}14`,border:`1px solid ${t.c}33`,borderRadius:7,padding:'3px 9px',fontSize:12}}>
-              <span style={{color:t.c,fontWeight:700}}>{t.n}: </span>
+              <span style={{color:t.c,fontWeight:500}}>{t.n}: </span>
               <span style={{color:'#3a3228',verticalAlign:'bottom'}}>{t.v}</span>
             </div>
           ))}
@@ -630,8 +630,8 @@ function ProjectDetailPanel({project,onClose,onSave}){
         <div style={{background:`linear-gradient(135deg, #0f0f0f 0%, #1a1410 100%)`,padding:'20px 26px',flexShrink:0,borderBottom:`3px solid ${dot}`}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
             <div style={{flex:1,minWidth:0}}>
-              {caseNum&&<span style={{fontSize:11,fontWeight:700,color:GOLD,background:`${GOLD}18`,border:`1px solid ${GOLD}55`,borderRadius:20,padding:'3px 10px',display:'inline-block',marginBottom:7,letterSpacing:'0.05em'}}>תיק #{caseNum}</span>}
-              <div style={{fontSize:16,fontWeight:700,color:'#fff',lineHeight:1.4,marginBottom:9,letterSpacing:'-0.01em'}}>{project.name}</div>
+              {caseNum&&<span style={{fontSize:11,fontWeight:500,color:GOLD,background:`${GOLD}18`,border:`1px solid ${GOLD}55`,borderRadius:20,padding:'3px 10px',display:'inline-block',marginBottom:7,letterSpacing:'0.05em'}}>תיק #{caseNum}</span>}
+              <div style={{fontSize:16,fontWeight:500,color:'#fff',lineHeight:1.4,marginBottom:9,letterSpacing:'-0.01em'}}>{project.name}</div>
               <div style={{display:'flex',alignItems:'center',gap:12}}>
                 <Badge status={form.status}/>
                 {saving&&<span style={{fontSize:12,color:'rgba(255,255,255,0.45)',display:'flex',alignItems:'center',gap:5}}><Spinner size={11} color='rgba(255,255,255,0.45)'/>שומר...</span>}
@@ -672,7 +672,7 @@ function ProjectDetailPanel({project,onClose,onSave}){
             <div style={sec}>
               <SectionTitle icon="📋">משימות</SectionTitle>
               {[['יוסי','yossi','#607060'],['מיכאל','michael',GOLD],['פייגי','feigi','#8c6239']].map(([l,k,c])=>(
-                <div key={k} style={{marginBottom:10}}><FLabel><span style={{color:c,fontWeight:700}}>{l}</span></FLabel>{inp(k)}</div>
+                <div key={k} style={{marginBottom:10}}><FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>{inp(k)}</div>
               ))}
             </div>
             <div style={sec}>
@@ -722,7 +722,7 @@ function ProjectDetailPanel({project,onClose,onSave}){
               </div>
               <FLabel>הערות שכ"ט</FLabel>{inp('feeNotes',true)}
               {form.fee&&<div style={{marginTop:16,padding:'14px 16px',background:'#fef9e8',borderRadius:10,border:`1px solid ${GOLD}66`}}>
-                <div style={{fontSize:22,fontWeight:900,color:GOLD3}}>₪{form.fee}</div>
+                <div style={{fontSize:22,fontWeight:500,color:GOLD3}}>₪{form.fee}</div>
                 {form.feeStatus&&<div style={{fontSize:12,color:'#6b5e50',marginTop:4}}>סטטוס: {form.feeStatus}</div>}
                 {form.feeNotes&&<div style={{fontSize:12,color:'#9a8e84',marginTop:2}}>{form.feeNotes}</div>}
               </div>}
@@ -799,7 +799,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
     <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:1600}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
         <div>
-          <h2 style={{fontSize:22,fontWeight:800,color:'#1a1510',letterSpacing:'-0.01em'}}>פרויקטים בביצוע</h2>
+          <h2 style={{fontSize:22,fontWeight:500,color:'#1a1510',letterSpacing:'-0.01em'}}>פרויקטים בביצוע</h2>
           <div style={{fontSize:13,color:'#9a8e84',marginTop:3,fontWeight:400}}>{filtered.length} תיקים פעילים</div>
         </div>
         <div style={{display:'flex',gap:6}}>
@@ -828,11 +828,11 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
       {/* Table view */}
       {viewMode==='table'&&(()=>{
         const today2=new Date();today2.setHours(0,0,0,0);
-        const Chk=({v})=>{if(!v)return<span style={{color:'#ccc',fontSize:11}}>—</span>;const ok=v==='בוצע'||v==='התקבל';return<span style={{fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:8,background:ok?'#d1fae5':'#fef3c7',color:ok?'#065f46':'#4b3400',whiteSpace:'nowrap'}}>{v}</span>;};
+        const Chk=({v})=>{if(!v)return<span style={{color:'#ccc',fontSize:11}}>—</span>;const ok=v==='בוצע'||v==='התקבל';return<span style={{fontSize:10,fontWeight:500,padding:'2px 6px',borderRadius:8,background:ok?'#d1fae5':'#fef3c7',color:ok?'#065f46':'#4b3400',whiteSpace:'nowrap'}}>{v}</span>;};
         const groups3=[
           {label:'ראשי',cols:[
             {h:'שם תיק',w:'2.5fr',r:p=>{const d=p._dueD||p._expD;const ov=d&&d<today2;return<div style={{display:'flex',alignItems:'center',gap:6,overflow:'hidden'}}>{ov&&<span style={{color:'#dc2626',flexShrink:0,fontSize:11}}>⚠️</span>}<span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:600,fontSize:12}}>{p.name}</span></div>;}},
-            {h:'סטטוס',w:'120px',r:p=>{const m=STATUS_META[p.status]||{};return<span style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,background:m.bg,color:m.fg,whiteSpace:'nowrap'}}>{p.status}</span>;}},
+            {h:'סטטוס',w:'120px',r:p=>{const m=STATUS_META[p.status]||{};return<span style={{padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:500,background:m.bg,color:m.fg,whiteSpace:'nowrap'}}>{p.status}</span>;}},
             {h:'יוסי',w:'90px',r:p=><Chk v={p.yossi}/>},
             {h:'מיכאל',w:'90px',r:p=><Chk v={p.michael}/>},
             {h:'פייגי',w:'70px',r:p=><Chk v={p.feigi}/>},
@@ -870,7 +870,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
               <span style={{marginRight:'auto',fontSize:12,color:'#9a8e84',alignSelf:'center'}}>{filtered.length} תיקים</span>
             </div>
             <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 8px rgba(0,0,0,0.07)',border:'1px solid #ede8e0',overflow:'hidden'}}>
-              <div style={{display:'grid',gridTemplateColumns:templateCols,gap:0,background:BLACK2,color:'#e8dfc9',fontSize:11,fontWeight:700,padding:'9px 14px',alignItems:'center'}}>
+              <div style={{display:'grid',gridTemplateColumns:templateCols,gap:0,background:BLACK2,color:'#e8dfc9',fontSize:11,fontWeight:500,padding:'9px 14px',alignItems:'center'}}>
                 {cols.map((c,i)=><span key={i}>{c.h}</span>)}
               </div>
               {filtered.length===0?(
@@ -901,8 +901,8 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
               <div onClick={()=>toggle(status)} style={{background:m.bg,padding:'13px 18px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:isOpen?`2px solid ${m.dot}88`:'none',borderRadius:isOpen?'14px 14px 0 0':14}}>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
                   <span style={{width:12,height:12,borderRadius:'50%',background:m.dot,display:'inline-block',flexShrink:0,boxShadow:`0 0 5px ${m.dot}99`}}/>
-                  <span style={{fontSize:15,fontWeight:800,color:m.fg}}>{status}</span>
-                  <span style={{background:`${m.dot}33`,color:m.fg,border:`1px solid ${m.dot}66`,borderRadius:20,padding:'2px 10px',fontSize:13,fontWeight:700}}>{items.length}</span>
+                  <span style={{fontSize:15,fontWeight:500,color:m.fg}}>{status}</span>
+                  <span style={{background:`${m.dot}33`,color:m.fg,border:`1px solid ${m.dot}66`,borderRadius:20,padding:'2px 10px',fontSize:13,fontWeight:500}}>{items.length}</span>
                 </div>
                 <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
               </div>
@@ -961,7 +961,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings}){
     <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:1600}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
         <div>
-          <h2 style={{fontSize:22,fontWeight:800,color:GOLD3}}>ממתין ללקוח</h2>
+          <h2 style={{fontSize:22,fontWeight:500,color:GOLD3}}>ממתין ללקוח</h2>
           <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{filtered.length} תיקים ממתינים לפעולה חיצונית</div>
         </div>
         <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
@@ -992,8 +992,8 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings}){
               <div onClick={()=>setCollapsed(c=>({...c,[status]:!c[status]}))} style={{background:m.bg,padding:'13px 18px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:isOpen?`2px solid ${m.dot}88`:'none',borderRadius:isOpen?'14px 14px 0 0':14}}>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
                   <span style={{width:12,height:12,borderRadius:'50%',background:m.dot,display:'inline-block',flexShrink:0,boxShadow:`0 0 5px ${m.dot}99`}}/>
-                  <span style={{fontSize:15,fontWeight:800,color:m.fg}}>{status}</span>
-                  <span style={{background:`${m.dot}33`,color:m.fg,border:`1px solid ${m.dot}66`,borderRadius:20,padding:'2px 10px',fontSize:13,fontWeight:700}}>{items.length}</span>
+                  <span style={{fontSize:15,fontWeight:500,color:m.fg}}>{status}</span>
+                  <span style={{background:`${m.dot}33`,color:m.fg,border:`1px solid ${m.dot}66`,borderRadius:20,padding:'2px 10px',fontSize:13,fontWeight:500}}>{items.length}</span>
                 </div>
                 <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
               </div>
@@ -1067,14 +1067,14 @@ function ManagedPanel({cas,onClose,onSave,allCases}){
         <div style={{background:BLACK,padding:'20px 24px',flexShrink:0}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div>
-              <div style={{fontSize:11,color:GOLD,fontWeight:700,letterSpacing:'1px',marginBottom:3}}>תיק #{cas.caseNum}</div>
-              <div style={{fontSize:14,fontWeight:700,color:'#fff',lineHeight:1.5,maxWidth:440}}>{cas.folder}</div>
+              <div style={{fontSize:11,color:GOLD,fontWeight:500,letterSpacing:'1px',marginBottom:3}}>תיק #{cas.caseNum}</div>
+              <div style={{fontSize:14,fontWeight:500,color:'#fff',lineHeight:1.5,maxWidth:440}}>{cas.folder}</div>
             </div>
             <button onClick={onClose} style={{background:'rgba(255,255,255,0.1)',border:'none',borderRadius:8,width:32,height:32,color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
           </div>
         </div>
         <div style={{background:'#fff',padding:'10px 24px',borderBottom:'1px solid #e0d8cc',position:'sticky',top:0,zIndex:10,flexShrink:0,display:'flex',gap:8}}>
-          <button onClick={handleSave} disabled={saving} style={{flex:1,padding:'9px',borderRadius:9,border:'none',background:saved?'#16a34a':BLACK,color:saved?'#fff':GOLD,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',gap:7}}>
+          <button onClick={handleSave} disabled={saving} style={{flex:1,padding:'9px',borderRadius:9,border:'none',background:saved?'#16a34a':BLACK,color:saved?'#fff':GOLD,fontWeight:500,cursor:saving?'not-allowed':'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',gap:7}}>
             {saving?<><Spinner size={14} color={GOLD}/>שומר...</>:saved?'✓ נשמר!':'💾 שמור'}
           </button>
           <button onClick={()=>setForm({...cas})} style={{padding:'9px 14px',borderRadius:9,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:13,color:'#6b5e50'}}>שחזר</button>
@@ -1189,9 +1189,9 @@ function AddCaseModal({onClose,onAdd,cases}){
   const inp=(k,placeholder='')=>(<input value={form[k]||''} onChange={e=>set(k,e.target.value)} placeholder={placeholder} style={iS}/>);
   const selStyle={...iS};
   const secStyle={background:'#faf7f2',borderRadius:12,padding:14,marginBottom:12,border:'1px solid #ede5d8'};
-  const secTitle=(icon,label)=>(<div style={{fontSize:11,fontWeight:800,color:GOLD,letterSpacing:'0.1em',marginBottom:10,textTransform:'uppercase'}}>{icon} {label}</div>);
+  const secTitle=(icon,label)=>(<div style={{fontSize:11,fontWeight:500,color:GOLD,letterSpacing:'0.1em',marginBottom:10,textTransform:'uppercase'}}>{icon} {label}</div>);
   const expandBtn=(label,open,setOpen)=>(
-    <button type="button" onClick={()=>setOpen(o=>!o)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',background:'#f0ebe3',border:'1px solid #ddd0bb',borderRadius:8,padding:'7px 12px',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,color:'#5a4e44',marginTop:4}}>
+    <button type="button" onClick={()=>setOpen(o=>!o)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',background:'#f0ebe3',border:'1px solid #ddd0bb',borderRadius:8,padding:'7px 12px',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:500,color:'#5a4e44',marginTop:4}}>
       <span>📞 {label}</span><span style={{fontSize:10}}>{open?'▲':'▼'}</span>
     </button>
   );
@@ -1200,7 +1200,7 @@ function AddCaseModal({onClose,onAdd,cases}){
     <div style={{position:'fixed',inset:0,zIndex:700,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
       <div style={{background:'#fff',borderRadius:20,padding:28,width:'100%',maxWidth:620,maxHeight:'92vh',overflow:'auto',boxShadow:'0 24px 60px rgba(0,0,0,0.3)',animation:'fadeIn 0.2s ease'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-          <h2 style={{fontSize:18,fontWeight:800,color:BLACK}}>הוסף תיק חדש</h2>
+          <h2 style={{fontSize:18,fontWeight:500,color:BLACK}}>הוסף תיק חדש</h2>
           <button onClick={onClose} style={{background:'#f0ebe3',border:'none',borderRadius:8,width:32,height:32,fontSize:18,cursor:'pointer',color:'#6b5e50',display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
         </div>
         {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 14px',borderRadius:8,fontSize:14,marginBottom:14}}>{err}</div>}
@@ -1280,7 +1280,7 @@ function AddCaseModal({onClose,onAdd,cases}){
         </div>
 
         <div style={{display:'flex',gap:10}}>
-          <button onClick={handleAdd} disabled={saving} style={{flex:1,padding:'11px',borderRadius:10,border:'none',background:BLACK,color:GOLD,fontWeight:700,cursor:saving?'not-allowed':'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',gap:7}}>
+          <button onClick={handleAdd} disabled={saving} style={{flex:1,padding:'11px',borderRadius:10,border:'none',background:BLACK,color:GOLD,fontWeight:500,cursor:saving?'not-allowed':'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',gap:7}}>
             {saving?<><Spinner size={14} color={GOLD}/>שומר...</>:'➕ הוסף תיק'}
           </button>
           <button onClick={onClose} style={{padding:'11px 20px',borderRadius:10,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:14}}>ביטול</button>
@@ -1367,16 +1367,16 @@ function ManagedView({cases,onUpdateCase,onAddCase}){
 
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:12}}>
         <div>
-          <h2 style={{fontSize:22,fontWeight:800,color:GOLD3}}>כלל התיקים</h2>
+          <h2 style={{fontSize:22,fontWeight:500,color:GOLD3}}>כלל התיקים</h2>
           <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{filtered.length} מתוך {cases.length} תיקים</div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
           {MANAGED_STATUSES.map(s=>{const sc=STATUS_C[s]||{};return(
-            <span key={s} onClick={()=>setF('status',filters.status===s?'':s)} style={{...sc,padding:'5px 12px',borderRadius:14,fontSize:12,fontWeight:700,cursor:'pointer',border:`1.5px solid ${filters.status===s?'currentcolor':'transparent'}`}}>
+            <span key={s} onClick={()=>setF('status',filters.status===s?'':s)} style={{...sc,padding:'5px 12px',borderRadius:14,fontSize:12,fontWeight:500,cursor:'pointer',border:`1.5px solid ${filters.status===s?'currentcolor':'transparent'}`}}>
               {s} ({cases.filter(c=>c.status===s).length})
             </span>
           );})}
-          <button onClick={()=>setAdding(true)} style={{padding:'9px 18px',borderRadius:10,border:'none',background:BLACK,color:GOLD,fontWeight:700,cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(0,0,0,0.15)'}}>
+          <button onClick={()=>setAdding(true)} style={{padding:'9px 18px',borderRadius:10,border:'none',background:BLACK,color:GOLD,fontWeight:500,cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(0,0,0,0.15)'}}>
             ➕ הוסף תיק
           </button>
         </div>
@@ -1421,7 +1421,7 @@ function ManagedView({cases,onUpdateCase,onAddCase}){
                     onMouseEnter={e=>e.currentTarget.style.background='#fdf8ee'}
                     onMouseLeave={e=>e.currentTarget.style.background=i%2===0?'#fff':'#fdf9f5'}
                   >
-                    <td style={{padding:'10px 12px',fontWeight:800,color:GOLD,whiteSpace:'nowrap'}}>{c.caseNum}</td>
+                    <td style={{padding:'10px 12px',fontWeight:500,color:GOLD,whiteSpace:'nowrap'}}>{c.caseNum}</td>
                     <td style={{padding:'10px 12px',maxWidth:240,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:500}} title={c.folder}>{c.folder||c.client}</td>
                     <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{c.client}</td>
                     <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{c.city}</td>
@@ -1437,7 +1437,7 @@ function ManagedView({cases,onUpdateCase,onAddCase}){
                     <td style={{padding:'10px 12px',whiteSpace:'nowrap',color:'#9a8e84'}}>{c.closeDate}</td>
                     <td style={{padding:'10px 12px',fontWeight:c.fee?700:400,color:c.fee?'#1a1510':'#9a8e84'}}>{c.fee?`₪${c.fee}`:''}</td>
                     <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>
-                      {c.status&&<span style={{...sc,padding:'3px 8px',borderRadius:12,fontSize:11,fontWeight:700}}>{c.status}</span>}
+                      {c.status&&<span style={{...sc,padding:'3px 8px',borderRadius:12,fontSize:11,fontWeight:500}}>{c.status}</span>}
                     </td>
                     <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>
                       {c.phone&&<a href={`tel:${c.phone}`} onClick={e=>e.stopPropagation()} style={{color:'#4b3400',textDecoration:'none'}}>{c.phone}</a>}
@@ -1497,8 +1497,8 @@ function Sidebar({view,setView,user,onLogout,loading,counts}){
           </div>
         ):(
           <div style={{background:'#fff',borderRadius:10,padding:'10px 14px',width:'100%',textAlign:'right'}}>
-            <div style={{fontSize:14,fontWeight:900,color:'#0d0d0d',letterSpacing:'-0.3px'}}>רובינשטיין רוזנטל</div>
-            <div style={{fontSize:11,fontWeight:700,color:GOLD3}}>שמאות מקרקעין</div>
+            <div style={{fontSize:14,fontWeight:500,color:'#0d0d0d',letterSpacing:'-0.3px'}}>רובינשטיין רוזנטל</div>
+            <div style={{fontSize:11,fontWeight:500,color:GOLD3}}>שמאות מקרקעין</div>
           </div>
         )}
       </div>
@@ -1521,7 +1521,7 @@ function Sidebar({view,setView,user,onLogout,loading,counts}){
             >
               <span style={{fontSize:17,flexShrink:0}}>{item.icon}</span>
               <span style={{flex:1}}>{item.label}</span>
-              {item.count>0&&<span style={{background:active?GOLD:`${GOLD}44`,color:active?BLACK:'#fff',borderRadius:20,padding:'1px 8px',fontSize:12,fontWeight:700}}>{item.count}</span>}
+              {item.count>0&&<span style={{background:active?GOLD:`${GOLD}44`,color:active?BLACK:'#fff',borderRadius:20,padding:'1px 8px',fontSize:12,fontWeight:500}}>{item.count}</span>}
               {loading&&active&&<Spinner size={13} color={GOLD}/>}
             </button>
           );
@@ -1532,7 +1532,7 @@ function Sidebar({view,setView,user,onLogout,loading,counts}){
       <div style={{padding:14,borderTop:`1px solid ${GOLD}22`}}>
         {user&&<div style={{display:'flex',alignItems:'center',gap:9,marginBottom:10}}>
           {user.picture?<img src={user.picture} style={{width:34,height:34,borderRadius:'50%',border:`1.5px solid ${GOLD}55`,flexShrink:0}} alt=""/>
-            :<div style={{width:34,height:34,borderRadius:'50%',background:GOLD,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:800,color:BLACK,flexShrink:0}}>{(user.name||'?')[0]}</div>}
+            :<div style={{width:34,height:34,borderRadius:'50%',background:GOLD,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:500,color:BLACK,flexShrink:0}}>{(user.name||'?')[0]}</div>}
           <div style={{overflow:'hidden'}}>
             <div style={{fontSize:13,fontWeight:600,color:'#fff',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{user.name}</div>
             <div style={{fontSize:11,color:'rgba(255,255,255,0.35)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{user.email}</div>
@@ -1584,7 +1584,7 @@ function LoginScreen({onLogin}){
             </div>
           ):(
             <div style={{background:'#fff',borderRadius:14,padding:'16px 22px',boxShadow:`0 8px 28px rgba(0,0,0,0.4)`,textAlign:'right'}}>
-              <div style={{fontSize:19,fontWeight:800,color:'#0d0d0d',letterSpacing:'-0.02em'}}>רובינשטיין רוזנטל</div>
+              <div style={{fontSize:19,fontWeight:500,color:'#0d0d0d',letterSpacing:'-0.02em'}}>רובינשטיין רוזנטל</div>
               <div style={{fontSize:13,fontWeight:600,color:GOLD3,marginTop:2}}>שמאות מקרקעין</div>
             </div>
           )}
@@ -1648,7 +1648,7 @@ function DashboardView({projects,managed,user,onSetView}){
         onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 2px 10px rgba(0,0,0,0.06),0 1px 3px rgba(0,0,0,0.04)';e.currentTarget.style.transform='none';}}>
         <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:color,opacity:0.7,borderRadius:'16px 16px 0 0'}}/>
         <div style={{fontSize:24,marginBottom:8,opacity:0.85}}>{icon}</div>
-        <div style={{fontSize:36,fontWeight:800,color,lineHeight:1,letterSpacing:'-0.02em'}}>{value}</div>
+        <div style={{fontSize:36,fontWeight:500,color,lineHeight:1,letterSpacing:'-0.02em'}}>{value}</div>
         <div style={{fontSize:13,color:'#5a4e44',marginTop:7,fontWeight:500}}>{label}</div>
         {sub&&<div style={{fontSize:11,color:'#9a8e84',marginTop:4,fontWeight:400}}>{sub}</div>}
       </div>
@@ -1663,14 +1663,14 @@ function DashboardView({projects,managed,user,onSetView}){
     const m=STATUS_META[p.status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
     return(
       <div style={{display:'flex',alignItems:'center',gap:10,padding:'9px 14px',borderBottom:'1px solid #f5f3ef',fontSize:13,flexWrap:'wrap'}}>
-        <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:'nowrap',
+        <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:500,whiteSpace:'nowrap',
           background:isOverdue?'#fef2f2':'#fff7ed',color:isOverdue?'#dc2626':'#d97706',
           border:`1px solid ${isOverdue?'#fca5a5':'#fcd34d'}`}}>
           {isOverdue?`⚠️ ${Math.abs(daysLeft)} ימים`:daysLeft===0?'🔴 היום':`📅 ${daysLeft} ימים`}
         </span>
         <span style={{flex:1,fontWeight:600,color:'#1a1510',minWidth:120}}>{p.name}</span>
         <span style={{color:'#9a8e84',fontSize:12}}>{dStr}</span>
-        {person&&<span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:700,background:'#fef3c7',color:'#4b3400',border:'1px solid #d9af34'}}>{person}</span>}
+        {person&&<span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:500,background:'#fef3c7',color:'#4b3400',border:'1px solid #d9af34'}}>{person}</span>}
         <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:600,background:m.bg,color:m.fg,border:`1px solid ${m.dot}44`}}>{p.status}</span>
       </div>
     );
@@ -1678,16 +1678,16 @@ function DashboardView({projects,managed,user,onSetView}){
 
   const sec={background:'#fff',borderRadius:16,padding:'22px 24px',marginBottom:16,boxShadow:'0 2px 10px rgba(0,0,0,0.06)',border:'1px solid #e8e0d4'};
   const secTitle=(icon,t,count)=>(
-    <div style={{fontSize:14,fontWeight:700,color:'#3a2a00',marginBottom:16,display:'flex',alignItems:'center',gap:8,letterSpacing:'0.01em'}}>
+    <div style={{fontSize:14,fontWeight:500,color:'#3a2a00',marginBottom:16,display:'flex',alignItems:'center',gap:8,letterSpacing:'0.01em'}}>
       <span style={{fontSize:16,opacity:0.8}}>{icon}</span>{t}
-      {count!==undefined&&<span style={{background:`${GOLD}1a`,color:GOLD3,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:700,border:`1px solid ${GOLD}33`}}>{count}</span>}
+      {count!==undefined&&<span style={{background:`${GOLD}1a`,color:GOLD3,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:500,border:`1px solid ${GOLD}33`}}>{count}</span>}
     </div>
   );
 
   return(
     <div style={{padding:'28px 32px',maxWidth:1400,animation:'fadeIn 0.3s ease'}}>
       <div style={{marginBottom:26}}>
-        <h2 style={{fontSize:27,fontWeight:800,color:'#1a1510',letterSpacing:'-0.02em'}}>{greet}{userName?` ${userName}`:''} 👋</h2>
+        <h2 style={{fontSize:27,fontWeight:500,color:'#1a1510',letterSpacing:'-0.02em'}}>{greet}{userName?` ${userName}`:''} 👋</h2>
         <div style={{fontSize:13,color:'#9a8e84',marginTop:4,fontWeight:400}}>
           {new Date().toLocaleDateString('he-IL',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}
         </div>
@@ -1733,14 +1733,14 @@ function DashboardView({projects,managed,user,onSetView}){
         <div style={{display:'flex',gap:14,flexWrap:'wrap'}}>
           {teamStats.map(({name,count,color})=>(
             <div key={name} style={{flex:1,minWidth:120,background:'#faf8f4',borderRadius:12,padding:'18px',textAlign:'center',border:'1px solid #ede8e0'}}>
-              <div style={{fontSize:32,fontWeight:900,color}}>{count}</div>
-              <div style={{fontSize:14,fontWeight:700,color:'#4b3400',marginTop:6}}>{name}</div>
+              <div style={{fontSize:32,fontWeight:500,color}}>{count}</div>
+              <div style={{fontSize:14,fontWeight:500,color:'#4b3400',marginTop:6}}>{name}</div>
               <div style={{fontSize:11,color:'#9a8e84',marginTop:2}}>תיקים פעילים</div>
             </div>
           ))}
           <div style={{flex:1,minWidth:120,background:'#faf8f4',borderRadius:12,padding:'18px',textAlign:'center',border:'1px solid #ede8e0'}}>
-            <div style={{fontSize:32,fontWeight:900,color:'#6b5e50'}}>{activeProjs.length}</div>
-            <div style={{fontSize:14,fontWeight:700,color:'#4b3400',marginTop:6}}>סה"כ</div>
+            <div style={{fontSize:32,fontWeight:500,color:'#6b5e50'}}>{activeProjs.length}</div>
+            <div style={{fontSize:14,fontWeight:500,color:'#4b3400',marginTop:6}}>סה"כ</div>
             <div style={{fontSize:11,color:'#9a8e84',marginTop:2}}>בביצוע</div>
           </div>
         </div>
@@ -1812,7 +1812,7 @@ function ReportsView({managed,projects}){
   const KpiCard=({icon,label,value,sub,color})=>(
     <div style={{background:'#fff',borderRadius:14,padding:'20px 22px',flex:1,minWidth:155,border:'1px solid #ede8e0',boxShadow:'0 2px 8px rgba(0,0,0,0.07)'}}>
       <div style={{fontSize:24,marginBottom:6}}>{icon}</div>
-      <div style={{fontSize:26,fontWeight:900,color,lineHeight:1}}>{value}</div>
+      <div style={{fontSize:26,fontWeight:500,color,lineHeight:1}}>{value}</div>
       <div style={{fontSize:12,color:'#6b5e50',marginTop:6,fontWeight:600}}>{label}</div>
       {sub&&<div style={{fontSize:11,color:'#9a8e84',marginTop:3}}>{sub}</div>}
     </div>
@@ -1821,7 +1821,7 @@ function ReportsView({managed,projects}){
   return(
     <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:1400}}>
       <div style={{marginBottom:20}}>
-        <h2 style={{fontSize:22,fontWeight:800,color:GOLD3}}>📊 דוחות</h2>
+        <h2 style={{fontSize:22,fontWeight:500,color:GOLD3}}>📊 דוחות</h2>
         <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{managed.length} תיקים במסד הנתונים</div>
       </div>
 
@@ -1843,11 +1843,11 @@ function ReportsView({managed,projects}){
 
         {/* Monthly bar chart */}
         <div style={sec}>
-          <div style={{fontSize:14,fontWeight:800,color:GOLD3,marginBottom:16}}>📅 פתיחת תיקים — 12 חודשים אחרונים</div>
+          <div style={{fontSize:14,fontWeight:500,color:GOLD3,marginBottom:16}}>📅 פתיחת תיקים — 12 חודשים אחרונים</div>
           <div style={{display:'flex',alignItems:'flex-end',gap:5,height:110}}>
             {monthlyData.map(m=>(
               <div key={m.key} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
-                {m.count>0&&<div style={{fontSize:10,color:'#9a8e84',fontWeight:700}}>{m.count}</div>}
+                {m.count>0&&<div style={{fontSize:10,color:'#9a8e84',fontWeight:500}}>{m.count}</div>}
                 <div style={{width:'100%',background:m.count>0?GOLD:'#e8e3da',borderRadius:'4px 4px 0 0',height:`${Math.max(3,m.count/maxMonthCount*85)}px`,transition:'height 0.4s'}}/>
                 <div style={{fontSize:9,color:'#9a8e84',textAlign:'center',lineHeight:1.2,whiteSpace:'nowrap'}}>{m.label}</div>
               </div>
@@ -1857,7 +1857,7 @@ function ReportsView({managed,projects}){
 
         {/* Status breakdown */}
         <div style={sec}>
-          <div style={{fontSize:14,fontWeight:800,color:GOLD3,marginBottom:16}}>👥 ביצועי צוות — פרויקטים פעילים</div>
+          <div style={{fontSize:14,fontWeight:500,color:GOLD3,marginBottom:16}}>👥 ביצועי צוות — פרויקטים פעילים</div>
           {(()=>{
             const teamData=[
               {name:'יוסי',color:'#2563eb',icon:'👤'},
@@ -1881,12 +1881,12 @@ function ReportsView({managed,projects}){
                 {teamData.map(t=>(
                   <div key={t.name} style={{marginBottom:16}}>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,fontSize:13,alignItems:'center'}}>
-                      <span style={{fontWeight:700,color:t.color}}>{t.name}</span>
+                      <span style={{fontWeight:500,color:t.color}}>{t.name}</span>
                       <div style={{display:'flex',gap:14,fontSize:12}}>
                         <span style={{background:'#f0ebe3',borderRadius:10,padding:'2px 8px',color:'#6b5e50'}}>{t.total} תיקים</span>
                         <span style={{background:'#dcfce7',borderRadius:10,padding:'2px 8px',color:'#166534'}}>✓ {t.done} הסתיים</span>
                         <span style={{background:'#fdf8ee',borderRadius:10,padding:'2px 8px',color:GOLD3}}>🔄 {t.active} פעיל</span>
-                        <span style={{fontWeight:800,color:t.color}}>{t.pct}%</span>
+                        <span style={{fontWeight:500,color:t.color}}>{t.pct}%</span>
                       </div>
                     </div>
                     <div style={{height:10,background:'#f0ebe3',borderRadius:5,overflow:'hidden',position:'relative'}}>
@@ -1897,12 +1897,12 @@ function ReportsView({managed,projects}){
                 ))}
                 <div style={{marginTop:20,padding:'14px 16px',background:'#faf8f4',borderRadius:10,border:'1px solid #ede8e0',display:'flex',gap:24,alignItems:'center'}}>
                   <div style={{textAlign:'center'}}>
-                    <div style={{fontSize:22,fontWeight:900,color:trendColor}}>{trend} {thisMonth}</div>
+                    <div style={{fontSize:22,fontWeight:500,color:trendColor}}>{trend} {thisMonth}</div>
                     <div style={{fontSize:11,color:'#9a8e84'}}>תיקים החודש</div>
                   </div>
                   <div style={{height:36,width:1,background:'#ede8e0'}}/>
                   <div style={{textAlign:'center'}}>
-                    <div style={{fontSize:22,fontWeight:900,color:GOLD3}}>{avgPerMonth}</div>
+                    <div style={{fontSize:22,fontWeight:500,color:GOLD3}}>{avgPerMonth}</div>
                     <div style={{fontSize:11,color:'#9a8e84'}}>ממוצע 6 חודשים</div>
                   </div>
                   <div style={{height:36,width:1,background:'#ede8e0'}}/>
@@ -1932,7 +1932,7 @@ function ReportsView({managed,projects}){
             {['הסתיים','בביצוע','ממתין','בוטל'].map(s=><option key={s} value={s}>{s}</option>)}
           </select>
           {(search||statusFilter)&&<button onClick={()=>{setSearch('');setStatusFilter('');}} style={{...inp,background:'#ede8e0',color:'#4b3400',cursor:'pointer'}}>נקה ×</button>}
-          <div style={{marginRight:'auto',display:'flex',gap:16,fontSize:13,fontWeight:700}}>
+          <div style={{marginRight:'auto',display:'flex',gap:16,fontSize:13,fontWeight:500}}>
             <span style={{color:'#6b5e50'}}>{filtered.length} תיקים</span>
 
           </div>
@@ -1959,14 +1959,14 @@ function ReportsView({managed,projects}){
                     <tr key={c._row} style={{borderBottom:'1px solid #ede8e0',background:i%2===0?'#fff':'#fdf9f5',transition:'background 0.1s'}}
                       onMouseEnter={e=>e.currentTarget.style.background='#fdf8ee'}
                       onMouseLeave={e=>e.currentTarget.style.background=i%2===0?'#fff':'#fdf9f5'}>
-                      <td style={{padding:'10px 12px',fontWeight:800,color:GOLD,whiteSpace:'nowrap'}}>{c.caseNum}</td>
+                      <td style={{padding:'10px 12px',fontWeight:500,color:GOLD,whiteSpace:'nowrap'}}>{c.caseNum}</td>
                       <td style={{padding:'10px 12px',maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={c.folder||c.client}>{c.folder||c.client}</td>
                       <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{c.city}</td>
                       <td style={{padding:'10px 12px',whiteSpace:'nowrap',color:'#6b5e50',maxWidth:110,overflow:'hidden',textOverflow:'ellipsis'}}>{c.bank}</td>
                       <td style={{padding:'10px 12px',maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#6b5e50'}} title={c.purpose}>{c.purpose}</td>
                       <td style={{padding:'10px 12px',whiteSpace:'nowrap',color:'#9a8e84'}}>{c.openDate}</td>
                       <td style={{padding:'10px 12px'}}>
-                        {c.status&&<span style={{...sc,padding:'3px 9px',borderRadius:12,fontSize:11,fontWeight:700}}>{c.status}</span>}
+                        {c.status&&<span style={{...sc,padding:'3px 9px',borderRadius:12,fontSize:11,fontWeight:500}}>{c.status}</span>}
                       </td>
                     </tr>
                   );
@@ -1982,7 +1982,7 @@ function ReportsView({managed,projects}){
       {tab==='stats'&&<div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
           <div style={sec}>
-            <div style={{fontSize:14,fontWeight:800,color:GOLD3,marginBottom:16}}>🏦 לפי בנק (top 10)</div>
+            <div style={{fontSize:14,fontWeight:500,color:GOLD3,marginBottom:16}}>🏦 לפי בנק (top 10)</div>
             {bankStats.length===0?<div style={{color:'#9a8e84',textAlign:'center',padding:'16px 0',fontSize:13}}>אין נתוני בנק</div>:bankStats.map(([bank,{count,fee}])=>(
               <div key={bank} style={{marginBottom:10}}>
                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:3,fontSize:12}}>
@@ -1999,7 +1999,7 @@ function ReportsView({managed,projects}){
             ))}
           </div>
           <div style={sec}>
-            <div style={{fontSize:14,fontWeight:800,color:GOLD3,marginBottom:16}}>🏙️ לפי עיר (top 10)</div>
+            <div style={{fontSize:14,fontWeight:500,color:GOLD3,marginBottom:16}}>🏙️ לפי עיר (top 10)</div>
             {cityStats.length===0?<div style={{color:'#9a8e84',textAlign:'center',padding:'16px 0',fontSize:13}}>אין נתוני עיר</div>:cityStats.map(([city,{count,fee}])=>(
               <div key={city} style={{marginBottom:10}}>
                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:3,fontSize:12}}>
@@ -2017,15 +2017,15 @@ function ReportsView({managed,projects}){
           </div>
         </div>
         <div style={{...sec,marginBottom:0}}>
-          <div style={{fontSize:14,fontWeight:800,color:GOLD3,marginBottom:16}}>🎯 לפי מטרת עבודה</div>
+          <div style={{fontSize:14,fontWeight:500,color:GOLD3,marginBottom:16}}>🎯 לפי מטרת עבודה</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:10}}>
             {purposeStats.map(([purpose,{count,fee}])=>{
               const pct=managed.length>0?Math.round(count/managed.length*100):0;
               return(
                 <div key={purpose} style={{background:'#faf8f4',borderRadius:10,padding:'12px 14px',border:'1px solid #ede8e0'}}>
                   <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
-                    <span style={{fontSize:12,fontWeight:700,color:'#1a1510',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1,marginLeft:8}} title={purpose}>{purpose==='—'?'לא צוין':purpose}</span>
-                    <span style={{fontSize:13,fontWeight:900,color:GOLD3,flexShrink:0}}>{count}</span>
+                    <span style={{fontSize:12,fontWeight:500,color:'#1a1510',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1,marginLeft:8}} title={purpose}>{purpose==='—'?'לא צוין':purpose}</span>
+                    <span style={{fontSize:13,fontWeight:500,color:GOLD3,flexShrink:0}}>{count}</span>
                   </div>
                   <div style={{height:5,background:'#e0d8cc',borderRadius:3,overflow:'hidden',marginBottom:5}}>
                     <div style={{height:'100%',width:`${pct}%`,background:GOLD,borderRadius:3}}/>
@@ -2047,7 +2047,7 @@ function ReportsView({managed,projects}){
 // ══════════════ SETTINGS VIEW ════════════════════════════════════
 function SettingsView({user,settings,onSetting}){
   const sec={background:'#fff',borderRadius:14,padding:'20px 22px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
-  const secTitle=(icon,t)=><div style={{fontSize:14,fontWeight:800,color:GOLD3,marginBottom:14,display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:17}}>{icon}</span>{t}</div>;
+  const secTitle=(icon,t)=><div style={{fontSize:14,fontWeight:500,color:GOLD3,marginBottom:14,display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:17}}>{icon}</span>{t}</div>;
   const row={display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10};
   const lbl={fontSize:13,color:'#4b3400',fontWeight:600};
   const chip=(val,cur,key)=>(
@@ -2059,14 +2059,14 @@ function SettingsView({user,settings,onSetting}){
   const userName=(USER_BY_EMAIL||{})[(user?.email||'').toLowerCase().trim()]||'—';
   return(
     <div style={{padding:'28px 32px',maxWidth:720,animation:'fadeIn 0.3s ease'}}>
-      <h2 style={{fontSize:22,fontWeight:800,color:GOLD3,marginBottom:20}}>⚙️ הגדרות</h2>
+      <h2 style={{fontSize:22,fontWeight:500,color:GOLD3,marginBottom:20}}>⚙️ הגדרות</h2>
       <div style={sec}>
         {secTitle('👤','פרופיל משתמש')}
         {user&&<div style={{display:'flex',alignItems:'center',gap:14}}>
           {user.picture?<img src={user.picture} style={{width:56,height:56,borderRadius:'50%',border:`2px solid ${GOLD}55`}} alt=""/>
-            :<div style={{width:56,height:56,borderRadius:'50%',background:GOLD,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,fontWeight:800,color:BLACK}}>{(user.name||'?')[0]}</div>}
+            :<div style={{width:56,height:56,borderRadius:'50%',background:GOLD,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,fontWeight:500,color:BLACK}}>{(user.name||'?')[0]}</div>}
           <div>
-            <div style={{fontSize:16,fontWeight:700,color:BLACK}}>{user.name}</div>
+            <div style={{fontSize:16,fontWeight:500,color:BLACK}}>{user.name}</div>
             <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{user.email}</div>
             <div style={{fontSize:12,color:GOLD3,marginTop:4,fontWeight:600}}>{userName||'לא מזוהה'} <span style={{color:'#9a8e84',fontWeight:400}}>(מזוהה לפי כתובת המייל)</span></div>
           </div>
