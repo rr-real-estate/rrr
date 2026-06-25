@@ -215,6 +215,25 @@ const api={
       body:JSON.stringify({raw:encoded})
     });
     if(!r.ok){const e=await r.json();throw new Error(e?.error?.message||r.statusText);}
+  },
+  async append(sheetName,values,id=CONFIG.SPREADSHEET_ID){
+    const r=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(sheetName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+      {method:'POST',headers:{Authorization:`Bearer ${this.token}`,'Content-Type':'application/json'},
+       body:JSON.stringify({majorDimension:'ROWS',values})});
+    if(!r.ok)throw new Error((await r.json())?.error?.message||r.statusText);
+    return r.json();
+  },
+  async deleteSheetRow(sheetName,rowNum,id=CONFIG.SPREADSHEET_ID){
+    const meta=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=sheets.properties`,
+      {headers:{Authorization:`Bearer ${this.token}`}});
+    const mdata=await meta.json();
+    const sh=(mdata.sheets||[]).find(s=>s.properties.title===sheetName);
+    if(!sh)throw new Error('גיליון לא נמצא: '+sheetName);
+    const r=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`,
+      {method:'POST',headers:{Authorization:`Bearer ${this.token}`,'Content-Type':'application/json'},
+       body:JSON.stringify({requests:[{deleteDimension:{range:{sheetId:sh.properties.sheetId,dimension:'ROWS',startIndex:rowNum-1,endIndex:rowNum}}}]})});
+    if(!r.ok)throw new Error((await r.json())?.error?.message||r.statusText);
+    return r.json();
   }
 };
 
@@ -609,15 +628,18 @@ function ProjectCard({project,onClick,hideDate}){
 }
 
 // ═══════════════ PROJECT DETAIL PANEL ════════════════════════════
-function ProjectDetailPanel({project,onClose,onSave}){
+function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDeleteProject}){
   const [form,setForm]=useState({...project});
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
   const [err,setErr]=useState('');
   const [tab,setTab]=useState('main');
+  const [closingWork,setClosingWork]=useState(false);
   const savingRef=useRef(false);
   const formRef=useRef({...project});
   const dirtyRef=useRef(false);
+  const matchedCase=(managed||[]).find(c=>c.folder&&c.folder.trim()===project.name.trim());
+  const workStatus=matchedCase?.status||'בביצוע';
   const set=(k,v)=>{
     dirtyRef.current=true;
     setForm(f=>{const next={...f,[k]:v};formRef.current=next;return next;});
@@ -651,6 +673,23 @@ function ProjectDetailPanel({project,onClose,onSave}){
       </select>
     </div>
   );
+  const handleWorkStatusChange=async(newStatus)=>{
+    if(closingWork||newStatus===workStatus)return;
+    try{
+      setClosingWork(true);
+      if(dirtyRef.current)await autoSave();
+      if(matchedCase){
+        await api.put(`'ניהול תיקים'!E${matchedCase._row}`,[[newStatus]]);
+        if(onUpdateCase)onUpdateCase(matchedCase._row,{status:newStatus});
+      }
+      if(newStatus==='הסתיים'||newStatus==='בוטל'){
+        await api.deleteSheetRow('פרויקטים בביצוע',project._row);
+        if(onDeleteProject)onDeleteProject(project._row);
+        onClose();
+      }
+    }catch(e){setErr(e.message);}
+    finally{setClosingWork(false);}
+  };
   const numMatch=project.name.match(/\b(5\d{4})\b/);
   const caseNum=numMatch?numMatch[1]:'';
   const dot=STATUS_META[form.status]?.dot||GOLD;
@@ -671,9 +710,18 @@ function ProjectDetailPanel({project,onClose,onSave}){
                 {saved&&!saving&&<span style={{fontSize:12,color:'#4ade80',fontWeight:500}}>✓ נשמר</span>}
               </div>
             </div>
-            <button onClick={handleClose} style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:10,width:36,height:36,color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all 0.15s'}}
-              onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.2)';e.currentTarget.style.color='#fff';}}
-              onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.1)';e.currentTarget.style.color='rgba(255,255,255,0.7)';}}>×</button>
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8,flexShrink:0}}>
+              <button onClick={handleClose} style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:10,width:36,height:36,color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}
+                onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.2)';e.currentTarget.style.color='#fff';}}
+                onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.1)';e.currentTarget.style.color='rgba(255,255,255,0.7)';}}>×</button>
+              {matchedCase&&<select value={workStatus} onChange={e=>handleWorkStatusChange(e.target.value)} disabled={closingWork}
+                title="סטטוס תיק (ניהול תיקים)"
+                style={{background:'#1e1e1e',color:'#787878',border:'1px solid #333',borderRadius:6,padding:'3px 5px',fontSize:10,cursor:closingWork?'wait':'pointer',fontFamily:'inherit',outline:'none',width:72,textAlign:'center',direction:'rtl'}}>
+                <option value="בביצוע">בביצוע</option>
+                <option value="הסתיים">הסתיים</option>
+                <option value="בוטל">בוטל</option>
+              </select>}
+            </div>
           </div>
         </div>
         {/* Tabs */}
@@ -768,7 +816,7 @@ function ProjectDetailPanel({project,onClose,onSave}){
 }
 
 // ═══════════════ PROJECTS VIEW (kanban groups) ═══════════════════
-function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
+function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDelete}){
   const [search,setSearch]=useState('');
   const [personFilter,setPersonFilter]=useState('');
   const [panelProject,setPanelProject]=useState(null);
@@ -998,13 +1046,13 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
           );
         })
       )}
-      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave}/>}
+      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>{setPanelProject(null);setPanelAnchor(null);}} onSave={handleSave} managed={managed} onUpdateCase={onUpdateCase} onDeleteProject={(rowNum)=>{if(onDelete)onDelete(rowNum);setPanelProject(null);}}/>}
     </div>
   );
 }
 
 // ═══════════════ CLIENT VIEW ══════════════════════════════════════
-function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings}){
+function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDelete}){
   const [search,setSearch]=useState('');
   const [statusFilter,setStatusFilter]=useState('');
   const [panelProject,setPanelProject]=useState(null);
@@ -1204,7 +1252,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings}){
           );
         })
       )}
-      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave}/>}
+      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} managed={managed} onUpdateCase={onUpdateCase} onDeleteProject={(rowNum)=>{if(onDelete)onDelete(rowNum);setPanelProject(null);}}/>}
     </div>
   );
 }
@@ -1524,7 +1572,7 @@ function AddCaseModal({onClose,onAdd,cases}){
 }
 
 // ═══════════════ MANAGED CASES VIEW ══════════════════════════════
-function ManagedView({cases,onUpdateCase,onAddCase}){
+function ManagedView({cases,onUpdateCase,onAddCase,addProject}){
   const [search,setSearch]=useState('');
   const [filters,setFilters]=useState({status:'',bank:'',city:'',purpose:'',propType:'',advisor:''});
   const [page,setPage]=useState(0);
@@ -1585,6 +1633,8 @@ function ManagedView({cases,onUpdateCase,onAddCase}){
   return(
     <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease'}}>
       {adding&&<AddCaseModal cases={cases} onClose={()=>setAdding(false)} onAdd={async(form)=>{
+        // נוסחת שם תיקייה זהה ל-Apps Script: O - P Q - G - D
+        const folder=`${form.city||''} - ${[form.street,form.houseNum].filter(Boolean).join(' ')} - ${form.client||''} - ${form.caseNum||''}`;
         const row=new Array(24).fill('');
         row[M.caseNum]=form.caseNum;row[M.client]=form.client;row[M.openDate]=form.openDate;
         row[M.status]=form.status;row[M.city]=form.city;row[M.street]=form.street;
@@ -1593,8 +1643,22 @@ function ManagedView({cases,onUpdateCase,onAddCase}){
         row[M.phone]=form.phone;row[M.email]=form.email;row[M.fee]=form.fee;
         row[M.advisorPhone]=form.advisorPhone;row[M.advisorEmail]=form.advisorEmail;
         row[M.block]=form.block;row[M.parcel]=form.parcel;row[M.subParcel]=form.subParcel;
+        row[M.folder]=folder;
         await api.put(`'ניהול תיקים'!A${cases.length+2}:${colLetter(24)}${cases.length+2}`,[row]);
-        onAddCase({...form,_row:cases.length+2,_raw:row,folder:'',closeDate:'',michael:''});
+        onAddCase({...form,_row:cases.length+2,_raw:row,folder,closeDate:'',michael:''});
+        // הוסף שורה לפרויקטים בביצוע אם סטטוס = בביצוע
+        if(form.status==='בביצוע'&&folder){
+          try{
+            const projRow=new Array(25).fill('');
+            projRow[P.name]=folder;
+            projRow[P.status]='ממתין לקבלת מסמכים';
+            const res=await api.append("'פרויקטים בביצוע'",[projRow]);
+            const rng=res?.updates?.updatedRange||'';
+            const rm=rng.match(/(\d+)(?::[A-Z]+\d+)?$/);
+            const newRow=rm?parseInt(rm[1]):null;
+            if(newRow&&addProject)addProject(parseProject(projRow,newRow-2));
+          }catch(e2){console.warn('שגיאה בהוספת פרויקט:',e2.message);}
+        }
         setAdding(false);
       }}/>}
 
@@ -1714,7 +1778,7 @@ function Sidebar({view,setView,user,onLogout,loading,counts}){
   const nav=[
     {id:'home',icon:'🏠',label:'דף הבית'},
     {id:'projects',icon:'📁',label:'פרויקטים בביצוע',count:counts.active},
-    {id:'client',icon:'⏳',label:'ממתין ללקוח',count:counts.client},
+    {id:'clients',icon:'⏳',label:'ממתין ללקוח',count:counts.client},
     {id:'managed',icon:'🗂️',label:'כלל התיקים',count:counts.managed},
     {id:'reports',icon:'📊',label:'דוחות'},
     {id:'settings',icon:'⚙️',label:'הגדרות'},
@@ -1930,7 +1994,7 @@ function DashboardView({projects,managed,user,onSetView}){
       <div style={{display:'flex',gap:14,marginBottom:20,flexWrap:'wrap'}}>
         <KpiCard icon="📁" label="פרויקטים פעילים" value={activeProjs.length} color={GOLD3}
           sub={overdueProjs.length>0?`${overdueProjs.length} באיחור`:'הכל בזמן ✓'} onClick={()=>onSetView('projects')}/>
-        <KpiCard icon="⏳" label="ממתין ללקוח" value={clientProjs.length} color="#7c3aed" onClick={()=>onSetView('client')}/>
+        <KpiCard icon="⏳" label="ממתין ללקוח" value={clientProjs.length} color="#7c3aed" onClick={()=>onSetView('clients')}/>
         <KpiCard icon="⚡" label="דד-ליין השבוע" value={thisWeek.length} color="#c2410c"
           sub={urgentProjs.length>thisWeek.length?`${urgentProjs.length} ב-14 יום`:''} onClick={()=>onSetView('projects')}/>
         <KpiCard icon="🗂️" label="כלל התיקים" value={managed.length} color="#1e40af"
@@ -2384,6 +2448,8 @@ function App(){
     setManaged(ms=>ms.map(m=>m._row===rowNum?{...m,...upd}:m));
   },[]);
   const addCase=useCallback((c)=>{setManaged(ms=>[...ms,c]);},[]);
+  const addProject=useCallback((p)=>{setProjects(ps=>[...ps,p]);},[]);
+  const deleteProject=useCallback((rowNum)=>{setProjects(ps=>ps.filter(p=>p._row!==rowNum));},[]);
   const counts=React.useMemo(()=>({
     active:projects.filter(p=>p.status&&!CLIENT_STATUSES.includes(p.status)&&p.status!=='הסתיים'&&p.status!=='בוטל').length,
     client:projects.filter(p=>CLIENT_STATUSES.includes(p.status)).length,
@@ -2397,8 +2463,10 @@ function App(){
       <div style={{flex:1,overflow:'auto',marginRight:232}}>
         {error&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{error}</div>}
         {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView}/>}
-        {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings}/>}
-        {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings}/>}
+        {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject}/>}
+        {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject}/>}
+        {view==='managed'&&<ManagedView cases={managed} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject}/>}
+        {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
         {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user}/>}
       </div>
     </div>
