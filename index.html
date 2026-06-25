@@ -2256,21 +2256,25 @@ function App(){
   const [managed,setManaged]=useState([]);
   const [settings,setSettings]=useState(()=>{try{return JSON.parse(localStorage.getItem('rrr_settings')||'{}')}catch{return {};}});
   const onSetting=(k,v)=>setSettings(s=>{const n={...s,[k]:v};try{localStorage.setItem('rrr_settings',JSON.stringify(n));}catch{}return n;});
-  const loadAll=useCallback(async(tok)=>{
+  const loadAll=useCallback(async()=>{
     setLoading(true);setError('');
     try{
-      const [pr,mn]=await Promise.all([api.getProjects(),api.getManaged()]);
-      setProjects(pr);setManaged(mn);
+      const [pRows,mRows]=await Promise.all([
+        api.get("'פרויקטים בביצוע'!A2:Z"),
+        api.get("'ניהול תיקים'!A2:Z"),
+      ]);
+      setProjects((pRows||[]).map((r,i)=>parseProject(r,i+2)).filter(p=>p.name));
+      setManaged((mRows||[]).map((r,i)=>parseManagedCase(r,i+2)).filter(c=>c.caseNum||c.client));
     }catch(e){setError('שגיאה בטעינת הנתונים: '+e.message);}
     finally{setLoading(false);}
   },[]);
   const handleLogin=useCallback(async(tok)=>{
     api.token=tok;setToken(tok);
     try{
-      const info=await api.getUserInfo();
-      setUser(info);
+      const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+tok}});
+      if(r.ok)setUser(await r.json());
     }catch{}
-    loadAll(tok);
+    loadAll();
   },[loadAll]);
   const updateProject=useCallback((rowNum,upd)=>{
     setProjects(ps=>ps.map(p=>p._row===rowNum?{...p,...upd}:p));
@@ -2278,64 +2282,23 @@ function App(){
   const updateCase=useCallback((rowNum,upd)=>{
     setManaged(ms=>ms.map(m=>m._row===rowNum?{...m,...upd}:m));
   },[]);
-  const addCase=useCallback((c)=>{
-    setManaged(ms=>[...ms,c]);
-  },[]);
+  const addCase=useCallback((c)=>{setManaged(ms=>[...ms,c]);},[]);
   const counts=React.useMemo(()=>({
     active:projects.filter(p=>p.status&&!CLIENT_STATUSES.includes(p.status)&&p.status!=='הסתיים'&&p.status!=='בוטל').length,
     client:projects.filter(p=>CLIENT_STATUSES.includes(p.status)).length,
     managed:managed.length,
   }),[projects,managed]);
   if(!token){return <LoginScreen onLogin={handleLogin}/>;}
-  const fs=(settings?.fontSize==='small'?12:settings?.fontSize==='large'?16:14);
-  const sideItems=[
-    {id:'home',icon:'🏠',label:'דשבורד'},
-    {id:'projects',icon:'📁',label:'פרויקטים בביצוע',count:counts.active},
-    {id:'client',icon:'⏳',label:'ממתין ללקוח',count:counts.client},
-    {id:'managed',icon:'🗂️',label:'תיקים מנוהלים',count:counts.managed},
-    {id:'reports',icon:'📊',label:'דוחות'},
-    {id:'settings',icon:'⚙️',label:'הגדרות'},
-  ];
   return(
-    <div style={{display:'flex',minHeight:'100vh',background:'#f7f3ee',fontFamily:'Rubik,sans-serif',fontSize:fs,direction:'rtl'}}>
-      {/* Sidebar */}
-      <div style={{width:220,background:BLACK,display:'flex',flexDirection:'column',flexShrink:0,boxShadow:'2px 0 12px rgba(0,0,0,0.18)'}}>
-        <div style={{padding:'22px 18px 16px',borderBottom:`1px solid ${GOLD}22`}}>
-          <div style={{fontSize:20,fontWeight:700,color:GOLD,letterSpacing:'-0.01em'}}>RR</div>
-          <div style={{fontSize:11,color:'#8a7e72',marginTop:2}}>ניהול תיקים</div>
-        </div>
-        <nav style={{flex:1,padding:'10px 0'}}>
-          {sideItems.map(item=>(
-            <div key={item.id} onClick={()=>setView(item.id)}
-              style={{display:'flex',alignItems:'center',gap:10,padding:'11px 18px',cursor:'pointer',transition:'all 0.15s',
-                background:view===item.id?`${GOLD}18`:'transparent',
-                borderRight:view===item.id?`3px solid ${GOLD}`:'3px solid transparent',
-                color:view===item.id?GOLD:'#c8bfb4'}}>
-              <span style={{fontSize:16}}>{item.icon}</span>
-              <span style={{fontSize:13,fontWeight:view===item.id?600:400,flex:1}}>{item.label}</span>
-              {item.count!=null&&<span style={{fontSize:11,background:view===item.id?GOLD:`${GOLD}33`,color:view===item.id?BLACK:GOLD,padding:'1px 7px',borderRadius:10,fontWeight:600}}>{item.count}</span>}
-            </div>
-          ))}
-        </nav>
-        <div style={{padding:'14px 18px',borderTop:`1px solid ${GOLD}22`}}>
-          {loading&&<div style={{fontSize:11,color:GOLD,marginBottom:8,display:'flex',alignItems:'center',gap:6}}><span style={{animation:'spin 1s linear infinite',display:'inline-block'}}>⟳</span>מעדכן...</div>}
-          {error&&<div style={{fontSize:11,color:'#f87171',marginBottom:8}}>{error}</div>}
-          <div style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer'}} onClick={()=>setView('settings')}>
-            {user?.picture?<img src={user.picture} style={{width:28,height:28,borderRadius:'50%',border:`1.5px solid ${GOLD}44`}} alt=""/>
-              :<div style={{width:28,height:28,borderRadius:'50%',background:GOLD,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:600,color:BLACK}}>{(user?.name||'?')[0]}</div>}
-            <div style={{flex:1,overflow:'hidden'}}>
-              <div style={{fontSize:12,color:'#e8dfc9',fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user?.name||'משתמש'}</div>
-              <div style={{fontSize:10,color:'#8a7e72',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user?.email||''}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      {/* Main */}
-      <div style={{flex:1,overflow:'auto'}}>
-        {view==='home'&&<DashboardView projects={projects} managed={managed} onNavigate={setView} user={user}/>}
+    <div style={{display:'flex',minHeight:'100vh',background:'#f7f3ee',fontFamily:'Rubik,sans-serif',direction:'rtl'}}>
+      <Sidebar view={view} setView={setView} user={user} loading={loading} counts={counts}
+        onLogout={()=>{api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);}}/>
+      <div style={{flex:1,overflow:'auto',marginRight:232}}>
+        {error&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{error}</div>}
+        {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView}/>}
         {view==='projects'&&<ProjectsView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} user={user} settings={settings}/>}
-        {view==='client'&&<ClientView projects={projects} onUpdate={updateProject} user={user} settings={settings}/>}
-        {view==='managed'&&<ManagedView managed={managed} onUpdate={updateCase} onAdd={addCase} projects={projects} user={user}/>}
+        {view==='client'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} user={user} settings={settings}/>}
+        {view==='managed'&&<ManagedView cases={managed} onUpdateCase={updateCase} onAddCase={addCase}/>}
         {view==='reports'&&<ReportsView projects={projects} managed={managed}/>}
         {view==='settings'&&<SettingsView user={user} settings={settings} onSetting={onSetting}/>}
       </div>
