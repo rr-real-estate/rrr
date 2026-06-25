@@ -2294,7 +2294,6 @@ function SettingsView({user,settings,onSetting}){
       {val==='__auto__'?'אוטומטי לפי משתמש':val===''?'כולם':val}
     </button>
   );
-  const expandLabels={tall:'📋 צף כלפי מטה',side:'🪟 צף לצד',full:'🖥️ פתיחה מלאה'};
   const userName=(USER_BY_EMAIL||{})[(user?.email||'').toLowerCase().trim()]||'—';
   return(
     <div style={{padding:'28px 32px',maxWidth:720,animation:'fadeIn 0.3s ease'}}>
@@ -2329,17 +2328,7 @@ function SettingsView({user,settings,onSetting}){
           {['__auto__','','יוסי','מיכאל','פייגי'].map(v=>chip(v,settings?.defaultPerson??'__auto__','defaultPerson'))}
         </div>
       </div>
-      <div style={sec}>
-        {secTitle('🖥️','פאנל פרויקט')}
-        <div style={{fontSize:12,color:'#9a8e84',marginBottom:10}}>איך ייפתח פאנל פרטי הפרויקט</div>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-          {Object.entries(expandLabels).map(([k,v])=>(
-            <button key={k} onClick={()=>onSetting('expandMode',k)} style={{padding:'5px 14px',borderRadius:20,border:`1.5px solid ${(settings?.expandMode||'side')===k?GOLD:'#ddd0bb'}`,background:(settings?.expandMode||'side')===k?'#fef9e8':'#fff',color:(settings?.expandMode||'side')===k?GOLD3:'#6b5e50',cursor:'pointer',fontSize:13,fontWeight:(settings?.expandMode||'side')===k?700:400,fontFamily:'Rubik,sans-serif'}}>
-              {v}
-            </button>
-          ))}
-        </div>
-      </div>
+
     </div>
   );
 }
