@@ -873,8 +873,13 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
           await api.put(`'פרויקטים בביצוע'!A${upd._row}:${colLetter(row.length)}${upd._row}`,[row]);
           onUpdate(upd._row,{...upd,_raw:row});
         };
-        const startEdit=(e,rowNum,field,curVal)=>{e.stopPropagation();setEditCell({rowNum,field});setEditVal(curVal||'');};
+        const startEdit=(e,rowNum,field,curVal,initChar)=>{
+          e.stopPropagation();
+          setEditCell({rowNum,field});
+          setEditVal(initChar!=null?initChar:(curVal||''));
+        };
         const commitEdit=(proj,field)=>{handleInlineSave(proj,field,editVal).catch(()=>{});setEditCell(null);};
+        // EC = editable cell. opts=null means free text. Single click to edit, or just start typing when focused.
         const EC=({p,field,displayNode,opts=null})=>{
           const isEd=editCell&&editCell.rowNum===p._row&&editCell.field===field;
           const base={width:'100%',height:'100%',minHeight:34,border:'none',outline:`2px solid ${GOLD}`,outlineOffset:'-2px',background:'#fffce8',padding:'4px 10px',fontSize:12,fontFamily:'Rubik,sans-serif',direction:'rtl',boxSizing:'border-box'};
@@ -882,40 +887,50 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
             if(opts)return<select value={editVal} autoFocus style={base} onChange={e=>setEditVal(e.target.value)} onBlur={()=>commitEdit(p,field)} onClick={e=>e.stopPropagation()}><option value="">—</option>{opts.map(o=><option key={o} value={o}>{o}</option>)}</select>;
             return<input value={editVal} autoFocus style={base} onChange={e=>setEditVal(e.target.value)} onBlur={()=>commitEdit(p,field)} onKeyDown={e=>{if(e.key==='Enter')commitEdit(p,field);if(e.key==='Escape')setEditCell(null);}} onClick={e=>e.stopPropagation()}/>;
           }
-          return<div style={{padding:'7px 11px',cursor:'cell',minHeight:34,display:'flex',alignItems:'center',width:'100%',boxSizing:'border-box'}} onClick={e=>startEdit(e,p._row,field,p[field]||'')}>{displayNode}</div>;
+          return(
+            <div tabIndex={0} style={{padding:'7px 11px',cursor:'cell',minHeight:34,display:'flex',alignItems:'center',width:'100%',boxSizing:'border-box',outline:'none'}}
+              onClick={e=>startEdit(e,p._row,field,p[field]||'')}
+              onKeyDown={e=>{
+                if(e.key==='F2'){e.preventDefault();startEdit(e,p._row,field,p[field]||'');}
+                else if(e.key==='Enter'){e.preventDefault();startEdit(e,p._row,field,p[field]||'');}
+                else if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&e.key.length===1){e.preventDefault();startEdit(e,p._row,field,'',e.key);}
+              }}>
+              {displayNode}
+            </div>
+          );
         };
-        const Chk=({v})=>{if(!v)return<span style={{color:'#ccc',fontSize:11}}>—</span>;const ok=v==='בוצע'||v==='התקבל';return<span style={{fontSize:10,fontWeight:500,padding:'2px 6px',borderRadius:8,background:ok?'#d1fae5':'#fef3c7',color:ok?'#065f46':'#4b3400',whiteSpace:'nowrap'}}>{v}</span>;};
-        const ChkOpts=['בוצע','לא בוצע','התקבל','חסר'];
-        const taskOpts=['בוצע','ממתין','לא רלוונטי'];
-        const NW='220px',CW='110px',FW='minmax(140px,1fr)';
+        const Chk=({v})=>{if(!v)return<span style={{color:'#ccc',fontSize:11}}>—</span>;const ok=v==='בוצע'||v==='התקבל'||v==='נשלחה דרישה'||v==='התקבל';return<span style={{fontSize:10,fontWeight:500,padding:'2px 6px',borderRadius:8,background:ok?'#d1fae5':'#fef3c7',color:ok?'#065f46':'#4b3400',whiteSpace:'nowrap'}}>{v}</span>;};
+        // NW = name width (×1.5 of previous 220px), CW = column width, FW = flexible last cols
+        const NW='330px',CW='110px',FW='minmax(150px,1fr)';
+        const SEP_H='1px solid rgba(255,255,255,0.12)'; // header separator
+        const SEP_R='1px solid #ede8e0';                // row separator
         const nameCell=(p)=><div style={{padding:'7px 11px',overflow:'hidden',cursor:'pointer',display:'flex',alignItems:'center'}} onClick={()=>setPanelProject(p)}><span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:600,fontSize:13,color:GOLD3}}>{p.name}</span></div>;
         const groups4=[
           {label:'📋 ראשי',cols:[
             {h:'שם תיק',w:NW,r:(p)=>{const d=p._dueD||p._expD;const ov=d&&d<today2;return<div style={{padding:'7px 11px',overflow:'hidden',cursor:'pointer',display:'flex',alignItems:'center',gap:5}} onClick={()=>setPanelProject(p)}>{ov&&<span style={{color:'#dc2626',flexShrink:0,fontSize:10}}>⚠️</span>}<span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:600,fontSize:13,color:GOLD3}}>{p.name}</span></div>;}},
-            {h:'סטטוס',w:CW,r:(p)=><EC p={p} field='status' opts={['בביצוע','ממתין','הסתיים','בוטל']} displayNode={<span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:500,background:(STATUS_META[p.status]||{}).bg,color:(STATUS_META[p.status]||{}).fg,whiteSpace:'nowrap'}}>{p.status||'—'}</span>}/>},
-            {h:'יוסי',w:CW,r:(p)=><EC p={p} field='yossi' opts={taskOpts} displayNode={<Chk v={p.yossi}/>}/>},
-            {h:'מיכאל',w:CW,r:(p)=><EC p={p} field='michael' opts={taskOpts} displayNode={<Chk v={p.michael}/>}/>},
-            {h:'פייגי',w:CW,r:(p)=><EC p={p} field='feigi' opts={taskOpts} displayNode={<Chk v={p.feigi}/>}/>},
+            {h:'סטטוס',w:CW,r:(p)=><EC p={p} field='status' opts={STATUS_ORDER} displayNode={<span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:500,background:(STATUS_META[p.status]||{}).bg,color:(STATUS_META[p.status]||{}).fg,whiteSpace:'nowrap'}}>{p.status||'—'}</span>}/>},
+            {h:'יוסי',w:CW,r:(p)=><EC p={p} field='yossi' displayNode={<Chk v={p.yossi}/>}/>},
+            {h:'מיכאל',w:CW,r:(p)=><EC p={p} field='michael' displayNode={<Chk v={p.michael}/>}/>},
+            {h:'פייגי',w:CW,r:(p)=><EC p={p} field='feigi' displayNode={<Chk v={p.feigi}/>}/>},
             {h:'יעד',w:CW,r:(p)=>{const d=p._dueD||p._expD;const ov=d&&d<today2;return<EC p={p} field='dueDate' displayNode={p.dueDate?<span style={{fontSize:12,color:ov?'#dc2626':'#6b5e50'}}>{p.dueDate}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>;}},
-            {h:'צפוי',w:CW,r:(p)=><EC p={p} field='expected' displayNode={p.expected?<span style={{fontSize:12,color:'#6b5e50'}}>{p.expected}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'הערות',w:FW,r:(p)=><EC p={p} field='notes' displayNode={p.notes?<span style={{fontSize:11,color:'#6b5e50',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}} title={p.notes}>{p.notes}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
           ]},
           {label:'📁 מסמכים',cols:[
             {h:'שם תיק',w:NW,r:nameCell},
-            {h:'תיק בניין',w:CW,r:(p)=><EC p={p} field='buildingFile' opts={ChkOpts} displayNode={<Chk v={p.buildingFile}/>}/>},
-            {h:'עסקאות',w:CW,r:(p)=><EC p={p} field='transactions' opts={ChkOpts} displayNode={<Chk v={p.transactions}/>}/>},
-            {h:'מסמכים',w:CW,r:(p)=><EC p={p} field='docs' opts={ChkOpts} displayNode={<Chk v={p.docs}/>}/>},
-            {h:'מקדמה',w:CW,r:(p)=><EC p={p} field='advance' displayNode={p.advance?<span style={{fontSize:11,color:'#1a5e1a'}}>{p.advance}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'תיק בניין',w:CW,r:(p)=><EC p={p} field='buildingFile' opts={BUILDING_OPTS.filter(Boolean)} displayNode={<Chk v={p.buildingFile}/>}/>},
+            {h:'עסקאות',w:CW,r:(p)=><EC p={p} field='transactions' opts={TRANSACTIONS_OPTS.filter(Boolean)} displayNode={<Chk v={p.transactions}/>}/>},
+            {h:'מסמכים',w:CW,r:(p)=><EC p={p} field='docs' opts={DOCS_OPTS.filter(Boolean)} displayNode={<Chk v={p.docs}/>}/>},
+            {h:'דף ביקור',w:CW,r:(p)=><EC p={p} field='visitSheet' opts={VISIT_SHEET_OPTS.filter(Boolean)} displayNode={<Chk v={p.visitSheet}/>}/>},
+            {h:'מקדמה',w:CW,r:(p)=><EC p={p} field='advance' opts={ADVANCE_OPTS.filter(Boolean)} displayNode={p.advance?<Chk v={p.advance}/>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'מסמכים חסרים',w:FW,r:(p)=><EC p={p} field='missingDocs' displayNode={p.missingDocs?<span style={{fontSize:11,color:'#9a3412',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}} title={p.missingDocs}>{p.missingDocs}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
-            {h:'הערות',w:FW,r:(p)=><EC p={p} field='notes' displayNode={p.notes?<span style={{fontSize:11,color:'#6b5e50',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}} title={p.notes}>{p.notes}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
           ]},
           {label:'🏠 ביקור',cols:[
             {h:'שם תיק',w:NW,r:nameCell},
-            {h:'גיליון ביקור',w:CW,r:(p)=><EC p={p} field='visitSheet' opts={ChkOpts} displayNode={<Chk v={p.visitSheet}/>}/>},
             {h:'תאריך ביקור',w:CW,r:(p)=><EC p={p} field='visitDate' displayNode={p.visitDate?<span style={{fontSize:11}}>{p.visitDate}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'שעות',w:CW,r:(p)=><EC p={p} field='visitHours' displayNode={p.visitHours?<span style={{fontSize:11}}>{p.visitHours}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'נייד לתיאום',w:CW,r:(p)=><EC p={p} field='visitPhone' displayNode={p.visitPhone?<span style={{fontSize:11}}>{p.visitPhone}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'שם לתיאום',w:CW,r:(p)=><EC p={p} field='visitName' displayNode={p.visitName?<span style={{fontSize:11}}>{p.visitName}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
-            {h:'שיוך לנכס',w:CW,r:(p)=><EC p={p} field='visitRole' opts={VISIT_ROLE_OPTS} displayNode={p.visitRole?<span style={{fontSize:11,padding:'2px 6px',borderRadius:8,background:'#ede8fe',color:'#5b21b6'}}>{p.visitRole}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'שיוך לנכס',w:CW,r:(p)=><EC p={p} field='visitRole' opts={VISIT_ROLE_OPTS.filter(Boolean)} displayNode={p.visitRole?<span style={{fontSize:11,padding:'2px 6px',borderRadius:8,background:'#ede8fe',color:'#5b21b6'}}>{p.visitRole}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'הערות ביקור',w:FW,r:(p)=><EC p={p} field='visitNotes' displayNode={p.visitNotes?<span style={{fontSize:11,color:'#6b5e50',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}}>{p.visitNotes}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
           ]},
           {label:'💰 שכ"ט',cols:[
@@ -928,6 +943,9 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
         const grp=groups4[colGroup]||groups4[0];
         const cols=grp.cols;
         const templateCols=cols.map(c=>c.w).join(' ');
+        // border helper: use borderLeft so the separator is always visible (incl. between last two cols)
+        const cellBorder=(i)=>i>0?SEP_R:'none';
+        const hdrBorder=(i)=>i>0?SEP_H:'none';
         return(
           <div>
             <div style={{display:'flex',gap:6,marginBottom:10,alignItems:'center',flexWrap:'wrap'}}>
@@ -936,11 +954,11 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
                   {g.label}
                 </button>
               ))}
-              <span style={{marginRight:'auto',fontSize:11,color:'#9a8e84'}}>{filtered.length} תיקים · לחץ תא לעריכה · לחץ שם תיק לפתיחת כרטיסיה</span>
+              <span style={{marginRight:'auto',fontSize:11,color:'#9a8e84'}}>{filtered.length} תיקים · לחץ תא לעריכה · F2 או הקלד לעריכה ישירה</span>
             </div>
             <div style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 8px rgba(0,0,0,0.07)',border:'1px solid #ede8e0',overflowX:'auto'}}>
               <div style={{display:'grid',gridTemplateColumns:templateCols,gap:0,background:BLACK2,color:'#e8dfc9',fontSize:12,fontWeight:500,alignItems:'center',minWidth:'max-content'}}>
-                {cols.map((c,i)=><span key={i} style={{padding:'10px 12px',borderRight:i<cols.length-1?'1px solid rgba(255,255,255,0.1)':'none',whiteSpace:'nowrap'}}>{c.h}</span>)}
+                {cols.map((c,i)=><span key={i} style={{padding:'10px 12px',borderLeft:hdrBorder(i),whiteSpace:'nowrap'}}>{c.h}</span>)}
               </div>
               {filtered.length===0?(
                 <div style={{padding:40,textAlign:'center',color:'#9a8e84'}}>לא נמצאו תיקים</div>
@@ -949,7 +967,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
                   style={{display:'grid',gridTemplateColumns:templateCols,gap:0,alignItems:'stretch',background:idx%2===0?'#fff':'#fdf9f5',borderBottom:'1px solid #ede8e0',minWidth:'max-content'}}
                   onMouseEnter={e=>{if(!editCell)e.currentTarget.style.background='#fef9ee';}}
                   onMouseLeave={e=>{if(!editCell)e.currentTarget.style.background=idx%2===0?'#fff':'#fdf9f5';}}>
-                  {cols.map((c,i)=><div key={i} style={{overflow:'hidden',borderRight:i<cols.length-1?'1px solid #ede8e0':'none',display:'flex',alignItems:'stretch'}}>{c.r(p)}</div>)}
+                  {cols.map((c,i)=><div key={i} style={{overflow:'hidden',borderLeft:cellBorder(i),display:'flex',alignItems:'stretch'}}>{c.r(p)}</div>)}
                 </div>
               ))}
             </div>
