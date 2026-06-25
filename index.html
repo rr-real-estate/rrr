@@ -2349,8 +2349,10 @@ function App(){
         api.get("'פרויקטים בביצוע'!A2:Z"),
         api.get("'ניהול תיקים'!A2:Z"),
       ]);
-      setProjects((pRows||[]).map((r,i)=>parseProject(r,i+2)).filter(p=>p.name));
-      setManaged((mRows||[]).map((r,i)=>parseManagedCase(r,i+2)).filter(c=>c.caseNum||c.client));
+      // parseProject/parseManagedCase כבר מוסיפות +2 לאינדקס פנימית (_row:ri+2)
+      // לכן מעבירים i בלבד (לא i+2)
+      setProjects((pRows||[]).map((r,i)=>parseProject(r,i)).filter(p=>p.name));
+      setManaged((mRows||[]).map((r,i)=>parseManagedCase(r,i)).filter(c=>c.caseNum||c.client));
     }catch(e){setError('שגיאה בטעינת הנתונים: '+e.message);}
     finally{setLoading(false);}
   },[]);
