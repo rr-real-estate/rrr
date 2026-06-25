@@ -833,7 +833,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
   const inp={padding:'9px 14px',borderRadius:10,border:'1px solid #e0d5c5',fontSize:14,background:'#fff',outline:'none',fontFamily:'Rubik,sans-serif',transition:'border-color 0.15s,box-shadow 0.15s'};
 
   return(
-    <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:1600}}>
+    <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
         <div>
           <h2 style={{fontSize:22,fontWeight:500,color:'#1a1510',letterSpacing:'-0.01em'}}>פרויקטים בביצוע</h2>
@@ -945,7 +945,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings}){
                 <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
               </div>
               {isOpen&&(
-                <div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch'}}>
+                <div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch'}}>
                   {items.map(p=><ProjectCard key={p._row} project={p} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}}/>)}
                 </div>
               )}
@@ -997,7 +997,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings}){
   const inp={padding:'9px 14px',borderRadius:10,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none'};
 
   return(
-    <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:1600}}>
+    <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
         <div>
           <h2 style={{fontSize:22,fontWeight:500,color:GOLD3}}>ממתין ללקוח</h2>
@@ -1073,7 +1073,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings}){
                 </div>
                 <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
               </div>
-              {isOpen&&<div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch'}}>
+              {isOpen&&<div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch'}}>
                 {items.map(p=><ProjectCard key={p._row} project={p} onClick={()=>setPanelProject(p)} hideDate/>)}
               </div>}
             </div>
@@ -1795,7 +1795,7 @@ function DashboardView({projects,managed,user,onSetView}){
   );
 
   return(
-    <div style={{padding:'28px 32px',maxWidth:1400,animation:'fadeIn 0.3s ease'}}>
+    <div style={{padding:'28px 32px',animation:'fadeIn 0.3s ease'}}>
       <div style={{marginBottom:26}}>
         <h2 style={{fontSize:27,fontWeight:500,color:'#1a1510',letterSpacing:'-0.02em'}}>{greet}{userName?` ${userName}`:''} 👋</h2>
         <div style={{fontSize:13,color:'#9a8e84',marginTop:4,fontWeight:400}}>
@@ -1930,7 +1930,7 @@ function ReportsView({managed,projects}){
   );
 
   return(
-    <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:1400}}>
+    <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease'}}>
       <div style={{marginBottom:20}}>
         <h2 style={{fontSize:22,fontWeight:500,color:GOLD3}}>📊 דוחות</h2>
         <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{managed.length} תיקים במסד הנתונים</div>
@@ -2206,7 +2206,7 @@ function SettingsView({user,settings,onSetting}){
   );
 }
 
-// ════════�═══ APP ══════════════════════════════════════════════════════════
+// ══════ APP ════════════════════════════════════════════════════
 function App(){
   const [token,setToken]=useState(null);
   const [user,setUser]=useState(null);
@@ -2260,9 +2260,9 @@ function App(){
       <div style={{marginRight:232,minHeight:'100vh'}}>
         <div style={{background:'rgba(255,255,255,0.95)',backdropFilter:'blur(8px)',borderBottom:'1px solid #e8e0d4',padding:'10px 24px 10px 28px',display:'flex',alignItems:'center',gap:12,position:'sticky',top:0,zIndex:100}}>
           {loading&&<><Spinner size={14} color={GOLD}/><span style={{fontSize:13,color:GOLD}}>טוען...</span></>}
-          {error&&<span style={{fontSize:13,color:'#dc2626'}}>⚠️ {error}</span>}
+          {error&&<span style={{fontSize:13,color:'#dc2626'}}>&#x26A0;&#xFE0F; {error}</span>}
           <div style={{flex:1}}/>
-          <button onClick={()=>loadAll()} style={{padding:'6px 14px',borderRadius:8,border:`1px solid ${GOLD}44`,background:'transparent',color:GOLD,fontSize:12,cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>🔄 רענן</button>
+          <button onClick={()=>loadAll()} style={{padding:'6px 14px',borderRadius:8,border:`1px solid ${GOLD}44`,background:'transparent',color:GOLD,fontSize:12,cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>&#x1F504; רענן</button>
         </div>
         {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView}/>}
         {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings}/>}
@@ -2280,7 +2280,3 @@ root.render(<App/>);
 </script>
 </body>
 </html>
-</body>
-</html>
-
-
