@@ -616,14 +616,11 @@ function ProjectDetailPanel({project,onClose,onSave}){
   const [err,setErr]=useState('');
   const [tab,setTab]=useState('main');
   const savingRef=useRef(false);
-  const debounceRef=useRef(null);
   const formRef=useRef({...project});
   const dirtyRef=useRef(false);
   const set=(k,v)=>{
     dirtyRef.current=true;
     setForm(f=>{const next={...f,[k]:v};formRef.current=next;return next;});
-    clearTimeout(debounceRef.current);
-    debounceRef.current=setTimeout(()=>{autoSave();},800);
   };
   const autoSave=async()=>{
     if(savingRef.current)return;
@@ -633,22 +630,21 @@ function ProjectDetailPanel({project,onClose,onSave}){
     finally{setSaving(false);savingRef.current=false;}
   };
   const handleClose=async()=>{
-    clearTimeout(debounceRef.current);
     if(dirtyRef.current)await autoSave();
     onClose();
   };
   const iS={width:'100%',padding:'9px 12px',borderRadius:9,border:'1px solid #e0d5c5',fontSize:14,background:'#fefcf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box',transition:'border-color 0.15s,box-shadow 0.15s',color:'#1a1510'};
   const inp=(k,multi=false)=>multi
-    ?<textarea value={form[k]||''} onChange={e=>set(k,e.target.value)} rows={2} style={{...iS,resize:'vertical',lineHeight:1.5}}/>
-    :<input value={form[k]||''} onChange={e=>set(k,e.target.value)} style={iS}/>;
+    ?<textarea value={form[k]||''} onChange={e=>set(k,e.target.value)} onBlur={autoSave} rows={2} style={{...iS,resize:'vertical',lineHeight:1.5}}/>
+    :<input value={form[k]||''} onChange={e=>set(k,e.target.value)} onBlur={autoSave} style={iS}/>;
   const toISO=v=>{if(!v)return'';const m=v.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);if(m)return`${m[3]||new Date().getFullYear()}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return v;};
   const fromISO=v=>{if(!v)return'';const m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return`${m[3]}/${m[2]}/${m[1]}`;return v;};
-  const dateInp=(k)=><input type="date" value={toISO(form[k]||'')} onChange={e=>set(k,fromISO(e.target.value))} style={{...iS,cursor:'pointer'}}/>;
-  const selF=(k,opts)=><select value={form[k]||''} onChange={e=>set(k,e.target.value)} style={{...iS,fontFamily:'inherit'}}>{opts.map(o=><option key={o} value={o}>{o||'— בחר —'}</option>)}{form[k]&&!opts.includes(form[k])&&<option value={form[k]}>{form[k]}</option>}</select>;
+  const dateInp=(k)=><input type="date" value={toISO(form[k]||'')} onChange={e=>set(k,fromISO(e.target.value))} onBlur={autoSave} style={{...iS,cursor:'pointer'}}/>;
+  const selF=(k,opts)=><select value={form[k]||''} onChange={e=>{set(k,e.target.value);autoSave();}} style={{...iS,fontFamily:'inherit'}}>{opts.map(o=><option key={o} value={o}>{o||'— בחר —'}</option>)}{form[k]&&!opts.includes(form[k])&&<option value={form[k]}>{form[k]}</option>}</select>;
   const docChk=(k,label,ac,opts)=>(
     <div key={k}>
       <div style={{fontSize:11,fontWeight:600,color:ac,marginBottom:4,letterSpacing:'0.02em'}}>{label}</div>
-      <select value={form[k]||''} onChange={e=>set(k,e.target.value)}
+      <select value={form[k]||''} onChange={e=>{set(k,e.target.value);autoSave();}}
         style={{width:'100%',padding:'8px 10px',borderRadius:9,border:`1.5px solid ${ac}44`,fontSize:12,background:`${ac}0a`,outline:'none',color:'#1a1510',fontFamily:'inherit',transition:'border-color 0.15s'}}>
         {opts.map(o=><option key={o} value={o}>{o||'—'}</option>)}
         {form[k]&&!opts.includes(form[k])&&<option value={form[k]}>{form[k]}</option>}
@@ -697,13 +693,13 @@ function ProjectDetailPanel({project,onClose,onSave}){
               <SectionTitle icon="⚙️">סטטוס ותאריכים</SectionTitle>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
                 <div style={{gridColumn:'1/-1'}}><FLabel>סטטוס</FLabel>
-                  <select value={form.status||''} onChange={e=>set('status',e.target.value)} style={{...iS,fontFamily:'inherit'}}>
+                  <select value={form.status||''} onChange={e=>{set('status',e.target.value);autoSave();}} style={{...iS,fontFamily:'inherit'}}>
                     <option value="">— בחר —</option>
                     {STATUS_ORDER.map(s=><option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div><FLabel>תאריך לביצוע</FLabel>{dateInp('dueDate')}</div>
-                <div><FLabel>צפי לסיום</FLabel>{dateInp('expected')}</div>
+                <div><FLabel>צפי לסיום 🔒</FLabel><div style={{...iS,background:'#f0ede8',color:'#8a7a6a',cursor:'default',userSelect:'none',display:'flex',alignItems:'center',fontStyle:'italic'}}>{form.expected||'—'}</div></div>
               </div>
             </div>
             <div style={sec}>
