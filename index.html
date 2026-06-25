@@ -2352,6 +2352,23 @@ function App(){
     }catch(e){setError('שגיאה בטעינת הנתונים: '+e.message);}
     finally{setLoading(false);}
   },[]);
+  // רענון שקט — ללא ספינר, פועל אוטומטית ברקע כל 15 שניות
+  const silentRefresh=useCallback(async()=>{
+    if(!api.token)return;
+    try{
+      const [pRows,mRows]=await Promise.all([
+        api.get("'פרויקטים בביצוע'!A2:Z"),
+        api.get("'ניהול תיקים'!A2:Z"),
+      ]);
+      setProjects((pRows||[]).map((r,i)=>parseProject(r,i)).filter(p=>p.name));
+      setManaged((mRows||[]).map((r,i)=>parseManagedCase(r,i)).filter(c=>c.caseNum||c.client));
+    }catch(e){}
+  },[]);
+  useEffect(()=>{
+    if(!token)return;
+    const id=setInterval(()=>{if(!document.hidden)silentRefresh();},15000);
+    return()=>clearInterval(id);
+  },[token,silentRefresh]);
   const handleLogin=useCallback(async(tok)=>{
     api.token=tok;setToken(tok);
     try{
@@ -2380,11 +2397,9 @@ function App(){
       <div style={{flex:1,overflow:'auto',marginRight:232}}>
         {error&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{error}</div>}
         {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView}/>}
-        {view==='projects'&&<ProjectsView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} user={user} settings={settings}/>}
-        {view==='client'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} user={user} settings={settings}/>}
-        {view==='managed'&&<ManagedView cases={managed} onUpdateCase={updateCase} onAddCase={addCase}/>}
-        {view==='reports'&&<ReportsView projects={projects} managed={managed}/>}
-        {view==='settings'&&<SettingsView user={user} settings={settings} onSetting={onSetting}/>}
+        {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings}/>}
+        {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings}/>}
+        {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user}/>}
       </div>
     </div>
   );
