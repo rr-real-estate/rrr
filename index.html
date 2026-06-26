@@ -114,7 +114,6 @@ async function sendTaskEmails(prev,next,editorEmail){
         +"<p>נשלח על ידי: <b>"+editorName+"</b></p>"
         +"<div style='background:#f4f4f4;padding:15px;border-right:5px solid #1a73e8;margin-bottom:20px'>"
         +"<b>תוכן המשימה:</b><br>"+next[field]+"</div>"
-        +"<a href='"+CONFIG.SHEET_URL+"' style='background-color:#1a73e8;color:white;padding:12px 20px;text-decoration:none;border-radius:5px;font-weight:bold;display:inline-block'>פתח את הגיליון</a>"
         +"</div>";
       try{await api.sendEmail(recipient,'משימה מ'+editorName+': '+next.name,html);}
       catch(e){console.warn('שגיאת מייל:',e.message);alert('שגיאה בשליחת מייל ל'+ownerName+': '+e.message);}
@@ -357,6 +356,7 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
   const [flashSaved,setFlashSaved]=useState(false);
   const [err,setErr]=useState('');
   const [dueDateErr,setDueDateErr]=useState(false);
+  const [visitDateErr,setVisitDateErr]=useState(false);
   const latestFormRef=useRef(form);
   const debounceRef=useRef(null);
   const savingRef=useRef(false);
@@ -380,6 +380,7 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
   const schedSave=()=>{clearTimeout(debounceRef.current);debounceRef.current=setTimeout(doSave,320);};
   const handleCollapse=()=>{
     if(STATUS_REQUIRE_DUE.includes(form.status)&&!form.dueDate){setDueDateErr(true);return;}
+    if(form.status==='תואם ביקור'&&!form.visitDate){setVisitDateErr(true);return;}
     onCollapse();
   };
 
@@ -397,7 +398,7 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
   // date conversion: stored as DD/MM/YYYY, input requires YYYY-MM-DD
   const toISO=v=>{if(!v)return'';const m=v.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);if(m)return`${m[3]||new Date().getFullYear()}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return v;};
   const fromISO=v=>{if(!v)return'';const m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return`${m[3]}/${m[2]}/${m[1]}`;return v;};
-  const dateInp=(k,hasErr=false)=><input type="date" value={toISO(form[k]||'')} onChange={e=>{set(k,fromISO(e.target.value));if(k==='dueDate'&&e.target.value)setDueDateErr(false);}} onBlur={schedSave} onKeyDown={kd} style={{...iS,cursor:'pointer',border:hasErr?'2px solid #dc2626':iS.border}}/>;
+  const dateInp=(k,hasErr=false)=><input type="date" value={toISO(form[k]||'')} onChange={e=>{set(k,fromISO(e.target.value));if(k==='dueDate'&&e.target.value)setDueDateErr(false);if(k==='visitDate'&&e.target.value)setVisitDateErr(false);}} onBlur={schedSave} onKeyDown={kd} style={{...iS,cursor:'pointer',border:hasErr?'2px solid #dc2626':iS.border}}/>;
 
   const sS={width:'100%',padding:'7px 10px',borderRadius:7,border:'1px solid #ddd0bb',fontSize:13,background:'#fffdf8',outline:'none',fontFamily:'inherit',color:'#1a1510'};
   const selField=(k,opts)=>(
@@ -494,7 +495,11 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
         <div style={box}>
           <SectionTitle icon="🏠">פרטי ביקור</SectionTitle>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:7}}>
-            <div><FLabel>תאריך</FLabel>{dateInp('visitDate')}</div>
+            <div>
+              <FLabel>תאריך{form.status==='תואם ביקור'?' *':''}</FLabel>
+              {dateInp('visitDate',visitDateErr)}
+              {visitDateErr&&<div style={{fontSize:11,color:'#dc2626',marginTop:2,fontWeight:500}}>שדה חובה</div>}
+            </div>
             <div><FLabel>שעות</FLabel>{inp('visitHours')}</div>
             <div><FLabel>נייד</FLabel>{inp('visitPhone')}</div>
             <div><FLabel>שם לתאום</FLabel>{inp('visitName')}</div>
@@ -510,7 +515,16 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
             <div><FLabel>דרישת מסמכים</FLabel>{dateInp('postVisitDocs')}</div>
             <div><FLabel>השלמת מסמכים</FLabel>{dateInp('postVisitComplete')}</div>
           </div>
-          <FLabel>⚠️ מסמכים חסרים</FLabel>{inp('missingDocs',true)}
+          <FLabel>⚠️ מסמכים חסרים</FLabel>
+          <textarea value={form.missingDocs||''} rows={2} style={{...iS,resize:'vertical'}}
+            onChange={e=>{
+              const v=e.target.value;
+              const d=new Date();const td=`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+              const upd={missingDocs:v};
+              if(form.visitDate){if(v)upd.postVisitDocs=td;else upd.postVisitComplete=td;}
+              setForm(f=>{const n={...f,...upd};latestFormRef.current=n;return n;});
+            }}
+            onBlur={schedSave}/>
         </div>
 
         {/* שכר טרחה */}
@@ -649,6 +663,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const [tab,setTab]=useState('main');
   const [closingWork,setClosingWork]=useState(false);
   const [dueDateErr,setDueDateErr]=useState(false);
+  const [visitDateErr,setVisitDateErr]=useState(false);
   const savingRef=useRef(false);
   const formRef=useRef({...project});
   const dirtyRef=useRef(false);
@@ -669,7 +684,10 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
     if(STATUS_REQUIRE_DUE.includes(formRef.current.status)&&!formRef.current.dueDate){
       setDueDateErr(true);setTab('main');return;
     }
-    setDueDateErr(false);
+    if(formRef.current.status==='תואם ביקור'&&!formRef.current.visitDate){
+      setVisitDateErr(true);setTab('visit');return;
+    }
+    setDueDateErr(false);setVisitDateErr(false);
     if(dirtyRef.current)await autoSave();
     onClose();
   };
@@ -679,7 +697,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
     :<input value={form[k]||''} onChange={e=>set(k,e.target.value)} onBlur={autoSave} style={iS}/>;
   const toISO=v=>{if(!v)return'';const m=v.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);if(m)return`${m[3]||new Date().getFullYear()}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return v;};
   const fromISO=v=>{if(!v)return'';const m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return`${m[3]}/${m[2]}/${m[1]}`;return v;};
-  const dateInp=(k,hasErr=false)=><input type="date" value={toISO(form[k]||'')} onChange={e=>{set(k,fromISO(e.target.value));if(k==='dueDate'&&e.target.value)setDueDateErr(false);}} onBlur={autoSave} style={{...iS,cursor:'pointer',border:hasErr?'2px solid #dc2626':iS.border}}/>;
+  const dateInp=(k,hasErr=false)=><input type="date" value={toISO(form[k]||'')} onChange={e=>{set(k,fromISO(e.target.value));if(k==='dueDate'&&e.target.value)setDueDateErr(false);if(k==='visitDate'&&e.target.value)setVisitDateErr(false);}} onBlur={autoSave} style={{...iS,cursor:'pointer',border:hasErr?'2px solid #dc2626':iS.border}}/>;
   const selF=(k,opts)=><select value={form[k]||''} onChange={e=>{set(k,e.target.value);autoSave();}} style={{...iS,fontFamily:'inherit'}}>{opts.map(o=><option key={o} value={o}>{o||'— בחר —'}</option>)}{form[k]&&!opts.includes(form[k])&&<option value={form[k]}>{form[k]}</option>}</select>;
   const docChk=(k,label,ac,opts)=>(
     <div key={k}>
@@ -799,7 +817,17 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 {docChk('transactions','עסקאות','#6a4520',TRANSACTIONS_OPTS)}
                 {docChk('visitSheet','דף ביקור','#4b3400',VISIT_SHEET_OPTS)}
               </div>
-              <FLabel>⚠️ מסמכים חסרים</FLabel>{inp('missingDocs',true)}
+              <FLabel>⚠️ מסמכים חסרים</FLabel>
+              <textarea value={form.missingDocs||''} rows={2} style={{...iS,resize:'vertical',lineHeight:1.5}}
+                onChange={e=>{
+                  const v=e.target.value;
+                  const d=new Date();const td=`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+                  const upd={missingDocs:v};
+                  if(formRef.current.visitDate){if(v)upd.postVisitDocs=td;else upd.postVisitComplete=td;}
+                  dirtyRef.current=true;
+                  setForm(f=>{const next={...f,...upd};formRef.current=next;return next;});
+                }}
+                onBlur={autoSave}/>
             </div>
             <div style={sec}>
               <SectionTitle icon="📬">לאחר ביקור</SectionTitle>
@@ -813,7 +841,11 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             <div style={sec}>
               <SectionTitle icon="🏠">פרטי ביקור</SectionTitle>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-                <div><FLabel>תאריך ביקור</FLabel>{dateInp('visitDate')}</div>
+                <div>
+                  <FLabel>תאריך ביקור{form.status==='תואם ביקור'?' *':''}</FLabel>
+                  {dateInp('visitDate',visitDateErr)}
+                  {visitDateErr&&<div style={{fontSize:11,color:'#dc2626',marginTop:3,fontWeight:500}}>שדה חובה</div>}
+                </div>
                 <div><FLabel>שעות</FLabel>{inp('visitHours')}</div>
                 <div><FLabel>נייד לתיאום</FLabel>{inp('visitPhone')}</div>
                 <div><FLabel>שם לתיאום</FLabel>{inp('visitName')}</div>
