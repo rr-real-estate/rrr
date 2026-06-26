@@ -62,6 +62,7 @@ const STATUS_META={
   'בהמתנה':                            {bg:'#1c1c1c',fg:'#d9af34',dot:'#d9af34',order:9},
 };
 const STATUS_ORDER=Object.entries(STATUS_META).sort((a,b)=>a[1].order-b[1].order).map(e=>e[0]);
+const STATUS_REQUIRE_DUE=['בשלבי תיאום ביקור','תואם ביקור','בבדיקה לאחר ביקור','בכתיבה','בבדיקה'];
 
 // ═══════════════ COLUMN INDICES ══════════════════════════════════
 const P={name:0,yossi:1,michael:2,feigi:3,notes:4,dueDate:5,status:6,
@@ -355,6 +356,7 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
   const [saving,setSaving]=useState(false);
   const [flashSaved,setFlashSaved]=useState(false);
   const [err,setErr]=useState('');
+  const [dueDateErr,setDueDateErr]=useState(false);
   const latestFormRef=useRef(form);
   const debounceRef=useRef(null);
   const savingRef=useRef(false);
@@ -376,6 +378,10 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
   };
 
   const schedSave=()=>{clearTimeout(debounceRef.current);debounceRef.current=setTimeout(doSave,320);};
+  const handleCollapse=()=>{
+    if(STATUS_REQUIRE_DUE.includes(form.status)&&!form.dueDate){setDueDateErr(true);return;}
+    onCollapse();
+  };
 
   const checkOpts=[...dynamicCheckOpts].sort();
   const numMatch=project.name.match(/\b(5\d{4})\b/);
@@ -391,7 +397,7 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
   // date conversion: stored as DD/MM/YYYY, input requires YYYY-MM-DD
   const toISO=v=>{if(!v)return'';const m=v.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);if(m)return`${m[3]||new Date().getFullYear()}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return v;};
   const fromISO=v=>{if(!v)return'';const m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return`${m[3]}/${m[2]}/${m[1]}`;return v;};
-  const dateInp=(k)=><input type="date" value={toISO(form[k]||'')} onChange={e=>set(k,fromISO(e.target.value))} onBlur={schedSave} onKeyDown={kd} style={{...iS,cursor:'pointer'}}/>;
+  const dateInp=(k,hasErr=false)=><input type="date" value={toISO(form[k]||'')} onChange={e=>{set(k,fromISO(e.target.value));if(k==='dueDate'&&e.target.value)setDueDateErr(false);}} onBlur={schedSave} onKeyDown={kd} style={{...iS,cursor:'pointer',border:hasErr?'2px solid #dc2626':iS.border}}/>;
 
   const sS={width:'100%',padding:'7px 10px',borderRadius:7,border:'1px solid #ddd0bb',fontSize:13,background:'#fffdf8',outline:'none',fontFamily:'inherit',color:'#1a1510'};
   const selField=(k,opts)=>(
@@ -413,7 +419,7 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
   const box={background:'#f8f6f2',borderRadius:9,padding:'10px 12px',border:'1px solid #ede8e0',marginBottom:8};
 
   return(
-    <div onClick={onCollapse} style={{background:'#fff',borderRadius:13,padding:'15px 17px',cursor:'pointer',boxShadow:'0 3px 16px rgba(0,0,0,0.13)',borderRight:`5px solid ${dot}`,animation:'fadeIn 0.18s ease'}}>
+    <div onClick={handleCollapse} style={{background:'#fff',borderRadius:13,padding:'15px 17px',cursor:'pointer',boxShadow:'0 3px 16px rgba(0,0,0,0.13)',borderRight:`5px solid ${dot}`,animation:'fadeIn 0.18s ease'}}>
       {/* Card header — click closes */}
       <div style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid #ede8e0'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:6}}>
@@ -438,13 +444,20 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
         <div style={{...box,display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
           <div>
             <FLabel>סטטוס</FLabel>
-            <select value={form.status||''} onChange={e=>{set('status',e.target.value);schedSave();}}
-              style={{...sS,fontSize:12,padding:'6px 8px'}}>
+            <select value={form.status||''} onChange={e=>{
+              const ns=e.target.value;
+              setForm(f=>{const n={...f,status:ns,dueDate:''};latestFormRef.current=n;return n;});
+              setDueDateErr(false);schedSave();
+            }} style={{...sS,fontSize:12,padding:'6px 8px'}}>
               <option value="">— בחר —</option>
               {STATUS_ORDER.map(s=><option key={s} value={s}>{s}</option>)}
             </select>
           </div>
-          <div><FLabel>תאריך לביצוע</FLabel>{dateInp('dueDate')}</div>
+          <div>
+            <FLabel>תאריך לביצוע{STATUS_REQUIRE_DUE.includes(form.status)?' *':''}</FLabel>
+            {dateInp('dueDate',dueDateErr)}
+            {dueDateErr&&<div style={{fontSize:11,color:'#dc2626',marginTop:2,fontWeight:500}}>שדה חובה</div>}
+          </div>
           <div><FLabel>צפי לסיום</FLabel>{dateInp('expected')}</div>
         </div>
 
@@ -635,6 +648,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const [err,setErr]=useState('');
   const [tab,setTab]=useState('main');
   const [closingWork,setClosingWork]=useState(false);
+  const [dueDateErr,setDueDateErr]=useState(false);
   const savingRef=useRef(false);
   const formRef=useRef({...project});
   const dirtyRef=useRef(false);
@@ -652,6 +666,10 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
     finally{setSaving(false);savingRef.current=false;}
   };
   const handleClose=async()=>{
+    if(STATUS_REQUIRE_DUE.includes(formRef.current.status)&&!formRef.current.dueDate){
+      setDueDateErr(true);setTab('main');return;
+    }
+    setDueDateErr(false);
     if(dirtyRef.current)await autoSave();
     onClose();
   };
@@ -661,7 +679,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
     :<input value={form[k]||''} onChange={e=>set(k,e.target.value)} onBlur={autoSave} style={iS}/>;
   const toISO=v=>{if(!v)return'';const m=v.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);if(m)return`${m[3]||new Date().getFullYear()}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return v;};
   const fromISO=v=>{if(!v)return'';const m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return`${m[3]}/${m[2]}/${m[1]}`;return v;};
-  const dateInp=(k)=><input type="date" value={toISO(form[k]||'')} onChange={e=>set(k,fromISO(e.target.value))} onBlur={autoSave} style={{...iS,cursor:'pointer'}}/>;
+  const dateInp=(k,hasErr=false)=><input type="date" value={toISO(form[k]||'')} onChange={e=>{set(k,fromISO(e.target.value));if(k==='dueDate'&&e.target.value)setDueDateErr(false);}} onBlur={autoSave} style={{...iS,cursor:'pointer',border:hasErr?'2px solid #dc2626':iS.border}}/>;
   const selF=(k,opts)=><select value={form[k]||''} onChange={e=>{set(k,e.target.value);autoSave();}} style={{...iS,fontFamily:'inherit'}}>{opts.map(o=><option key={o} value={o}>{o||'— בחר —'}</option>)}{form[k]&&!opts.includes(form[k])&&<option value={form[k]}>{form[k]}</option>}</select>;
   const docChk=(k,label,ac,opts)=>(
     <div key={k}>
@@ -741,12 +759,22 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
               <SectionTitle icon="⚙️">סטטוס ותאריכים</SectionTitle>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
                 <div style={{gridColumn:'1/-1'}}><FLabel>סטטוס</FLabel>
-                  <select value={form.status||''} onChange={e=>{set('status',e.target.value);autoSave();}} style={{...iS,fontFamily:'inherit'}}>
+                  <select value={form.status||''} onChange={e=>{
+                    const ns=e.target.value;
+                    dirtyRef.current=true;
+                    setForm(f=>{const next={...f,status:ns,dueDate:''};formRef.current=next;return next;});
+                    setDueDateErr(false);
+                    autoSave();
+                  }} style={{...iS,fontFamily:'inherit'}}>
                     <option value="">— בחר —</option>
                     {STATUS_ORDER.map(s=><option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
-                <div><FLabel>תאריך לביצוע</FLabel>{dateInp('dueDate')}</div>
+                <div>
+                  <FLabel>תאריך לביצוע{STATUS_REQUIRE_DUE.includes(form.status)?' *':''}</FLabel>
+                  {dateInp('dueDate',dueDateErr)}
+                  {dueDateErr&&<div style={{fontSize:11,color:'#dc2626',marginTop:3,fontWeight:500}}>שדה חובה — נדרש עבור סטטוס זה</div>}
+                </div>
                 <div><FLabel>צפי לסיום 🔒</FLabel><div style={{...iS,background:'#f0ede8',color:'#8a7a6a',cursor:'default',userSelect:'none',display:'flex',alignItems:'center',fontStyle:'italic'}}>{form.expected||'—'}</div></div>
               </div>
             </div>
@@ -1271,7 +1299,7 @@ const MANAGED_STATUSES=['הסתיים','בביצוע','ממתין','בוטל'];
 const PURPOSE_OPTIONS=['שומה אחרת להיטל השבחה','תשלומי איזון','בטוחה - רכישה','בית משפט - הערכת שווי','בדיקת התאמה להיתר','בטוחה - הערכת נכס בשיפוץ','אישור שמאי - העדר פגיעה בשכנים','בטוחה - הערכת נכס קיים','תקן 19 - טרום רכישה','בטוחה - נכס להרחבה ושיפוץ','טבלת הקצאות - תב"ע','דמי שכירות ראויים - מקוצרת','שומה להפחתת מס שבח','דמי שכירות ראויים','ניקוד דירות','דיון בית דין','שמאות פנימית'];
 const PROP_TYPE_OPTIONS=['קרקע לבניה','דירת מגורים','צמוד קרקע','צמוד קרקע - דו משפחתי','קרקע חקלאית','מחסן','בניין מגורים','דירות מגורים וחניות'];
 
-function ManagedPanel({cas,onClose,onSave,onDelete,allCases,addProject,projects}){
+function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addProject,projects}){
   const [form,setForm]=useState({...cas});
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
@@ -1337,6 +1365,17 @@ function ManagedPanel({cas,onClose,onSave,onDelete,allCases,addProject,projects}
     try{
       await api.deleteSheetRow('ניהול תיקים',cas._row);
       if(onDelete)onDelete(cas._row);
+      // also delete from פרויקטים בביצוע if exists
+      const folder=(cas.folder||'').trim();
+      if(folder){
+        const matchProj=(projects||[]).find(p=>p.name&&p.name.trim()===folder);
+        if(matchProj){
+          try{
+            await api.deleteSheetRow('פרויקטים בביצוע',matchProj._row);
+            if(onDeleteProject)onDeleteProject(matchProj._row);
+          }catch(e2){console.warn('שגיאה במחיקת פרויקט:',e2.message);}
+        }
+      }
       onClose();
     }catch(e){setErr(e.message);setDeleting(false);}
   };
@@ -1636,7 +1675,7 @@ function AddCaseModal({onClose,onAdd,cases}){
 }
 
 // ═══════════════ MANAGED CASES VIEW ══════════════════════════════
-function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteCase}){
+function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteCase,onDeleteProject}){
   const [search,setSearch]=useState('');
   const [filters,setFilters]=useState({status:'',bank:'',city:'',purpose:'',propType:'',advisor:''});
   const [page,setPage]=useState(0);
@@ -1825,6 +1864,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
       {selected&&<ManagedPanel cas={selected} allCases={cases} projects={projects} addProject={addProject}
         onClose={()=>setSelected(null)}
         onDelete={(rowNum)=>{if(onDeleteCase)onDeleteCase(rowNum);setSelected(null);}}
+        onDeleteProject={onDeleteProject}
         onSave={async(rowNum,row)=>{
           await api.put(`'ניהול תיקים'!A${rowNum}:${colLetter(row.length)}${rowNum}`,[row]);
           onUpdateCase(rowNum,{...selected,...Object.fromEntries(Object.entries(M).map(([k,i])=>[k,String(row[i]||'').trim()]))});
@@ -2532,7 +2572,7 @@ function App(){
         {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView}/>}
         {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject}/>}
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject}/>}
-        {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase}/>}
+        {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject}/>}
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
         {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user}/>}
       </div>
