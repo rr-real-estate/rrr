@@ -1341,6 +1341,9 @@ function ManagedPanel({cas,onClose,onSave,onDelete,allCases,addProject,projects}
     }catch(e){setErr(e.message);setDeleting(false);}
   };
 
+  const purposeOpts=React.useMemo(()=>[...new Set([...PURPOSE_OPTIONS,...(allCases||[]).map(c=>c.purpose||'').filter(Boolean)])].sort(),[allCases]);
+  const propTypeOpts=React.useMemo(()=>[...new Set([...PROP_TYPE_OPTIONS,...(allCases||[]).map(c=>c.propType||'').filter(Boolean)])].sort(),[allCases]);
+
   const inp=(k)=>{
     const s={width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
     return <input value={form[k]||''} onChange={e=>set(k,e.target.value)} style={s}/>;
@@ -1459,19 +1462,16 @@ function ManagedPanel({cas,onClose,onSave,onDelete,allCases,addProject,projects}
                 <FLabel>מטרת העבודה</FLabel>
                 <select value={form.purpose||''} onChange={e=>set('purpose',e.target.value)} style={selStyle}>
                   <option value="">— בחר מטרה —</option>
-                  {PURPOSE_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
-                  {form.purpose&&!PURPOSE_OPTIONS.includes(form.purpose)&&<option value={form.purpose}>{form.purpose}</option>}
+                  {purposeOpts.map(o=><option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
               <div>
                 <FLabel>סוג נכס</FLabel>
                 <select value={form.propType||''} onChange={e=>set('propType',e.target.value)} style={selStyle}>
                   <option value="">— בחר סוג —</option>
-                  {PROP_TYPE_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
-                  {form.propType&&!PROP_TYPE_OPTIONS.includes(form.propType)&&<option value={form.propType}>{form.propType}</option>}
+                  {propTypeOpts.map(o=><option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
-              <div><FLabel>סוג זכויות</FLabel>{inp('rights')}</div>
               <div><FLabel>גוש</FLabel>{inp('block')}</div>
               <div><FLabel>חלקה</FLabel>{inp('parcel')}</div>
               <div><FLabel>תת חלקה</FLabel>{inp('subParcel')}</div>
@@ -1506,6 +1506,8 @@ function AddCaseModal({onClose,onAdd,cases}){
     return map;
   },[cases]);
   const bankList=React.useMemo(()=>[...new Set((cases||[]).map(c=>c.bank||'').filter(Boolean))].sort(),[cases]);
+  const purposeList=React.useMemo(()=>[...new Set([...PURPOSE_OPTIONS,...(cases||[]).map(c=>c.purpose||'').filter(Boolean)])].sort(),[cases]);
+  const propTypeList=React.useMemo(()=>[...new Set([...PROP_TYPE_OPTIONS,...(cases||[]).map(c=>c.propType||'').filter(Boolean)])].sort(),[cases]);
 
   const handleAdvisorChange=(v)=>{
     const updated={advisor:v};
@@ -1609,17 +1611,16 @@ function AddCaseModal({onClose,onAdd,cases}){
               <FLabel>מטרת העבודה</FLabel>
               <select value={form.purpose||''} onChange={e=>set('purpose',e.target.value)} style={selStyle}>
                 <option value="">— בחר מטרה —</option>
-                {PURPOSE_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
+                {purposeList.map(o=><option key={o} value={o}>{o}</option>)}
               </select>
             </div>
             <div>
               <FLabel>סוג נכס</FLabel>
               <select value={form.propType||''} onChange={e=>set('propType',e.target.value)} style={selStyle}>
                 <option value="">— בחר סוג —</option>
-                {PROP_TYPE_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
+                {propTypeList.map(o=><option key={o} value={o}>{o}</option>)}
               </select>
             </div>
-            <div><FLabel>סוג זכויות</FLabel>{inp('rights')}</div>
           </div>
         </div>
 
