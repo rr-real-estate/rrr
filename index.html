@@ -872,6 +872,11 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
     sendTaskEmails(prev,finalUpd,user?.email).catch(()=>{});
     if(finalUpd.status!==prev.status&&managed)syncStatusToManaged(managed,finalUpd.name,finalUpd.status,onUpdateCase).catch(()=>{});
     if(managed)sendMissingDocsEmailFn(finalUpd,prev,managed).catch(()=>{});
+    // לכתיבה — הפעלת אוטומציית שמאות
+    if(finalUpd.michael==='לכתיבה'&&prev.michael!==finalUpd.michael){
+      const tikNum=(finalUpd.name.match(/\b(5\d{4})\b/)||[])[1];
+      if(tikNum)fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'ktiva',tikNum})}).catch(()=>{});
+    }
   };
 
   const toggle=(s)=>setCollapsed(c=>({...c,[s]:!c[s]}));
@@ -1087,6 +1092,10 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
     sendTaskEmails(prev,finalUpd,user?.email).catch(()=>{});
     if(finalUpd.status!==prev.status&&managed)syncStatusToManaged(managed,finalUpd.name,finalUpd.status,onUpdateCase).catch(()=>{});
     if(managed)sendMissingDocsEmailFn(finalUpd,prev,managed).catch(()=>{});
+    if(finalUpd.michael==='לכתיבה'&&prev.michael!==finalUpd.michael){
+      const tikNum=(finalUpd.name.match(/\b(5\d{4})\b/)||[])[1];
+      if(tikNum)fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'ktiva',tikNum})}).catch(()=>{});
+    }
   };
 
   const counts=useMemo(()=>{const c={};clientProjects.forEach(p=>{c[p.status]=(c[p.status]||0)+1;});return c;},[clientProjects]);
