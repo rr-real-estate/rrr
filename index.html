@@ -422,6 +422,7 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
   const box={background:'#f8f6f2',borderRadius:9,padding:'10px 12px',border:'1px solid #ede8e0',marginBottom:8};
 
   return(
+    <React.Fragment>
     <div onClick={handleCollapse} style={{background:'#fff',borderRadius:13,padding:'15px 17px',cursor:'pointer',boxShadow:'0 3px 16px rgba(0,0,0,0.13)',borderRight:`5px solid ${dot}`,animation:'fadeIn 0.18s ease'}}>
       {/* Card header — click closes */}
       <div style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid #ede8e0'}}>
@@ -561,6 +562,7 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
         </div>
       </div>
     )}
+    </React.Fragment>
   );
 }
 
