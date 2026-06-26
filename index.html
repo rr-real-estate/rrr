@@ -1271,12 +1271,17 @@ const MANAGED_STATUSES=['הסתיים','בביצוע','ממתין','בוטל'];
 const PURPOSE_OPTIONS=['שומה אחרת להיטל השבחה','תשלומי איזון','בטוחה - רכישה','בית משפט - הערכת שווי','בדיקת התאמה להיתר','בטוחה - הערכת נכס בשיפוץ','אישור שמאי - העדר פגיעה בשכנים','בטוחה - הערכת נכס קיים','תקן 19 - טרום רכישה','בטוחה - נכס להרחבה ושיפוץ','טבלת הקצאות - תב"ע','דמי שכירות ראויים - מקוצרת','שומה להפחתת מס שבח','דמי שכירות ראויים','ניקוד דירות','דיון בית דין','שמאות פנימית'];
 const PROP_TYPE_OPTIONS=['קרקע לבניה','דירת מגורים','צמוד קרקע','צמוד קרקע - דו משפחתי','קרקע חקלאית','מחסן','בניין מגורים','דירות מגורים וחניות'];
 
-function ManagedPanel({cas,onClose,onSave,allCases}){
+function ManagedPanel({cas,onClose,onSave,onDelete,allCases,addProject,projects}){
   const [form,setForm]=useState({...cas});
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
+  const [deleting,setDeleting]=useState(false);
+  const [confirmDel,setConfirmDel]=useState(false);
+  const [tab,setTab]=useState(0);
   const [err,setErr]=useState('');
+  const lastSavedStatusRef=React.useRef(cas.status);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+
   const handleAdvisorChange=(v)=>{
     const updated={advisor:v};
     if(v&&allCases){
@@ -1294,7 +1299,6 @@ function ManagedPanel({cas,onClose,onSave,allCases}){
     try{
       const row=[...form._raw];
       while(row.length<=23)row.push('');
-      // all cols except folder (5) are editable
       [[M.openDate,'openDate'],[M.closeDate,'closeDate'],[M.fee,'fee'],
        [M.caseNum,'caseNum'],[M.status,'status'],
        [M.client,'client'],[M.phone,'phone'],[M.email,'email'],
@@ -1304,50 +1308,102 @@ function ManagedPanel({cas,onClose,onSave,allCases}){
        [M.block,'block'],[M.parcel,'parcel'],[M.subParcel,'subParcel'],[M.bank,'bank'],[M.michael,'michael'],
       ].forEach(([i,k])=>row[i]=form[k]||'');
       await onSave(form._row,row);
+      // If status changed TO בביצוע since last save, add to פרויקטים בביצוע
+      if(form.status==='בביצוע'&&lastSavedStatusRef.current!=='בביצוע'){
+        const folder=cas.folder||'';
+        const alreadyExists=folder&&(projects||[]).some(p=>p.name&&p.name.trim()===folder.trim());
+        if(!alreadyExists&&folder){
+          try{
+            const projRow=new Array(25).fill('');
+            projRow[P.name]=folder;
+            projRow[P.status]='ממתין לקבלת מסמכים';
+            const res=await api.append("'פרויקטים בביצוע'",[projRow]);
+            const rng=res?.updates?.updatedRange||'';
+            const rm=rng.match(/(\d+)(?::[A-Z]+\d+)?$/);
+            const newRow=rm?parseInt(rm[1]):null;
+            if(newRow&&addProject)addProject(parseProject(projRow,newRow-2));
+          }catch(e2){console.warn('שגיאה בהוספת פרויקט:',e2.message);}
+        }
+      }
+      lastSavedStatusRef.current=form.status;
       setSaved(true);setTimeout(()=>setSaved(false),2000);
     }catch(e){setErr(e.message);}
     finally{setSaving(false);}
   };
 
-  const inp=(k,multi=false)=>{
-    const s={width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'};
-    return multi?<textarea value={form[k]||''} onChange={e=>set(k,e.target.value)} rows={2} style={{...s,resize:'vertical'}}/>
-      :<input value={form[k]||''} onChange={e=>set(k,e.target.value)} style={s}/>;
+  const handleDelete=async()=>{
+    if(!confirmDel){setConfirmDel(true);return;}
+    setDeleting(true);setErr('');
+    try{
+      await api.deleteSheetRow('ניהול תיקים',cas._row);
+      if(onDelete)onDelete(cas._row);
+      onClose();
+    }catch(e){setErr(e.message);setDeleting(false);}
   };
 
+  const inp=(k)=>{
+    const s={width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
+    return <input value={form[k]||''} onChange={e=>set(k,e.target.value)} style={s}/>;
+  };
   const selStyle={width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'};
+  const sec={background:'#fff',borderRadius:12,padding:16,marginBottom:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'};
+  const tabs=[{label:'📦 תיק'},{label:'👤 לקוח'},{label:'🤝 יועץ'},{label:'🏠 נכס'}];
 
   return(
-    <div style={{position:'fixed',inset:0,zIndex:600,display:'flex'}}>
-      <div style={{flex:1,background:'rgba(0,0,0,0.45)',backdropFilter:'blur(4px)'}} onClick={onClose}/>
-      <div style={{width:560,height:'100vh',background:'#f5f3ef',overflowY:'auto',boxShadow:'-10px 0 50px rgba(0,0,0,0.25)',animation:'slideIn 0.25s ease',flexShrink:0,display:'flex',flexDirection:'column'}}>
-        <div style={{background:BLACK,padding:'20px 24px',flexShrink:0}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <div>
-              <div style={{fontSize:11,color:GOLD,fontWeight:500,letterSpacing:'1px',marginBottom:3}}>תיק #{cas.caseNum}</div>
-              <div style={{fontSize:14,fontWeight:500,color:'#fff',lineHeight:1.5,maxWidth:440}}>{cas.folder}</div>
+    <div style={{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(8px)'}} onClick={onClose}>
+      <div style={{background:'#f5f3ef',width:'min(680px,96vw)',maxHeight:'90vh',borderRadius:18,overflow:'hidden',boxShadow:'0 32px 80px rgba(0,0,0,0.35)',display:'flex',flexDirection:'column',animation:'fadeIn 0.2s ease'}} onClick={e=>e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{background:BLACK,padding:'18px 22px',flexShrink:0}}>
+          <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:11,color:GOLD,fontWeight:500,letterSpacing:'1px',marginBottom:4}}>תיק #{cas.caseNum}</div>
+              <div style={{fontSize:14,fontWeight:500,color:'#fff',lineHeight:1.5,wordBreak:'break-word'}}>{cas.folder}</div>
             </div>
-            <button onClick={onClose} style={{background:'rgba(255,255,255,0.1)',border:'none',borderRadius:8,width:32,height:32,color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:5,flexShrink:0}}>
+              <button onClick={onClose} style={{background:'rgba(255,255,255,0.1)',border:'none',borderRadius:8,width:32,height:32,color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+              <button onClick={handleDelete} disabled={deleting} title={confirmDel?'לחץ שוב לאישור':'מחק תיק'}
+                style={{background:confirmDel?'#dc2626':'rgba(220,38,38,0.15)',border:'none',borderRadius:8,width:32,height:32,
+                  color:confirmDel?'#fff':'#ef4444',cursor:deleting?'not-allowed':'pointer',fontSize:15,
+                  display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.2s'}}>
+                {deleting?<Spinner size={12} color="#ef4444"/>:'🗑️'}
+              </button>
+              {confirmDel&&<div style={{fontSize:9,color:'#f87171',textAlign:'center',lineHeight:1.2,width:44}}>לחץ<br/>שוב</div>}
+            </div>
+          </div>
+          {/* Tabs */}
+          <div style={{display:'flex',gap:3,marginTop:14}}>
+            {tabs.map((t,i)=>(
+              <button key={i} onClick={()=>{setTab(i);setConfirmDel(false);}} style={{
+                flex:1,padding:'7px 4px',borderRadius:8,border:'none',cursor:'pointer',fontFamily:'inherit',
+                fontSize:12,fontWeight:tab===i?600:400,transition:'all 0.15s',
+                background:tab===i?`${GOLD}22`:'rgba(255,255,255,0.05)',
+                color:tab===i?GOLD:'rgba(255,255,255,0.5)',
+                borderBottom:tab===i?`2px solid ${GOLD}`:'2px solid transparent'
+              }}>{t.label}</button>
+            ))}
           </div>
         </div>
-        <div style={{background:'#fff',padding:'10px 24px',borderBottom:'1px solid #e0d8cc',position:'sticky',top:0,zIndex:10,flexShrink:0,display:'flex',gap:8}}>
+
+        {/* Save bar */}
+        <div style={{background:'#fff',padding:'9px 22px',borderBottom:'1px solid #e0d8cc',flexShrink:0,display:'flex',gap:8}}>
           <button onClick={handleSave} disabled={saving} style={{flex:1,padding:'9px',borderRadius:9,border:'none',background:saved?'#16a34a':BLACK,color:saved?'#fff':GOLD,fontWeight:500,cursor:saving?'not-allowed':'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',gap:7}}>
             {saving?<><Spinner size={14} color={GOLD}/>שומר...</>:saved?'✓ נשמר!':'💾 שמור'}
           </button>
-          <button onClick={()=>setForm({...cas})} style={{padding:'9px 14px',borderRadius:9,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:13,color:'#6b5e50'}}>שחזר</button>
+          <button onClick={()=>{setForm({...cas});setErr('');}} style={{padding:'9px 14px',borderRadius:9,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:13,color:'#6b5e50'}}>שחזר</button>
         </div>
-        {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:14}}>{err}</div>}
+        {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 22px',fontSize:13,flexShrink:0}}>{err}</div>}
 
-        <div style={{padding:'16px 24px',flex:1}}>
-          {/* פרטי תיק */}
-          <div style={{background:'#fff',borderRadius:12,padding:16,marginBottom:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
+        {/* Content */}
+        <div style={{overflowY:'auto',flex:1,padding:'16px 22px'}}>
+
+          {tab===0&&<div style={sec}>
             <SectionTitle icon="📦">פרטי תיק</SectionTitle>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
               <div><FLabel>מספר תיק</FLabel>{inp('caseNum')}</div>
               <div>
                 <FLabel>סטטוס</FLabel>
-                <select value={form.status||''} onChange={e=>set('status',e.target.value)}
-                  style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff'}}>
+                <select value={form.status||''} onChange={e=>set('status',e.target.value)} style={selStyle}>
                   <option value="">— בחר —</option>
                   {MANAGED_STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
                   {form.status&&!MANAGED_STATUSES.includes(form.status)&&<option value={form.status}>{form.status}</option>}
@@ -1359,24 +1415,23 @@ function ManagedPanel({cas,onClose,onSave,allCases}){
               <div><FLabel>מיכאל</FLabel>{inp('michael')}</div>
             </div>
             <FLabel>תיקייה (נוסחה — קריאה בלבד)</FLabel>
-            <div style={{padding:'8px 11px',borderRadius:8,background:'#f0ebe3',fontSize:13,color:'#6b5e50',border:'1px solid #e0d8cc'}}>{cas.folder||'—'}</div>
-          </div>
+            <div style={{padding:'8px 11px',borderRadius:8,background:'#f0ebe3',fontSize:13,color:'#6b5e50',border:'1px solid #e0d8cc',direction:'rtl'}}>{cas.folder||'—'}</div>
+          </div>}
 
-          {/* לקוח */}
-          <div style={{background:'#fff',borderRadius:12,padding:16,marginBottom:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
+          {tab===1&&<div style={sec}>
             <SectionTitle icon="👤">לקוח</SectionTitle>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
               <div style={{gridColumn:'1/-1'}}><FLabel>שם לקוח</FLabel>{inp('client')}</div>
               <div><FLabel>טלפון</FLabel>{inp('phone')}</div>
               <div><FLabel>מייל</FLabel>{inp('email')}</div>
             </div>
-          </div>
+          </div>}
 
-          {/* יועץ */}
-          <div style={{background:'#fff',borderRadius:12,padding:16,marginBottom:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
+          {tab===2&&<div style={sec}>
             <SectionTitle icon="🤝">יועץ משכנתאות</SectionTitle>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-              <div style={{gridColumn:'1/-1'}}><FLabel>שם יועץ</FLabel>
+              <div style={{gridColumn:'1/-1'}}>
+                <FLabel>שם יועץ</FLabel>
                 <AutocompleteInput value={form.advisor||''} onChange={v=>handleAdvisorChange(v)}
                   options={[...new Set((allCases||[]).map(c=>c.advisor||'').filter(Boolean))].sort()}
                   style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'}}
@@ -1385,10 +1440,9 @@ function ManagedPanel({cas,onClose,onSave,allCases}){
               <div><FLabel>טלפון</FLabel>{inp('advisorPhone')}</div>
               <div><FLabel>מייל</FLabel>{inp('advisorEmail')}</div>
             </div>
-          </div>
+          </div>}
 
-          {/* נכס */}
-          <div style={{background:'#fff',borderRadius:12,padding:16,marginBottom:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
+          {tab===3&&<div style={sec}>
             <SectionTitle icon="🏠">פרטי הנכס</SectionTitle>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
               <div><FLabel>עיר / ישוב</FLabel>{inp('city')}</div>
@@ -1422,7 +1476,7 @@ function ManagedPanel({cas,onClose,onSave,allCases}){
               <div><FLabel>חלקה</FLabel>{inp('parcel')}</div>
               <div><FLabel>תת חלקה</FLabel>{inp('subParcel')}</div>
             </div>
-          </div>
+          </div>}
         </div>
       </div>
     </div>
@@ -1581,7 +1635,7 @@ function AddCaseModal({onClose,onAdd,cases}){
 }
 
 // ═══════════════ MANAGED CASES VIEW ══════════════════════════════
-function ManagedView({cases,onUpdateCase,onAddCase,addProject}){
+function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteCase}){
   const [search,setSearch]=useState('');
   const [filters,setFilters]=useState({status:'',bank:'',city:'',purpose:'',propType:'',advisor:''});
   const [page,setPage]=useState(0);
@@ -1767,11 +1821,13 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject}){
         </div>}
       </div>
 
-      {selected&&<ManagedPanel cas={selected} allCases={cases} onClose={()=>setSelected(null)} onSave={async(rowNum,row)=>{
-        await api.put(`'ניהול תיקים'!A${rowNum}:${colLetter(row.length)}${rowNum}`,[row]);
-        onUpdateCase(rowNum,{...selected,...Object.fromEntries(Object.entries(M).map(([k,i])=>[k,String(row[i]||'').trim()]))});
-        setSelected(null);
-      }}/>}
+      {selected&&<ManagedPanel cas={selected} allCases={cases} projects={projects} addProject={addProject}
+        onClose={()=>setSelected(null)}
+        onDelete={(rowNum)=>{if(onDeleteCase)onDeleteCase(rowNum);setSelected(null);}}
+        onSave={async(rowNum,row)=>{
+          await api.put(`'ניהול תיקים'!A${rowNum}:${colLetter(row.length)}${rowNum}`,[row]);
+          onUpdateCase(rowNum,{...selected,...Object.fromEntries(Object.entries(M).map(([k,i])=>[k,String(row[i]||'').trim()]))});
+        }}/>}
     </div>
   );
 }
@@ -2459,6 +2515,7 @@ function App(){
   const addCase=useCallback((c)=>{setManaged(ms=>[...ms,c]);},[]);
   const addProject=useCallback((p)=>{setProjects(ps=>[...ps,p]);},[]);
   const deleteProject=useCallback((rowNum)=>{setProjects(ps=>ps.filter(p=>p._row!==rowNum));},[]);
+  const deleteCase=useCallback((rowNum)=>{setManaged(ms=>ms.filter(m=>m._row!==rowNum));},[]);
   const counts=React.useMemo(()=>({
     active:projects.filter(p=>p.status&&!CLIENT_STATUSES.includes(p.status)&&p.status!=='הסתיים'&&p.status!=='בוטל').length,
     client:projects.filter(p=>CLIENT_STATUSES.includes(p.status)).length,
@@ -2474,7 +2531,7 @@ function App(){
         {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView}/>}
         {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject}/>}
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject}/>}
-        {view==='managed'&&<ManagedView cases={managed} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject}/>}
+        {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase}/>}
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
         {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user}/>}
       </div>
