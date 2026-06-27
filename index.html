@@ -335,6 +335,21 @@ function AutocompleteInput({value,onChange,options=[],style={},placeholder=''}){
   );
 }
 
+// ═══════════════ CALC EXPECTED ══════════════════════════════════
+// מחשב "צפי לסיום" — אותה לוגיקה כמו updateExpectedDates_ בסקריפט
+const SKIP_EXPECTED_STATUSES=['בהמתנה','נבדק - נשלח עדכון/טיוטה ללקוח','נשלח לבנק / לקוח'];
+function calcExpected(form){
+  const {visitDate,postVisitDocs,postVisitComplete,status}=form;
+  if(!visitDate||SKIP_EXPECTED_STATUSES.includes(status))return'';
+  if(postVisitComplete){
+    const d=parseDate(postVisitComplete);if(!d)return'';
+    d.setDate(d.getDate()+4);return fmt(d);
+  }
+  if(postVisitDocs)return''; // ממתין להשלמה
+  const d=parseDate(visitDate);if(!d)return'';
+  d.setDate(d.getDate()+7);return fmt(d);
+}
+
 // ═══════════════ SAVE ROW HELPER ════════════════════════════════
 function buildProjectRow(upd){
   const row=[...upd._raw];
@@ -367,7 +382,11 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
   useEffect(()=>{onSaveRef.current=onSave;},[onSave]);
   useEffect(()=>()=>clearTimeout(debounceRef.current),[]);
 
-  const set=(k,v)=>setForm(f=>{const n={...f,[k]:v};latestFormRef.current=n;return n;});
+  const set=(k,v)=>setForm(f=>{
+    const n={...f,[k]:v};
+    if(['visitDate','postVisitDocs','postVisitComplete','status'].includes(k))n.expected=calcExpected(n);
+    latestFormRef.current=n;return n;
+  });
 
   const doSave=async()=>{
     if(savingRef.current)return;
@@ -699,7 +718,11 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const workStatus=matchedCase?.status||'בביצוע';
   const set=(k,v)=>{
     dirtyRef.current=true;
-    setForm(f=>{const next={...f,[k]:v};formRef.current=next;return next;});
+    setForm(f=>{
+      const next={...f,[k]:v};
+      if(['visitDate','postVisitDocs','postVisitComplete','status'].includes(k))next.expected=calcExpected(next);
+      formRef.current=next;return next;
+    });
   };
   const autoSave=async()=>{
     if(savingRef.current)return;
@@ -824,7 +847,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                   {dateInp('dueDate',dueDateErr)}
                   {dueDateErr&&<div style={{fontSize:11,color:'#dc2626',marginTop:3,fontWeight:500}}>שדה חובה — נדרש עבור סטטוס זה</div>}
                 </div>
-                <div><FLabel>צפי לסיום 🔒</FLabel><div style={{...iS,background:'#f0ede8',color:'#8a7a6a',cursor:'default',userSelect:'none',display:'flex',alignItems:'center',fontStyle:'italic'}}>{form.expected||'—'}</div></div>
+                <div><FLabel>צפי לסיום 🔒</FLabel><div style={{...iS,background:'#f0ede8',color:'#8a7a6a',cursor:'default',userSelect:'none',display:'flex',alignItems:'center'}}>{form.expected||'—'}</div></div>
               </div>
             </div>
             <div style={sec}>
@@ -2115,7 +2138,7 @@ function LoginScreen({onLogin}){
   return(
     <div style={{height:'100vh',display:'flex',alignItems:'flex-end',justifyContent:'center',padding:20,paddingBottom:100,overflow:'hidden',position:'relative'}}>
       {/* Video background */}
-      <video autoPlay loop muted playsInline style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-55%)',width:'52%',height:'auto',zIndex:0,opacity:0.75}}>
+      <video autoPlay loop muted playsInline style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',zIndex:0}}>
         <source src="RR_logo.mp4" type="video/mp4"/>
       </video>
       {/* Dark overlay for readability */}
