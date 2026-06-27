@@ -12,7 +12,8 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Rubik',sans-serif;background:#f0ede8;direction:rtl;color:#1a1510;font-size:14px;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+html,body{overflow:hidden;height:100%}
+body{font-family:'Rubik',sans-serif;background:#f0ede8;direction:rtl;color:#1a1510;font-size:14px;-webkit-font-smoothing:antialiased}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#d9af3466;border-radius:6px}
@@ -965,8 +966,8 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
     if(daysFilter!=='all'){
       const maxDays=daysFilter==='today'?0:daysFilter==='2days'?2:7;
       arr=arr.filter(p=>{
-        if(!p._expD)return false;
-        const d=new Date(p._expD);d.setHours(0,0,0,0);
+        if(!p._dueD)return false;
+        const d=new Date(p._dueD);d.setHours(0,0,0,0);
         const diff=Math.round((d-today)/86400000);
         return diff>=0&&diff<=maxDays;
       });
@@ -2114,7 +2115,7 @@ function LoginScreen({onLogin}){
   return(
     <div style={{height:'100vh',display:'flex',alignItems:'flex-end',justifyContent:'center',padding:20,paddingBottom:100,overflow:'hidden',position:'relative'}}>
       {/* Video background */}
-      <video autoPlay loop muted playsInline style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',zIndex:0}}>
+      <video autoPlay loop muted playsInline style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-55%)',width:'52%',height:'auto',zIndex:0,opacity:0.75}}>
         <source src="RR_logo.mp4" type="video/mp4"/>
       </video>
       {/* Dark overlay for readability */}
@@ -2636,7 +2637,7 @@ function SettingsView({user,settings,onSetting}){
       </div>
       <div style={sec}>
         {secTitle('📅','תיקי ברירת מחדל')}
-        <div style={{fontSize:12,color:'#9a8e84',marginBottom:10}}>סנן תיקים לפי תאריך ביצוע בכניסה לאתר</div>
+        <div style={{fontSize:12,color:'#9a8e84',marginBottom:10}}>סנן תיקים לפי תאריך לביצוע (⏰) בכניסה לאתר</div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
           {[['all','הכל'],['today','היום'],['2days','יומיים'],['week','שבוע']].map(([val,label])=>(
             <button key={val} onClick={()=>onSetting('defaultDays',val)} style={{
@@ -2721,10 +2722,10 @@ function App(){
   }),[projects,managed]);
   if(!token){return <LoginScreen onLogin={handleLogin}/>;}
   return(
-    <div style={{display:'flex',minHeight:'100vh',background:'#f7f3ee',fontFamily:'Rubik,sans-serif',direction:'rtl'}}>
+    <div style={{display:'flex',height:'100vh',overflow:'hidden',background:'#f7f3ee',fontFamily:'Rubik,sans-serif',direction:'rtl'}}>
       <Sidebar view={view} setView={setView} user={user} loading={loading} counts={counts}
         onLogout={()=>{api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);}}/>
-      <div style={{flex:1,overflow:'auto',marginRight:232}}>
+      <div style={{flex:1,overflowY:'auto',overflowX:'hidden',marginRight:232,height:'100vh'}}>
         {error&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{error}</div>}
         {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView}/>}
         {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject}/>}
