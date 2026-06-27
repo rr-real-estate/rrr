@@ -94,14 +94,42 @@ const TASK_FIELDS=[
   ['feigi','פייגי','office@yrr.co.il'],
 ];
 
-// מוסיף (DD/MM) להערות אם אין כבר תאריך כזה — בדיוק כמו Apps Script
-function withNoteDate(notes){
-  if(!notes)return notes;
-  if(/\(\d{1,2}\/\d{1,2}\)/.test(notes))return notes;
+// שם המשתמש הנוכחי — מתעדכן בהתחברות
+let _currentUserName='';
+
+// פירוק חותמת מהערה — פורמט: "טקסט (DD/MM/YYYY | שם)" או "טקסט (DD/MM)"
+function parseNoteStamp(notes){
+  const m=(notes||'').match(/^([\s\S]*?)\s*\((\d{1,2}\/\d{1,2}(?:\/\d{4})?)\s*(?:\|\s*([^)]*?))?\)\s*$/);
+  if(m)return{text:m[1].trim(),date:m[2].trim(),user:(m[3]||'').trim()};
+  return{text:(notes||'').trim(),date:'',user:''};
+}
+
+// יצירת הערה עם חותמת תאריך ושם
+function stampNote(text,userName){
+  if(!text||!text.trim())return'';
   const d=new Date();
   const dd=String(d.getDate()).padStart(2,'0');
   const mm=String(d.getMonth()+1).padStart(2,'0');
-  return notes.trim()+' ('+dd+'/'+mm+')';
+  const yy=d.getFullYear();
+  const stamp=dd+'/'+mm+'/'+yy+(userName?' | '+userName:'');
+  return text.trim()+' ('+stamp+')';
+}
+
+// ימים שעברו מאז תאריך הערה
+function noteDaysDiff(dateStr){
+  if(!dateStr)return null;
+  const p=dateStr.split('/');
+  if(p.length<2)return null;
+  const nd=new Date(p[2]?parseInt(p[2]):new Date().getFullYear(),parseInt(p[1])-1,parseInt(p[0]));
+  const td=new Date();td.setHours(0,0,0,0);nd.setHours(0,0,0,0);
+  return Math.round((td-nd)/86400000);
+}
+
+// fallback לשמירה — אם אין חותמת כלל, מוסיף
+function withNoteDate(notes){
+  if(!notes)return notes;
+  if(/\(\d{1,2}\/\d{1,2}(?:\/\d{4})?(?:\s*\|[^)]*)?\)/.test(notes))return notes;
+  return stampNote(notes,_currentUserName);
 }
 
 // שולח מייל לבעל המשימה אם המשימה השתנתה ועורך ≠ בעלים + תזכורות עצמיות למיכאל
@@ -365,6 +393,31 @@ function buildProjectRow(upd){
   return row;
 }
 
+// ═══════════════ NOTES WIDGET ═══════════════════════════════════
+function NotesWidget({value,onChange,onBlur,style}){
+  const {text,date,user}=parseNoteStamp(value);
+  const diff=noteDaysDiff(date);
+  const overdue=diff!==null&&diff>7;
+  const handleChange=e=>{
+    const v=e.target.value;
+    onChange(v.trim()?stampNote(v,_currentUserName):'');
+  };
+  return(
+    <div>
+      <textarea value={text} onChange={handleChange} onBlur={onBlur} rows={2}
+        style={{...style,resize:'vertical',borderColor:overdue?'#dc2626':style?.border?.replace(/1px solid /,'')}}/>
+      {date&&(
+        <div style={{display:'flex',gap:8,alignItems:'center',marginTop:4,fontSize:11,
+          color:overdue?'#dc2626':'#9a8e84',fontWeight:overdue?700:400}}>
+          <span>📅 {date}</span>
+          {user&&<span style={{color:overdue?'#dc2626':'#7a6a58'}}>· {user}</span>}
+          {overdue&&<span style={{background:'#fee2e2',color:'#dc2626',padding:'1px 7px',borderRadius:10,fontWeight:700}}>⚠️ {diff} ימים</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════ PROJECT EXPANDED (inline accordion) ═════════════
 function ProjectExpanded({project,onSave,onCollapse,wide}){
   const [form,setForm]=useState({...project});
@@ -502,7 +555,7 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
         {/* הערות */}
         <div style={box}>
           <SectionTitle icon="💬">הערות ותובנות</SectionTitle>
-          {inp('notes',true)}
+          <NotesWidget value={form.notes||''} onChange={v=>set('notes',v)} onBlur={schedSave} style={iS}/>
         </div>
 
         {/* מסמכים — 3 בשורה */}
@@ -858,7 +911,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             </div>
             <div style={sec}>
               <SectionTitle icon="💬">הערות</SectionTitle>
-              {inp('notes',true)}
+              <NotesWidget value={form.notes||''} onChange={v=>{set('notes',v);autoSave();}} onBlur={()=>{}} style={iS}/>
             </div>
           </div>}
           {tab==='docs'&&<div>
@@ -2724,7 +2777,10 @@ function App(){
     api.token=tok;setToken(tok);
     try{
       const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+tok}});
-      if(r.ok)setUser(await r.json());
+      if(r.ok){
+        const u=await r.json();setUser(u);
+        _currentUserName=USER_BY_EMAIL[(u.email||'').toLowerCase()]||u.name||'';
+      }
     }catch{}
     loadAll();
   },[loadAll]);
