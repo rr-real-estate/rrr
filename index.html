@@ -398,13 +398,22 @@ function NotesWidget({value,onChange,onBlur,style}){
   const {text,date,user}=parseNoteStamp(value);
   const diff=noteDaysDiff(date);
   const overdue=diff!==null&&diff>7;
-  const handleChange=e=>{
-    const v=e.target.value;
-    onChange(v.trim()?stampNote(v,_currentUserName):'');
+  // state מקומי בזמן עריכה — כדי שרווחים בין מילים לא יאכלו
+  const [localText,setLocalText]=React.useState(text);
+  const [focused,setFocused]=React.useState(false);
+  // סנכרון כשערך חיצוני משתנה (בעת טעינה / שמירה מחוץ לווידג'ט)
+  React.useEffect(()=>{if(!focused)setLocalText(text);},[text,focused]);
+  const handleChange=e=>setLocalText(e.target.value);
+  const handleBlur=e=>{
+    setFocused(false);
+    // חותמים רק ב-blur, לא בכל הקשה
+    onChange(localText.trim()?stampNote(localText,_currentUserName):'');
+    if(onBlur)onBlur(e);
   };
   return(
     <div>
-      <textarea value={text} onChange={handleChange} onBlur={onBlur} rows={2}
+      <textarea value={localText} onChange={handleChange}
+        onFocus={()=>setFocused(true)} onBlur={handleBlur} rows={2}
         style={{...style,resize:'vertical',borderColor:overdue?'#dc2626':style?.border?.replace(/1px solid /,'')}}/>
       {date&&(
         <div style={{display:'flex',gap:8,alignItems:'center',marginTop:4,fontSize:11,
