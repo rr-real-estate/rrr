@@ -1470,11 +1470,11 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
   };
   const selStyle={width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'};
   const sec={background:'#fff',borderRadius:12,padding:16,marginBottom:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'};
-  const tabs=[{label:'📦 תיק'},{label:'👤 לקוח'},{label:'🤝 יועץ'},{label:'🏠 נכס'}];
+  const tabs=[{label:'📦 תיק'},{label:'👤 לקוח ויועץ'},{label:'🏠 נכס'}];
 
   return(
     <div style={{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(8px)'}} onClick={onClose}>
-      <div style={{background:'#f5f3ef',width:'min(680px,96vw)',maxHeight:'90vh',borderRadius:18,overflow:'hidden',boxShadow:'0 32px 80px rgba(0,0,0,0.35)',display:'flex',flexDirection:'column',animation:'fadeIn 0.2s ease'}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:'#f5f3ef',width:'min(680px,96vw)',height:'min(680px,90vh)',borderRadius:18,overflow:'hidden',boxShadow:'0 32px 80px rgba(0,0,0,0.35)',display:'flex',flexDirection:'column',animation:'fadeIn 0.2s ease'}} onClick={e=>e.stopPropagation()}>
 
         {/* Header */}
         <div style={{background:BLACK,padding:'18px 22px',flexShrink:0}}>
@@ -1535,37 +1535,37 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
               <div><FLabel>תאריך פתיחה</FLabel>{inp('openDate')}</div>
               <div><FLabel>תאריך סגירה</FLabel>{inp('closeDate')}</div>
               <div><FLabel>שכר טרחה (₪)</FLabel>{inp('fee')}</div>
-              <div><FLabel>מיכאל</FLabel>{inp('michael')}</div>
             </div>
             <FLabel>תיקייה (נוסחה — קריאה בלבד)</FLabel>
             <div style={{padding:'8px 11px',borderRadius:8,background:'#f0ebe3',fontSize:13,color:'#6b5e50',border:'1px solid #e0d8cc',direction:'rtl'}}>{cas.folder||'—'}</div>
           </div>}
 
-          {tab===1&&<div style={sec}>
-            <SectionTitle icon="👤">לקוח</SectionTitle>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-              <div style={{gridColumn:'1/-1'}}><FLabel>שם לקוח</FLabel>{inp('client')}</div>
-              <div><FLabel>טלפון</FLabel>{inp('phone')}</div>
-              <div><FLabel>מייל</FLabel>{inp('email')}</div>
+          {tab===1&&<React.Fragment>
+            <div style={sec}>
+              <SectionTitle icon="👤">לקוח</SectionTitle>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                <div style={{gridColumn:'1/-1'}}><FLabel>שם לקוח</FLabel>{inp('client')}</div>
+                <div><FLabel>טלפון</FLabel>{inp('phone')}</div>
+                <div><FLabel>מייל</FLabel>{inp('email')}</div>
+              </div>
             </div>
-          </div>}
+            <div style={sec}>
+              <SectionTitle icon="🤝">יועץ משכנתאות</SectionTitle>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                <div style={{gridColumn:'1/-1'}}>
+                  <FLabel>שם יועץ</FLabel>
+                  <AutocompleteInput value={form.advisor||''} onChange={v=>handleAdvisorChange(v)}
+                    options={[...new Set((allCases||[]).map(c=>c.advisor||'').filter(Boolean))].sort()}
+                    style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'}}
+                    placeholder="הקלד שם יועץ"/>
+                </div>
+                <div><FLabel>טלפון יועץ</FLabel>{inp('advisorPhone')}</div>
+                <div><FLabel>מייל יועץ</FLabel>{inp('advisorEmail')}</div>
+              </div>
+            </div>
+          </React.Fragment>}
 
           {tab===2&&<div style={sec}>
-            <SectionTitle icon="🤝">יועץ משכנתאות</SectionTitle>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-              <div style={{gridColumn:'1/-1'}}>
-                <FLabel>שם יועץ</FLabel>
-                <AutocompleteInput value={form.advisor||''} onChange={v=>handleAdvisorChange(v)}
-                  options={[...new Set((allCases||[]).map(c=>c.advisor||'').filter(Boolean))].sort()}
-                  style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'}}
-                  placeholder="הקלד שם יועץ"/>
-              </div>
-              <div><FLabel>טלפון</FLabel>{inp('advisorPhone')}</div>
-              <div><FLabel>מייל</FLabel>{inp('advisorEmail')}</div>
-            </div>
-          </div>}
-
-          {tab===3&&<div style={sec}>
             <SectionTitle icon="🏠">פרטי הנכס</SectionTitle>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
               <div><FLabel>עיר / ישוב</FLabel>{inp('city')}</div>
@@ -1580,17 +1580,17 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
               <div><FLabel>מספר דירה</FLabel>{inp('aptNum')}</div>
               <div>
                 <FLabel>מטרת העבודה</FLabel>
-                <select value={form.purpose||''} onChange={e=>set('purpose',e.target.value)} style={selStyle}>
-                  <option value="">— בחר מטרה —</option>
-                  {purposeOpts.map(o=><option key={o} value={o}>{o}</option>)}
-                </select>
+                <AutocompleteInput value={form.purpose||''} onChange={v=>set('purpose',v)}
+                  options={purposeOpts}
+                  style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'}}
+                  placeholder="הקלד מטרת עבודה"/>
               </div>
               <div>
                 <FLabel>סוג נכס</FLabel>
-                <select value={form.propType||''} onChange={e=>set('propType',e.target.value)} style={selStyle}>
-                  <option value="">— בחר סוג —</option>
-                  {propTypeOpts.map(o=><option key={o} value={o}>{o}</option>)}
-                </select>
+                <AutocompleteInput value={form.propType||''} onChange={v=>set('propType',v)}
+                  options={propTypeOpts}
+                  style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'}}
+                  placeholder="הקלד סוג נכס"/>
               </div>
               <div><FLabel>גוש</FLabel>{inp('block')}</div>
               <div><FLabel>חלקה</FLabel>{inp('parcel')}</div>
@@ -1615,11 +1615,11 @@ function AddCaseModal({onClose,onAdd,cases}){
     openDate:today,status:'בביצוע',fee:'',rights:'',block:'',parcel:'',subParcel:''});
   const [saving,setSaving]=useState(false);
   const [err,setErr]=useState('');
+  const [errors,setErrors]=useState({});
   const [showClientContact,setShowClientContact]=useState(false);
   const [showAdvisorContact,setShowAdvisorContact]=useState(false);
-  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const set=(k,v)=>{setForm(f=>({...f,[k]:v}));setErrors(er=>{const n={...er};delete n[k];return n;});};
 
-  // Unique advisor names + banks from existing cases
   const advisorList=React.useMemo(()=>{
     const map={};
     (cases||[]).forEach(c=>{if(c.advisor&&c.advisor.trim())map[c.advisor.trim()]={phone:c.advisorPhone||'',email:c.advisorEmail||''};});
@@ -1638,25 +1638,72 @@ function AddCaseModal({onClose,onAdd,cases}){
       if(match.phone||match.email)setShowAdvisorContact(true);
     }
     setForm(f=>({...f,...updated}));
+    setErrors(er=>{const n={...er};delete n.advisor;delete n.advisorPhone;delete n.advisorEmail;delete n.phone;delete n.email;return n;});
+  };
+
+  const validate=()=>{
+    const e={};
+    if(!form.caseNum)e.caseNum='שדה חובה';
+    const words=(form.client||'').trim().split(/\s+/).filter(Boolean);
+    if(words.length<2)e.client='חייב להזין שם ומשפחה';
+    const hasAdvisor=(form.advisor||'').trim();
+    if(hasAdvisor){
+      if(!(form.advisorPhone||'').trim())e.advisorPhone='שדה חובה';
+      if(!(form.advisorEmail||'').trim())e.advisorEmail='שדה חובה';
+    } else {
+      if(!(form.phone||'').trim())e.phone='שדה חובה';
+      if(!(form.email||'').trim())e.email='שדה חובה';
+    }
+    if(!(form.city||'').trim())e.city='שדה חובה';
+    if(!(form.bank||'').trim())e.bank='שדה חובה';
+    if(!(form.block||'').trim())e.block='שדה חובה';
+    if(!(form.parcel||'').trim())e.parcel='שדה חובה';
+    if(!(form.purpose||'').trim())e.purpose='שדה חובה';
+    if(!(form.propType||'').trim())e.propType='שדה חובה';
+    return e;
   };
 
   const handleAdd=async()=>{
-    if(!form.caseNum){setErr('מספר תיק הוא שדה חובה');return;}
+    const e=validate();
+    if(Object.keys(e).length>0){
+      setErrors(e);
+      if(e.advisorPhone||e.advisorEmail)setShowAdvisorContact(true);
+      if(e.phone||e.email)setShowClientContact(true);
+      return;
+    }
     setSaving(true);setErr('');
     try{await onAdd(form);}
-    catch(e){setErr(e.message);setSaving(false);}
+    catch(e2){setErr(e2.message);setSaving(false);}
   };
 
+  const errColor='#dc2626';
   const iS={width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
-  const inp=(k,placeholder='')=>(<input value={form[k]||''} onChange={e=>set(k,e.target.value)} placeholder={placeholder} style={iS}/>);
+  const errMsg=(k)=>errors[k]?<div style={{fontSize:11,color:errColor,marginTop:2}}>{errors[k]}</div>:null;
+  const bdr=(k)=>errors[k]?`2px solid ${errColor}`:'1px solid #ddd0bb';
+  const inp=(k,placeholder='')=>(
+    <React.Fragment>
+      <input value={form[k]||''} onChange={e=>set(k,e.target.value)} placeholder={placeholder} style={{...iS,border:bdr(k)}}/>
+      {errMsg(k)}
+    </React.Fragment>
+  );
+  const acInp=(k,opts,placeholder,onChange)=>(
+    <React.Fragment>
+      <AutocompleteInput value={form[k]||''} onChange={onChange||(v=>set(k,v))} options={opts} style={{...iS,border:bdr(k)}} placeholder={placeholder}/>
+      {errMsg(k)}
+    </React.Fragment>
+  );
   const selStyle={...iS};
   const secStyle={background:'#faf7f2',borderRadius:12,padding:14,marginBottom:12,border:'1px solid #ede5d8'};
   const secTitle=(icon,label)=>(<div style={{fontSize:11,fontWeight:500,color:GOLD,letterSpacing:'0.1em',marginBottom:10,textTransform:'uppercase'}}>{icon} {label}</div>);
-  const expandBtn=(label,open,setOpen)=>(
-    <button type="button" onClick={()=>setOpen(o=>!o)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',background:'#f0ebe3',border:'1px solid #ddd0bb',borderRadius:8,padding:'7px 12px',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:500,color:'#5a4e44',marginTop:4}}>
-      <span>📞 {label}</span><span style={{fontSize:10}}>{open?'▲':'▼'}</span>
+  const expandBtn=(label,open,setOpen,hasErr)=>(
+    <button type="button" onClick={()=>setOpen(o=>!o)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',background:hasErr?'#fee2e2':'#f0ebe3',border:`1px solid ${hasErr?errColor:'#ddd0bb'}`,borderRadius:8,padding:'7px 12px',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:500,color:hasErr?errColor:'#5a4e44',marginTop:4}}>
+      <span>📞 {label}{hasErr?' ← שדות חובה':''}</span><span style={{fontSize:10}}>{open?'▲':'▼'}</span>
     </button>
   );
+
+  const hasAdvisor=(form.advisor||'').trim();
+  const clientContactErr=!hasAdvisor&&(errors.phone||errors.email);
+  const advisorContactErr=hasAdvisor&&(errors.advisorPhone||errors.advisorEmail);
 
   return(
     <div style={{position:'fixed',inset:0,zIndex:700,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
@@ -1666,6 +1713,7 @@ function AddCaseModal({onClose,onAdd,cases}){
           <button onClick={onClose} style={{background:'#f0ebe3',border:'none',borderRadius:8,width:32,height:32,fontSize:18,cursor:'pointer',color:'#6b5e50',display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
         </div>
         {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 14px',borderRadius:8,fontSize:14,marginBottom:14}}>{err}</div>}
+        {Object.keys(errors).length>0&&<div style={{background:'#fff7ed',color:'#92400e',padding:'10px 14px',borderRadius:8,fontSize:13,marginBottom:14,border:'1px solid #fcd34d'}}>יש למלא את כל שדות החובה לפני שמירה</div>}
 
         {/* פרטי תיק */}
         <div style={secStyle}>
@@ -1689,12 +1737,12 @@ function AddCaseModal({onClose,onAdd,cases}){
         <div style={secStyle}>
           {secTitle('👤','פרטי לקוח')}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            <div style={{gridColumn:'1/-1'}}><FLabel>שם לקוח</FLabel>{inp('client')}</div>
+            <div style={{gridColumn:'1/-1'}}><FLabel>שם לקוח *</FLabel>{inp('client','שם פרטי ושם משפחה')}</div>
           </div>
-          {expandBtn('נייד ומייל לקוח',showClientContact,setShowClientContact)}
+          {expandBtn('נייד ומייל לקוח',showClientContact,setShowClientContact,!!clientContactErr)}
           {showClientContact&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:8}}>
-            <div><FLabel>נייד לקוח</FLabel>{inp('phone')}</div>
-            <div><FLabel>מייל לקוח</FLabel>{inp('email')}</div>
+            <div><FLabel>נייד לקוח{!hasAdvisor?' *':''}</FLabel>{inp('phone')}</div>
+            <div><FLabel>מייל לקוח{!hasAdvisor?' *':''}</FLabel>{inp('email')}</div>
           </div>}
         </div>
 
@@ -1703,13 +1751,13 @@ function AddCaseModal({onClose,onAdd,cases}){
           {secTitle('🤝','פרטי יועץ משכנתאות')}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             <div style={{gridColumn:'1/-1'}}><FLabel>שם יועץ</FLabel>
-              <AutocompleteInput value={form.advisor||''} onChange={v=>handleAdvisorChange(v)} options={Object.keys(advisorList)} style={iS} placeholder="הקלד שם יועץ"/>
+              <AutocompleteInput value={form.advisor||''} onChange={v=>handleAdvisorChange(v)} options={Object.keys(advisorList)} style={iS} placeholder="הקלד שם יועץ (אופציונלי)"/>
             </div>
           </div>
-          {expandBtn('נייד ומייל יועץ',showAdvisorContact,setShowAdvisorContact)}
+          {expandBtn('נייד ומייל יועץ',showAdvisorContact,setShowAdvisorContact,!!advisorContactErr)}
           {showAdvisorContact&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:8}}>
-            <div><FLabel>נייד יועץ</FLabel>{inp('advisorPhone')}</div>
-            <div><FLabel>מייל יועץ</FLabel>{inp('advisorEmail')}</div>
+            <div><FLabel>נייד יועץ{hasAdvisor?' *':''}</FLabel>{inp('advisorPhone')}</div>
+            <div><FLabel>מייל יועץ{hasAdvisor?' *':''}</FLabel>{inp('advisorEmail')}</div>
           </div>}
         </div>
 
@@ -1717,30 +1765,16 @@ function AddCaseModal({onClose,onAdd,cases}){
         <div style={secStyle}>
           {secTitle('🏠','פרטי הנכס')}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            <div><FLabel>ישוב / עיר</FLabel>{inp('city')}</div>
-            <div><FLabel>בנק</FLabel>
-              <AutocompleteInput value={form.bank||''} onChange={v=>set('bank',v)} options={bankList} style={iS} placeholder="הקלד שם בנק"/>
-            </div>
+            <div><FLabel>ישוב / עיר *</FLabel>{inp('city')}</div>
+            <div><FLabel>בנק *</FLabel>{acInp('bank',bankList,'הקלד שם בנק')}</div>
             <div><FLabel>רחוב</FLabel>{inp('street')}</div>
             <div><FLabel>מס׳ בית</FLabel>{inp('houseNum')}</div>
             <div><FLabel>מס׳ דירה</FLabel>{inp('aptNum')}</div>
-            <div><FLabel>גוש</FLabel>{inp('block')}</div>
-            <div><FLabel>חלקה</FLabel>{inp('parcel')}</div>
+            <div><FLabel>גוש *</FLabel>{inp('block')}</div>
+            <div><FLabel>חלקה *</FLabel>{inp('parcel')}</div>
             <div><FLabel>תת חלקה</FLabel>{inp('subParcel')}</div>
-            <div>
-              <FLabel>מטרת העבודה</FLabel>
-              <select value={form.purpose||''} onChange={e=>set('purpose',e.target.value)} style={selStyle}>
-                <option value="">— בחר מטרה —</option>
-                {purposeList.map(o=><option key={o} value={o}>{o}</option>)}
-              </select>
-            </div>
-            <div>
-              <FLabel>סוג נכס</FLabel>
-              <select value={form.propType||''} onChange={e=>set('propType',e.target.value)} style={selStyle}>
-                <option value="">— בחר סוג —</option>
-                {propTypeList.map(o=><option key={o} value={o}>{o}</option>)}
-              </select>
-            </div>
+            <div><FLabel>מטרת העבודה *</FLabel>{acInp('purpose',purposeList,'הקלד מטרת עבודה')}</div>
+            <div><FLabel>סוג נכס *</FLabel>{acInp('propType',propTypeList,'הקלד סוג נכס')}</div>
           </div>
         </div>
 
@@ -2053,7 +2087,7 @@ function LoginScreen({onLogin}){
     }catch(e){setBusy(false);alert(e.message);}
   };
   return(
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20,overflow:'hidden',position:'relative'}}>
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'flex-end',justifyContent:'center',padding:20,paddingBottom:120,overflow:'hidden',position:'relative'}}>
       {/* Video background */}
       <video autoPlay loop muted playsInline style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',zIndex:0}}>
         <source src="RR_logo.mp4" type="video/mp4"/>
