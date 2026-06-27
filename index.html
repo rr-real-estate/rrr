@@ -12,7 +12,7 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Rubik',sans-serif;background:#f0ede8;direction:rtl;color:#1a1510;font-size:14px;-webkit-font-smoothing:antialiased}
+body{font-family:'Rubik',sans-serif;background:#f0ede8;direction:rtl;color:#1a1510;font-size:14px;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#d9af3466;border-radius:6px}
@@ -605,7 +605,7 @@ function ProjectCard({project,onClick,hideDate}){
       borderRight:`4px solid ${m.dot}`,
       transition:'all 0.18s cubic-bezier(0.4,0,0.2,1)',
       outline:overdue?'1.5px solid #fca5a5':'none',
-      display:'flex',flexDirection:'column',height:'100%',boxSizing:'border-box',
+      display:'flex',flexDirection:'column',height:'100%',boxSizing:'border-box',overflow:'hidden',
     }}
     onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 8px 24px rgba(0,0,0,0.12),0 2px 8px rgba(0,0,0,0.06)';e.currentTarget.style.transform='translateY(-3px)';}}
     onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)';e.currentTarget.style.transform='translateY(0)';}}
@@ -640,7 +640,7 @@ function ProjectCard({project,onClick,hideDate}){
           {tasks.length>0&&(
             <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
               {tasks.map(t=>(
-                <div key={t.n} style={{background:`${t.c}14`,border:`1px solid ${t.c}33`,borderRadius:8,padding:'4px 11px',fontSize:13}}>
+                <div key={t.n} style={{background:`${t.c}14`,border:`1px solid ${t.c}33`,borderRadius:8,padding:'4px 11px',fontSize:13,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>
                   <span style={{color:t.c,fontWeight:500}}>{t.n}: </span>
                   <span style={{color:'#3a3228'}}>{t.v}</span>
                 </div>
@@ -669,7 +669,7 @@ function ProjectCard({project,onClick,hideDate}){
             </div>
           )}
           {project.missingDocs&&(
-            <div style={{fontSize:13,color:'#9a3412',background:'#fff7ed',padding:'5px 9px',borderRadius:7,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:4}}>
+            <div style={{fontSize:13,color:'#9a3412',background:'#fff7ed',padding:'5px 9px',borderRadius:7,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',marginTop:4}}>
               ⚠️ {project.missingDocs}
             </div>
           )}
@@ -1152,7 +1152,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
                 <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
               </div>
               {isOpen&&(
-                <div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch'}}>
+                <div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch',gridAutoRows:'190px'}}>
                   {items.map(p=><ProjectCard key={p._row} project={p} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}}/>)}
                 </div>
               )}
@@ -1363,7 +1363,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
                 </div>
                 <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
               </div>
-              {isOpen&&<div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch'}}>
+              {isOpen&&<div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch',gridAutoRows:'190px'}}>
                 {items.map(p=><ProjectCard key={p._row} project={p} onClick={()=>setPanelProject(p)} hideDate/>)}
               </div>}
             </div>
@@ -2087,7 +2087,7 @@ function LoginScreen({onLogin}){
     }catch(e){setBusy(false);alert(e.message);}
   };
   return(
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'flex-end',justifyContent:'center',padding:20,paddingBottom:120,overflow:'hidden',position:'relative'}}>
+    <div style={{height:'100vh',display:'flex',alignItems:'flex-end',justifyContent:'center',padding:20,paddingBottom:100,overflow:'hidden',position:'relative'}}>
       {/* Video background */}
       <video autoPlay loop muted playsInline style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',zIndex:0}}>
         <source src="RR_logo.mp4" type="video/mp4"/>
