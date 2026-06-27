@@ -43,7 +43,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
-const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__'};
+const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
 function loadSettings(){try{return{...DEFAULT_SETTINGS,...JSON.parse(localStorage.getItem('rrSettings')||'{}')};}catch{return DEFAULT_SETTINGS;}}
 function saveSettings(s){try{localStorage.setItem('rrSettings',JSON.stringify(s));}catch{}}
 const FONT_ZOOM={small:0.88,medium:1,large:1.14};
@@ -928,6 +928,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
 function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDelete}){
   const [search,setSearch]=useState('');
   const [personFilter,setPersonFilter]=useState('');
+  const [daysFilter,setDaysFilter]=useState('all');
   const [panelProject,setPanelProject]=useState(null);
   const [panelAnchor,setPanelAnchor]=useState(null);
   const [collapsed,setCollapsed]=useState({});
@@ -939,27 +940,39 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
   useEffect(()=>{
     if(!initFilterRef.current){
       initFilterRef.current=true;
-      const dp=(settings||DEFAULT_SETTINGS).defaultPerson;
+      const s=settings||DEFAULT_SETTINGS;
+      const dp=s.defaultPerson;
       if(dp==='__auto__'){
         const name=USER_BY_EMAIL[(user?.email||'').toLowerCase()];
         if(name)setPersonFilter(name);
       } else {
         setPersonFilter(dp||'');
       }
+      setDaysFilter(s.defaultDays||'all');
     }
   },[user,settings]);
 
   const activeProjects=useMemo(()=>projects.filter(p=>!CLIENT_STATUSES.includes(p.status)),[projects]);
 
   const filtered=useMemo(()=>{
+    const today=new Date();today.setHours(0,0,0,0);
     let arr=[...activeProjects];
     const q=search.toLowerCase();
     if(q)arr=arr.filter(p=>[p.name,p.yossi,p.michael,p.feigi,p.notes,p.missingDocs].some(v=>v.toLowerCase().includes(q)));
     if(personFilter==='יוסי')arr=arr.filter(p=>p.yossi);
     if(personFilter==='מיכאל')arr=arr.filter(p=>p.michael);
     if(personFilter==='פייגי')arr=arr.filter(p=>p.feigi);
+    if(daysFilter!=='all'){
+      const maxDays=daysFilter==='today'?0:daysFilter==='2days'?2:7;
+      arr=arr.filter(p=>{
+        if(!p._expD)return false;
+        const d=new Date(p._expD);d.setHours(0,0,0,0);
+        const diff=Math.round((d-today)/86400000);
+        return diff>=0&&diff<=maxDays;
+      });
+    }
     return arr;
-  },[activeProjects,search,personFilter]);
+  },[activeProjects,search,personFilter,daysFilter]);
 
   const groups=useMemo(()=>{
     const byStatus={};
@@ -1018,7 +1031,19 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
           <option value="">כל הנציגים</option>
           {['יוסי','מיכאל','פייגי'].map(p=><option key={p} value={p}>{p}</option>)}
         </select>
-        {(search||personFilter)&&<button onClick={()=>{setSearch('');setPersonFilter('');}}
+        <div style={{display:'flex',gap:4,background:'#f5f0e8',borderRadius:8,padding:3}}>
+          {[['all','הכל'],['today','היום'],['2days','יומיים'],['week','שבוע']].map(([val,label])=>(
+            <button key={val} onClick={()=>setDaysFilter(val)} style={{
+              padding:'4px 11px',borderRadius:6,border:'none',cursor:'pointer',fontFamily:'Rubik,sans-serif',
+              fontSize:12,fontWeight:daysFilter===val?600:400,
+              background:daysFilter===val?'#fff':'transparent',
+              color:daysFilter===val?GOLD3:'#6b5e50',
+              boxShadow:daysFilter===val?'0 1px 3px rgba(0,0,0,0.1)':'none',
+              transition:'all 0.15s'
+            }}>{label}</button>
+          ))}
+        </div>
+        {(search||personFilter||daysFilter!=='all')&&<button onClick={()=>{setSearch('');setPersonFilter('');setDaysFilter('all');}}
           style={{...inp,background:'#f5f0e8',color:'#4b3400',border:'1px solid #d9c5a0',cursor:'pointer',fontWeight:500}}>נקה ×</button>}
       </div>
 
@@ -2607,6 +2632,23 @@ function SettingsView({user,settings,onSetting}){
         <div style={{fontSize:12,color:'#9a8e84',marginBottom:10}}>בעת כניסה, סנן אוטומטית לפי נציג זה</div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
           {['__auto__','','יוסי','מיכאל','פייגי'].map(v=>chip(v,settings?.defaultPerson??'__auto__','defaultPerson'))}
+        </div>
+      </div>
+      <div style={sec}>
+        {secTitle('📅','תיקי ברירת מחדל')}
+        <div style={{fontSize:12,color:'#9a8e84',marginBottom:10}}>סנן תיקים לפי תאריך ביצוע בכניסה לאתר</div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {[['all','הכל'],['today','היום'],['2days','יומיים'],['week','שבוע']].map(([val,label])=>(
+            <button key={val} onClick={()=>onSetting('defaultDays',val)} style={{
+              padding:'5px 14px',borderRadius:20,
+              border:`1.5px solid ${(settings?.defaultDays??'all')===val?GOLD:'#ddd0bb'}`,
+              background:(settings?.defaultDays??'all')===val?'#fef9e8':'#fff',
+              color:(settings?.defaultDays??'all')===val?GOLD3:'#6b5e50',
+              cursor:'pointer',fontSize:13,
+              fontWeight:(settings?.defaultDays??'all')===val?700:400,
+              transition:'all 0.15s',fontFamily:'Rubik,sans-serif'
+            }}>{label}</button>
+          ))}
         </div>
       </div>
 
