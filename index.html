@@ -74,7 +74,7 @@ const P={name:0,yossi:1,michael:2,feigi:3,notes:4,dueDate:5,status:6,
 const M={openDate:0,closeDate:1,fee:2,caseNum:3,status:4,folder:5,
   client:6,phone:7,email:8,advisor:9,advisorPhone:10,advisorEmail:11,
   purpose:12,propType:13,city:14,street:15,houseNum:16,
-  aptNum:17,block:18,parcel:19,subParcel:20,bank:21,michael:22,closeDate2:23};
+  aptNum:17,block:18,parcel:19,subParcel:20,bank:21,michael:22,folderLink:23};
 
 // ═══════════════ TASK EMAIL + NOTES DATE ════════════════════════
 // מיפוי מייל → שם (זהה ל-Apps Script)
@@ -130,6 +130,44 @@ function withNoteDate(notes){
   if(!notes)return notes;
   if(/\(\d{1,2}\/\d{1,2}(?:\/\d{4})?(?:\s*\|[^)]*)?\)/.test(notes))return notes;
   return stampNote(notes,_currentUserName);
+}
+
+// ═══════════════ תיקיות במחשב ═══════════════════════════════════
+// מיפוי סטטוס → תת-תיקייה
+const FOLDER_STATUS_MAP={'הסתיים':'פרויקטים שהושלמו','בוטל':'בוטל'};
+// בניית נתיב Windows לתיק
+function buildFolderPath(basePath,folderName,status){
+  if(!basePath||!folderName)return'';
+  const sub=FOLDER_STATUS_MAP[status]||'פרויקטים בביצוע';
+  return basePath.replace(/[\\\/]+$/,'')+'\\'+sub+'\\'+folderName;
+}
+// פתיחת תיקייה דרך פרוטוקול opendir://
+function openFolder(winPath){
+  if(!winPath)return;
+  window.location.href='opendir:///'+encodeURI(winPath.replace(/\\/g,'/'));
+}
+// הורדת קובץ .reg להגדרת פרוטוקול opendir://
+function downloadRegFile(){
+  // הפקודה שתרוץ ב-PowerShell כאשר נפתח קישור opendir://
+  // ב-.reg: \\ = \ אחד; \" = "
+  const regContent=[
+    'Windows Registry Editor Version 5.00','',
+    '[HKEY_CLASSES_ROOT\\opendir]',
+    '@="URL:Open Directory"',
+    '"URL Protocol"=""','',
+    '[HKEY_CLASSES_ROOT\\opendir\\DefaultIcon]',
+    '@="explorer.exe,0"','',
+    '[HKEY_CLASSES_ROOT\\opendir\\shell]','',
+    '[HKEY_CLASSES_ROOT\\opendir\\shell\\open]','',
+    '[HKEY_CLASSES_ROOT\\opendir\\shell\\open\\command]',
+    '@="powershell.exe -windowstyle hidden -command \\"$raw=\'%1\'; $p=[Uri]::UnescapeDataString(($raw -replace \'^opendir:///\',\'\') -replace \'/\',\'\\\\\\\\'); Invoke-Item $p\\""',
+  ].join('\r\n');
+  const blob=new Blob(['﻿'+regContent],{type:'text/plain;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='open_folder_protocol.reg';
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
 }
 
 // שולח מייל לבעל המשימה אם המשימה השתנתה ועורך ≠ בעלים + תזכורות עצמיות למיכאל
@@ -306,6 +344,7 @@ function parseManagedCase(row,ri){
     rights:g(row,M.rights),city:g(row,M.city),street:g(row,M.street),
     houseNum:g(row,M.houseNum),aptNum:g(row,M.aptNum),block:g(row,M.block),
     parcel:g(row,M.parcel),subParcel:g(row,M.subParcel),bank:g(row,M.bank),michael:g(row,M.michael),
+    folderLink:g(row,M.folderLink),
   };
 }
 
@@ -655,9 +694,12 @@ function openCaseFolder(folderName,e){
   e.stopPropagation();e.preventDefault();
   window.location.href='openrr:'+getCaseBase()+'/'+folderName;
 }
-function ProjectCard({project,onClick,hideDate}){
+function ProjectCard({project,onClick,hideDate,folderLink}){
   const [copied,setCopied]=React.useState(false);
   const m=STATUS_META[project.status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
+  // תיקייה — folderLink מ-prop, או בנייה מ-basePath מה-localStorage
+  const _basePath=React.useMemo(()=>localStorage.getItem('folderBasePath')||'','');
+  const _folderPath=folderLink||(project._folderLink)||(_basePath?buildFolderPath(_basePath,project.name,'בביצוע'):'');
   const today=new Date();
   const expD=project._expD;
   const diff=expD&&!hideDate?Math.round((expD-today)/86400000):null;
@@ -701,7 +743,13 @@ function ProjectCard({project,onClick,hideDate}){
             {parts[1]&&<span style={{color:'#4a3e30'}}>{' — '}{parts.slice(1).join(' — ')}</span>}
           </div>
         </div>
-        <Badge status={project.status} size="sm"/>
+        <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+          {_folderPath&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_folderPath);}}
+            style={{background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontSize:15,lineHeight:1,color:'#7a6a58',borderRadius:6,transition:'background 0.15s'}}
+            onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
+            onMouseLeave={e=>e.currentTarget.style.background='none'}>📁</button>}
+          <Badge status={project.status} size="sm"/>
+        </div>
       </div>
 
       {/* Active projects: show dates + tasks only (ראשי) */}
@@ -1625,6 +1673,16 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
             {saving?<><Spinner size={14} color={GOLD}/>שומר...</>:saved?'✓ נשמר!':'💾 שמור'}
           </button>
           <button onClick={()=>{setForm({...cas});setErr('');}} style={{padding:'9px 14px',borderRadius:9,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:13,color:'#6b5e50'}}>שחזר</button>
+          {(()=>{
+            const _bp=localStorage.getItem('folderBasePath')||'';
+            const _fp=cas.folderLink||(cas.folder&&_bp?buildFolderPath(_bp,cas.folder,cas.status):'');
+            return _fp?(
+              <button onClick={()=>openFolder(_fp)} title={_fp}
+                style={{padding:'9px 13px',borderRadius:9,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                📂
+              </button>
+            ):null;
+          })()}
         </div>
         {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 22px',fontSize:13,flexShrink:0}}>{err}</div>}
 
@@ -2676,7 +2734,7 @@ function ReportsView({managed,projects}){
 }
 
 // ══════════════ SETTINGS VIEW ════════════════════════════════════
-function SettingsView({user,settings,onSetting}){
+function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
   const sec={background:'#fff',borderRadius:14,padding:'20px 22px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
   const secTitle=(icon,t)=><div style={{fontSize:14,fontWeight:500,color:GOLD3,marginBottom:14,display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:17}}>{icon}</span>{t}</div>;
   const row={display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10};
@@ -2687,6 +2745,17 @@ function SettingsView({user,settings,onSetting}){
     </button>
   );
   const userName=(USER_BY_EMAIL||{})[(user?.email||'').toLowerCase().trim()]||'—';
+  const [basePath,setBasePath]=React.useState(()=>localStorage.getItem('folderBasePath')||'');
+  const [updatingLinks,setUpdatingLinks]=React.useState(false);
+  const [linksDone,setLinksDone]=React.useState(false);
+  const saveBasePath=(v)=>{setBasePath(v);try{localStorage.setItem('folderBasePath',v);}catch{}};
+  const handleUpdateLinks=async()=>{
+    if(!basePath.trim()){alert('נא להזין נתיב בסיס תחילה');return;}
+    setUpdatingLinks(true);setLinksDone(false);
+    try{await onUpdateFolderLinks(basePath.trim());setLinksDone(true);setTimeout(()=>setLinksDone(false),3000);}
+    catch(e){alert('שגיאה בעדכון קישורים: '+e.message);}
+    finally{setUpdatingLinks(false);}
+  };
   return(
     <div style={{padding:'28px 32px',maxWidth:720,animation:'fadeIn 0.3s ease'}}>
       <h2 style={{fontSize:22,fontWeight:500,color:GOLD3,marginBottom:20}}>⚙️ הגדרות</h2>
@@ -2735,6 +2804,38 @@ function SettingsView({user,settings,onSetting}){
               transition:'all 0.15s',fontFamily:'Rubik,sans-serif'
             }}>{label}</button>
           ))}
+        </div>
+      </div>
+
+      <div style={sec}>
+        {secTitle('🗂️','חיבור לתיקיות במחשב')}
+        <div style={{fontSize:12,color:'#9a8e84',marginBottom:14,lineHeight:1.7}}>
+          מאפשר פתיחת תיקיית תיק ישירות מהאתר. צריך להגדיר פעם אחת על כל מחשב:
+        </div>
+        {/* שלב 1 */}
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:600,color:'#3a2a00',marginBottom:6}}>שלב 1 — הגדר פרוטוקול Windows</div>
+          <div style={{fontSize:12,color:'#6b5e50',marginBottom:8}}>הורד את הקובץ, פתח אותו ואשר את השאלה של Windows. פעולה זו נדרשת פעם אחת בלבד לכל מחשב.</div>
+          <button onClick={downloadRegFile} style={{padding:'8px 18px',borderRadius:9,border:`1.5px solid ${GOLD}`,background:'#fef9e8',color:GOLD3,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:7}}>
+            ⚙️ הורד קובץ הגדרה (.reg)
+          </button>
+        </div>
+        {/* שלב 2 */}
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:600,color:'#3a2a00',marginBottom:6}}>שלב 2 — הדבק נתיב בסיס</div>
+          <div style={{fontSize:12,color:'#6b5e50',marginBottom:8}}>הנתיב לתיקייה הראשית שמכילה את פרויקטים בביצוע / פרויקטים שהושלמו / בוטל.</div>
+          <input value={basePath} onChange={e=>saveBasePath(e.target.value)}
+            placeholder={'לדוגמא: G:\\תיקיות אחסון שיתופי\\שומות'}
+            style={{width:'100%',padding:'9px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:13,fontFamily:'inherit',boxSizing:'border-box',background:'#fff',outline:'none',direction:'ltr',textAlign:'left'}}/>
+        </div>
+        {/* שלב 3 */}
+        <div>
+          <div style={{fontSize:13,fontWeight:600,color:'#3a2a00',marginBottom:6}}>שלב 3 — עדכן קישורים בגיליון</div>
+          <div style={{fontSize:12,color:'#6b5e50',marginBottom:8}}>כותב את הנתיב המלא לכל תיק בעמודה X של ניהול תיקים (דורס הכל).</div>
+          <button onClick={handleUpdateLinks} disabled={updatingLinks||!basePath.trim()}
+            style={{padding:'8px 18px',borderRadius:9,border:'none',background:linksDone?'#16a34a':BLACK,color:linksDone?'#fff':GOLD,cursor:(updatingLinks||!basePath.trim())?'not-allowed':'pointer',fontSize:13,fontWeight:500,fontFamily:'inherit',display:'flex',alignItems:'center',gap:7,opacity:(updatingLinks||!basePath.trim())?0.6:1}}>
+            {updatingLinks?<><Spinner size={12} color={GOLD}/>מעדכן...</>:linksDone?'✓ עודכן!':'🔗 עדכן קישורים'}
+          </button>
         </div>
       </div>
 
@@ -2803,6 +2904,15 @@ function App(){
   const addProject=useCallback((p)=>{setProjects(ps=>[...ps,p]);},[]);
   const deleteProject=useCallback((rowNum)=>{setProjects(ps=>ps.filter(p=>p._row!==rowNum));},[]);
   const deleteCase=useCallback((rowNum)=>{setManaged(ms=>ms.filter(m=>m._row!==rowNum));},[]);
+  const handleUpdateFolderLinks=useCallback(async(basePath)=>{
+    // כותב נתיב תיקייה לעמודה X (index 23) לכל תיק בניהול תיקים
+    await Promise.all(managed.map(c=>{
+      const fp=buildFolderPath(basePath,c.folder,c.status);
+      return api.put(`'ניהול תיקים'!X${c._row}`,[[fp]]);
+    }));
+    // עדכון state מקומי
+    setManaged(ms=>ms.map(c=>({...c,folderLink:buildFolderPath(basePath,c.folder,c.status)})));
+  },[managed]);
   const counts=React.useMemo(()=>({
     active:projects.filter(p=>p.status&&!CLIENT_STATUSES.includes(p.status)&&p.status!=='הסתיים'&&p.status!=='בוטל').length,
     client:projects.filter(p=>CLIENT_STATUSES.includes(p.status)).length,
@@ -2820,7 +2930,7 @@ function App(){
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject}/>}
         {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject}/>}
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
-        {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user}/>}
+        {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user} managed={managed} onUpdateFolderLinks={handleUpdateFolderLinks}/>}
       </div>
     </div>
   );
