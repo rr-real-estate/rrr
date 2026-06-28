@@ -1180,7 +1180,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
 }
 
 // ═══════════════ PROJECTS VIEW (kanban groups) ═══════════════════
-function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDelete}){
+function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDelete,autoOpenRow,onAutoOpenConsumed}){
   const [search,setSearch]=useState('');
   const [personFilter,setPersonFilter]=useState('');
   const [daysFilter,setDaysFilter]=useState('all');
@@ -1192,6 +1192,14 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
   const [editCell,setEditCell]=useState(null); // {rowNum,field}
   const [editVal,setEditVal]=useState('');
   const initFilterRef=useRef(false);
+  // פתיחה אוטומטית מדף הבית
+  useEffect(()=>{
+    if(autoOpenRow){
+      const p=projects.find(pr=>pr._row===autoOpenRow);
+      if(p){setPanelProject(p);setPanelAnchor(null);}
+      if(onAutoOpenConsumed)onAutoOpenConsumed();
+    }
+  },[autoOpenRow]);
   useEffect(()=>{
     if(!initFilterRef.current){
       initFilterRef.current=true;
@@ -2419,7 +2427,7 @@ function LoginScreen({onLogin}){
 }
 
 // ═══════════════ DASHBOARD VIEW ══════════════════════════════════
-function DashboardView({projects,managed,user,onSetView}){
+function DashboardView({projects,managed,user,onSetView,onOpenProject}){
   const today=new Date();today.setHours(0,0,0,0);
   const in7=new Date(today);in7.setDate(in7.getDate()+7);
   const in14=new Date(today);in14.setDate(in14.getDate()+14);
@@ -2539,7 +2547,6 @@ function DashboardView({projects,managed,user,onSetView}){
             <div style={{padding:'16px 22px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:10,background:'#fdfaf5'}}>
               <span style={{fontSize:16}}>📬</span>
               <span style={{fontSize:14,fontWeight:600,color:'#3a2a00'}}>המשימות שלי — {userName}</span>
-              {urgentCount>0&&<span style={{background:'#fef2f2',color:'#dc2626',border:'1px solid #fca5a5',borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>⚠️ {urgentCount} דחוף</span>}
               <span style={{marginRight:'auto',fontSize:12,color:'#9a8e84'}}>{myTasks.length} משימות</span>
             </div>
 
@@ -2556,16 +2563,18 @@ function DashboardView({projects,managed,user,onSetView}){
                   const dateFg=isOverdue?'#dc2626':isToday?'#ea580c':isSoon?'#d97706':'#9a8e84';
                   const dateLabel=p._daysLeft===null?'ללא תאריך':isOverdue?`⚠️ ${Math.abs(p._daysLeft)} ימים`:isToday?'🔴 היום':isSoon?`📅 ${p._daysLeft} ימים`:`📅 ${p._dStr}`;
                   return(
-                    <div key={p._row} style={{
+                    <div key={p._row}
+                    onClick={()=>onOpenProject&&onOpenProject(p._row)}
+                    style={{
                       display:'flex',alignItems:'flex-start',gap:14,
                       padding:'14px 22px',
                       borderBottom:i<myTasks.length-1?'1px solid #f0ebe2':'none',
                       borderRight:`3px solid ${borderColor}`,
                       background:isOverdue?'#fffcfc':isToday?'#fffdf8':'#fff',
                       transition:'background 0.15s',
-                      cursor:'default',
+                      cursor:'pointer',
                     }}
-                    onMouseEnter={e=>e.currentTarget.style.background=isOverdue?'#fff8f8':'#faf8f2'}
+                    onMouseEnter={e=>e.currentTarget.style.background=isOverdue?'#fff0f0':'#f5f1e8'}
                     onMouseLeave={e=>e.currentTarget.style.background=isOverdue?'#fffcfc':isToday?'#fffdf8':'#fff'}>
                       {/* תאריך */}
                       <div style={{flexShrink:0,minWidth:110,paddingTop:2}}>
@@ -3019,6 +3028,7 @@ function App(){
   const [token,setToken]=useState(null);
   const [user,setUser]=useState(null);
   const [view,setView]=useState('home');
+  const [openProjectRow,setOpenProjectRow]=useState(null);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
   const [projects,setProjects]=useState([]);
@@ -3102,8 +3112,8 @@ function App(){
         onLogout={()=>{api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);}}/>
       <div style={{flex:1,overflowY:'auto',overflowX:'hidden',marginRight:232,height:'100vh'}}>
         {error&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{error}</div>}
-        {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView}/>}
-        {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject}/>}
+        {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}}/>}
+        {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)}/>}
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject}/>}
         {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject}/>}
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
