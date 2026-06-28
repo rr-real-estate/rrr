@@ -148,29 +148,63 @@ function openFolder(winPath){
 }
 // הורדת קובץ .reg להגדרת פרוטוקול opendir://
 function downloadRegFile(){
-  // חשוב: קודם מפענחים URL (%D7%AA → ת), ואחר כך מחליפים / ל-\
-  // הסדר חייב להיות: UnescapeDataString → strip prefix → replace slashes
-  const bsl='\\';
-  const psCode="$raw='%1'; $dec=[Uri]::UnescapeDataString($raw); $p=($dec -replace '^opendir:///','') -replace '/','"+bsl+"'; Start-Process explorer.exe -ArgumentList $p";
-  // בפורמט .reg: \ → \\ ו-" → \"
-  const psForReg=psCode.replace(/\\/g,'\\\\').replace(/"/g,'\\"');
-  const cmdLine='@="powershell.exe -NonInteractive -NoProfile -WindowStyle Hidden -command \\"'+psForReg+'\\""';
-  const regContent=[
-    'Windows Registry Editor Version 5.00','',
-    '[HKEY_CLASSES_ROOT\\opendir]',
-    '@="URL:Open Directory"',
-    '"URL Protocol"=""','',
-    '[HKEY_CLASSES_ROOT\\opendir\\DefaultIcon]',
-    '@="explorer.exe,0"','',
-    '[HKEY_CLASSES_ROOT\\opendir\\shell]','',
-    '[HKEY_CLASSES_ROOT\\opendir\\shell\\open]','',
-    '[HKEY_CLASSES_ROOT\\opendir\\shell\\open\\command]',
-    cmdLine,
+  // VBS file content — כל תווים מיוחדים בנויים ע"י Chr() כדי להימנע מבעיות escaping
+  // wscript.exe //B מריץ ללא שום חלון גלוי (SW_HIDE = 0)
+  const vbsLines=[
+    'Dim url, shell, ps',
+    'url = WScript.Arguments(0)',
+    'Set shell = CreateObject("WScript.Shell")',
+    'shell.Environment("Process")("OPENDIR_URL") = url',
+    'ps = "powershell -NonInteractive -NoProfile -Command " & Chr(34)',
+    'ps = ps & "$dec=[Uri]::UnescapeDataString($env:OPENDIR_URL);"',
+    'ps = ps & "$p=($dec -replace " & Chr(39) & "^opendir:///" & Chr(39) & "," & Chr(39) & Chr(39) & ")"',
+    'ps = ps & ".Replace(" & Chr(39) & "/" & Chr(39) & "," & Chr(39) & Chr(92) & Chr(39) & ");"',
+    'ps = ps & "Start-Process explorer -ArgumentList $p"',
+    'ps = ps & Chr(34)',
+    'shell.Run ps, 0, False',
+  ];
+  const vbsContent=vbsLines.join('\r\n');
+  const vbsB64=btoa(vbsContent); // pure ASCII → btoa ישיר
+
+  // סקריפט PowerShell שיוצר את ה-VBS ורושם את הפרוטוקול ב-HKCU (ללא הרשאות admin)
+  const psLines=[
+    '$dir = "$env:APPDATA\\RRFolderOpener"',
+    'if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory | Out-Null }',
+    '$vbs = "$dir\\open.vbs"',
+    '[IO.File]::WriteAllBytes($vbs, [Convert]::FromBase64String(\''+vbsB64+'\'))',
+    '$reg = "HKCU:\\Software\\Classes\\opendir"',
+    'New-Item -Path $reg -Force | Out-Null',
+    'Set-ItemProperty -Path $reg -Name "(default)" -Value "URL:Open Directory"',
+    'Set-ItemProperty -Path $reg -Name "URL Protocol" -Value ""',
+    'New-Item -Path "$reg\\shell\\open\\command" -Force | Out-Null',
+    '$cmd = \'wscript.exe //B //NoLogo "\' + $vbs + \'" "%1"\'',
+    'Set-ItemProperty -Path "$reg\\shell\\open\\command" -Name "(default)" -Value $cmd',
+  ];
+  const psScript=psLines.join('\n');
+
+  // המרה ל-UTF-16LE עבור -EncodedCommand (ללא בעיות escaping בשורת הפקודה)
+  const utf16le=[];
+  for(let i=0;i<psScript.length;i++){
+    const c=psScript.charCodeAt(i);
+    utf16le.push(c&0xff,(c>>8)&0xff);
+  }
+  const psB64=btoa(String.fromCharCode(...utf16le));
+
+  const batContent=[
+    '@echo off',
+    'chcp 65001 > nul',
+    'echo מגדיר פרוטוקול פתיחת תיקיות (ללא חלון) ...',
+    'powershell -NonInteractive -NoProfile -EncodedCommand '+psB64,
+    'echo.',
+    'echo  הגדרה הושלמה! כעת פתיחת תיקיות תהיה ללא חלון.',
+    'echo.',
+    'pause',
   ].join('\r\n');
-  const blob=new Blob(['﻿'+regContent],{type:'text/plain;charset=utf-8'});
+
+  const blob=new Blob([batContent],{type:'text/plain;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url;a.download='open_folder_protocol.reg';
+  a.href=url;a.download='open_folder_setup.bat';
   document.body.appendChild(a);a.click();
   document.body.removeChild(a);URL.revokeObjectURL(url);
 }
@@ -2902,9 +2936,9 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
         {/* שלב 1 */}
         <div style={{marginBottom:16}}>
           <div style={{fontSize:13,fontWeight:600,color:'#3a2a00',marginBottom:6}}>שלב 1 — הגדר פרוטוקול Windows</div>
-          <div style={{fontSize:12,color:'#6b5e50',marginBottom:8}}>הורד את הקובץ, פתח אותו ואשר את השאלה של Windows. פעולה זו נדרשת פעם אחת בלבד לכל מחשב.</div>
+          <div style={{fontSize:12,color:'#6b5e50',marginBottom:8}}>הורד את הקובץ והפעל אותו (לחיצה כפולה). פעולה זו נדרשת פעם אחת בלבד לכל מחשב. לאחר מכן פתיחת תיקיות תהיה ללא חלון נוסף.</div>
           <button onClick={downloadRegFile} style={{padding:'8px 18px',borderRadius:9,border:`1.5px solid ${GOLD}`,background:'#fef9e8',color:GOLD3,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:7}}>
-            ⚙️ הורד קובץ הגדרה (.reg)
+            ⚙️ הורד קובץ הגדרה (.bat)
           </button>
         </div>
         {/* שלב 2 */}
