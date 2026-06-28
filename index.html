@@ -148,12 +148,13 @@ function openFolder(winPath){
 }
 // הורדת קובץ .reg להגדרת פרוטוקול opendir://
 function downloadRegFile(){
-  // בונים את קוד ה-PowerShell כמחרוזת JS רגילה ואז מכפילים \ ל-.reg
+  // חשוב: קודם מפענחים URL (%D7%AA → ת), ואחר כך מחליפים / ל-\
+  // הסדר חייב להיות: UnescapeDataString → strip prefix → replace slashes
   const bsl='\\';
-  const psCode="$raw='%1'; $p=[Uri]::UnescapeDataString(($raw -replace '^opendir:///','') -replace '/','"+bsl+"'); Invoke-Item $p";
+  const psCode="$raw='%1'; $dec=[Uri]::UnescapeDataString($raw); $p=($dec -replace '^opendir:///','') -replace '/','"+bsl+"'; Start-Process explorer.exe -ArgumentList $p";
   // בפורמט .reg: \ → \\ ו-" → \"
   const psForReg=psCode.replace(/\\/g,'\\\\').replace(/"/g,'\\"');
-  const cmdLine='@="powershell.exe -windowstyle hidden -command \\"'+psForReg+'\\""';
+  const cmdLine='@="powershell.exe -NonInteractive -NoProfile -WindowStyle Hidden -command \\"'+psForReg+'\\""';
   const regContent=[
     'Windows Registry Editor Version 5.00','',
     '[HKEY_CLASSES_ROOT\\opendir]',
