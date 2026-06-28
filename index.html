@@ -950,7 +950,14 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
       setClosingWork(true);
       if(dirtyRef.current)await autoSave();
       if(matchedCase){
-        await api.put(`'ניהול תיקים'!E${matchedCase._row}`,[[newStatus]]);
+        const writes=[api.put(`'ניהול תיקים'!E${matchedCase._row}`,[[newStatus]])];
+        // בעת סגירה — כתיבת תאריך סגירה לעמודה B
+        if(newStatus==='הסתיים'){
+          const d=new Date();
+          const ds=`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+          writes.push(api.put(`'ניהול תיקים'!B${matchedCase._row}`,[[ds]]));
+        }
+        await Promise.all(writes);
         if(onUpdateCase)onUpdateCase(matchedCase._row,{status:newStatus});
       }
       if(newStatus==='הסתיים'||newStatus==='בוטל'){
@@ -975,8 +982,15 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             <div style={{flex:1,minWidth:0}}>
               {caseNum&&<span style={{fontSize:11,fontWeight:500,color:GOLD,background:`${GOLD}18`,border:`1px solid ${GOLD}55`,borderRadius:20,padding:'3px 10px',display:'inline-block',marginBottom:7,letterSpacing:'0.05em'}}>תיק #{caseNum}</span>}
               <div style={{fontSize:16,fontWeight:500,color:'#fff',lineHeight:1.4,marginBottom:9,letterSpacing:'-0.01em'}}>{project.name}</div>
-              <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                 <Badge status={form.status}/>
+                {matchedCase&&<select value={workStatus} onChange={e=>handleWorkStatusChange(e.target.value)} disabled={closingWork}
+                  title="סטטוס תיק (ניהול תיקים)"
+                  style={{background:'rgba(255,255,255,0.08)',color:'#aaa',border:'1px solid rgba(255,255,255,0.18)',borderRadius:7,padding:'4px 7px',fontSize:11,cursor:closingWork?'wait':'pointer',fontFamily:'inherit',outline:'none',direction:'rtl'}}>
+                  <option value="בביצוע">בביצוע</option>
+                  <option value="הסתיים">הסתיים</option>
+                  <option value="בוטל">בוטל</option>
+                </select>}
                 {_fp&&<button onClick={()=>openFolder(_fp)} title={_fp}
                   style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:13,display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}}>
                   📂 <span style={{fontSize:11}}>פתח תיקייה</span>
@@ -985,17 +999,10 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 {saved&&!saving&&<span style={{fontSize:12,color:'#4ade80',fontWeight:500}}>✓ נשמר</span>}
               </div>
             </div>
-            <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8,flexShrink:0}}>
+            <div style={{flexShrink:0}}>
               <button onClick={handleClose} style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:10,width:36,height:36,color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}
                 onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.2)';e.currentTarget.style.color='#fff';}}
                 onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.1)';e.currentTarget.style.color='rgba(255,255,255,0.7)';}}>×</button>
-              {matchedCase&&<select value={workStatus} onChange={e=>handleWorkStatusChange(e.target.value)} disabled={closingWork}
-                title="סטטוס תיק (ניהול תיקים)"
-                style={{background:'#1e1e1e',color:'#787878',border:'1px solid #333',borderRadius:6,padding:'3px 5px',fontSize:10,cursor:closingWork?'wait':'pointer',fontFamily:'inherit',outline:'none',width:72,textAlign:'center',direction:'rtl'}}>
-                <option value="בביצוע">בביצוע</option>
-                <option value="הסתיים">הסתיים</option>
-                <option value="בוטל">בוטל</option>
-              </select>}
             </div>
           </div>
         </div>
