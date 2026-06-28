@@ -148,8 +148,12 @@ function openFolder(winPath){
 }
 // הורדת קובץ .reg להגדרת פרוטוקול opendir://
 function downloadRegFile(){
-  // הפקודה שתרוץ ב-PowerShell כאשר נפתח קישור opendir://
-  // ב-.reg: \\ = \ אחד; \" = "
+  // בונים את קוד ה-PowerShell כמחרוזת JS רגילה ואז מכפילים \ ל-.reg
+  const bsl='\\';
+  const psCode="$raw='%1'; $p=[Uri]::UnescapeDataString(($raw -replace '^opendir:///','') -replace '/','"+bsl+"'); Invoke-Item $p";
+  // בפורמט .reg: \ → \\ ו-" → \"
+  const psForReg=psCode.replace(/\\/g,'\\\\').replace(/"/g,'\\"');
+  const cmdLine='@="powershell.exe -windowstyle hidden -command \\"'+psForReg+'\\""';
   const regContent=[
     'Windows Registry Editor Version 5.00','',
     '[HKEY_CLASSES_ROOT\\opendir]',
@@ -160,7 +164,7 @@ function downloadRegFile(){
     '[HKEY_CLASSES_ROOT\\opendir\\shell]','',
     '[HKEY_CLASSES_ROOT\\opendir\\shell\\open]','',
     '[HKEY_CLASSES_ROOT\\opendir\\shell\\open\\command]',
-    '@="powershell.exe -windowstyle hidden -command \\"$raw=\'%1\'; $p=[Uri]::UnescapeDataString(($raw -replace \'^opendir:///\',\'\') -replace \'/\',\'\\\\\\\\'); Invoke-Item $p\\""',
+    cmdLine,
   ].join('\r\n');
   const blob=new Blob(['﻿'+regContent],{type:'text/plain;charset=utf-8'});
   const url=URL.createObjectURL(blob);
