@@ -437,27 +437,90 @@ function buildProjectRow(upd){
   return row;
 }
 
+// ═══════════════ BOLD RENDERING + RICH TEXTAREA ════════════════════
+function renderBold(text){
+  if(!text)return null;
+  const parts=text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((p,i)=>
+    p.startsWith('**')&&p.endsWith('**')&&p.length>4
+      ?<strong key={i}>{p.slice(2,-2)}</strong>:p
+  );
+}
+function RichTextarea({value,onChange,onBlur,style,rows=2}){
+  const taRef=React.useRef(null);
+  const wrapBold=()=>{
+    const ta=taRef.current;if(!ta)return;
+    const s=ta.selectionStart,e=ta.selectionEnd;
+    if(s===e)return;
+    const v=ta.value,sel=v.slice(s,e);
+    let nv,ns,ne;
+    if(sel.startsWith('**')&&sel.endsWith('**')&&sel.length>4){
+      nv=v.slice(0,s)+sel.slice(2,-2)+v.slice(e);ns=s;ne=e-4;
+    } else {
+      nv=v.slice(0,s)+'**'+sel+'**'+v.slice(e);ns=s;ne=e+4;
+    }
+    onChange(nv);
+    setTimeout(()=>{ta.selectionStart=ns;ta.selectionEnd=ne;},0);
+  };
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:3}}>
+        <button type="button" onMouseDown={ev=>{ev.preventDefault();wrapBold();}}
+          title="בולד (Ctrl+B)"
+          style={{padding:'1px 8px',fontSize:12,fontWeight:700,border:'1px solid #ddd0bb',borderRadius:5,background:'#fefcf8',cursor:'pointer',color:'#3a2a00',lineHeight:1.5,fontFamily:'serif'}}>
+          B
+        </button>
+      </div>
+      <textarea ref={taRef} value={value||''} rows={rows}
+        onChange={e=>onChange(e.target.value)} onBlur={onBlur}
+        onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='b'){e.preventDefault();wrapBold();}}}
+        style={{...style,resize:'vertical',lineHeight:1.5}}/>
+    </div>
+  );
+}
+
 // ═══════════════ NOTES WIDGET ═══════════════════════════════════
 function NotesWidget({value,onChange,onBlur,style}){
   const {text,date,user}=parseNoteStamp(value);
   const diff=noteDaysDiff(date);
   const overdue=diff!==null&&diff>7;
-  // state מקומי בזמן עריכה — כדי שרווחים בין מילים לא יאכלו
   const [localText,setLocalText]=React.useState(text);
   const [focused,setFocused]=React.useState(false);
-  // סנכרון כשערך חיצוני משתנה (בעת טעינה / שמירה מחוץ לווידג'ט)
+  const taRef=React.useRef(null);
   React.useEffect(()=>{if(!focused)setLocalText(text);},[text,focused]);
   const handleChange=e=>setLocalText(e.target.value);
   const handleBlur=e=>{
     setFocused(false);
-    // חותמים רק ב-blur, לא בכל הקשה
     onChange(localText.trim()?stampNote(localText,_currentUserName):'');
     if(onBlur)onBlur(e);
   };
+  const wrapBold=()=>{
+    const ta=taRef.current;if(!ta)return;
+    const s=ta.selectionStart,e=ta.selectionEnd;
+    if(s===e)return;
+    const v=ta.value,sel=v.slice(s,e);
+    let nv,ns,ne;
+    if(sel.startsWith('**')&&sel.endsWith('**')&&sel.length>4){
+      nv=v.slice(0,s)+sel.slice(2,-2)+v.slice(e);ns=s;ne=e-4;
+    } else {
+      nv=v.slice(0,s)+'**'+sel+'**'+v.slice(e);ns=s;ne=e+4;
+    }
+    setLocalText(nv);
+    setTimeout(()=>{ta.selectionStart=ns;ta.selectionEnd=ne;},0);
+  };
   return(
     <div>
-      <textarea value={localText} onChange={handleChange}
-        onFocus={()=>setFocused(true)} onBlur={handleBlur} rows={2}
+      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:3}}>
+        <button type="button" onMouseDown={ev=>{ev.preventDefault();wrapBold();}}
+          title="בולד (Ctrl+B)"
+          style={{padding:'1px 8px',fontSize:12,fontWeight:700,border:'1px solid #ddd0bb',borderRadius:5,background:'#fefcf8',cursor:'pointer',color:'#3a2a00',lineHeight:1.5,fontFamily:'serif'}}>
+          B
+        </button>
+      </div>
+      <textarea ref={taRef} value={localText} onChange={handleChange}
+        onFocus={()=>setFocused(true)} onBlur={handleBlur}
+        onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='b'){e.preventDefault();wrapBold();}}}
+        rows={2}
         style={{...style,resize:'vertical',borderColor:overdue?'#dc2626':style?.border?.replace(/1px solid /,'')}}/>
       {date&&(
         <div style={{display:'flex',gap:8,alignItems:'center',marginTop:4,fontSize:11,
@@ -600,7 +663,7 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
           {[['יוסי','yossi','#607060'],['מיכאל','michael',GOLD],['פייגי','feigi','#8c6239']].map(([l,k,c])=>(
             <div key={k} style={{marginBottom:7}}>
               <FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
-              {inp(k)}
+              <RichTextarea value={form[k]||''} onChange={v=>set(k,v)} onBlur={schedSave} style={iS}/>
             </div>
           ))}
         </div>
@@ -777,11 +840,16 @@ function ProjectCard({project,onClick,hideDate,folderLink}){
               {tasks.map(t=>(
                 <div key={t.n} style={{background:`${t.c}14`,border:`1px solid ${t.c}33`,borderRadius:8,padding:'4px 11px',fontSize:13,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>
                   <span style={{color:t.c,fontWeight:500}}>{t.n}: </span>
-                  <span style={{color:'#3a3228'}}>{t.v}</span>
+                  <span style={{color:'#3a3228'}}>{renderBold(t.v)}</span>
                 </div>
               ))}
             </div>
           )}
+          {(()=>{const{text}=parseNoteStamp(project.notes||'');return text?(
+            <div style={{marginTop:6,fontSize:12,color:'#6b5e50',background:'#fafaf7',border:'1px solid #e8e2d8',borderRadius:7,padding:'5px 9px',overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>
+              💬 {renderBold(text)}
+            </div>
+          ):null;})()}
         </>
       )}
 
@@ -831,6 +899,8 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const dirtyRef=useRef(false);
   const matchedCase=(managed||[]).find(c=>c.folder&&c.folder.trim()===project.name.trim());
   const workStatus=matchedCase?.status||'בביצוע';
+  const _bp=localStorage.getItem('folderBasePath')||'';
+  const _fp=matchedCase?.folderLink||(matchedCase?.folder&&_bp?buildFolderPath(_bp,matchedCase.folder,matchedCase.status):'');
   const set=(k,v)=>{
     dirtyRef.current=true;
     setForm(f=>{
@@ -906,8 +976,12 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             <div style={{flex:1,minWidth:0}}>
               {caseNum&&<span style={{fontSize:11,fontWeight:500,color:GOLD,background:`${GOLD}18`,border:`1px solid ${GOLD}55`,borderRadius:20,padding:'3px 10px',display:'inline-block',marginBottom:7,letterSpacing:'0.05em'}}>תיק #{caseNum}</span>}
               <div style={{fontSize:16,fontWeight:500,color:'#fff',lineHeight:1.4,marginBottom:9,letterSpacing:'-0.01em'}}>{project.name}</div>
-              <div style={{display:'flex',alignItems:'center',gap:12}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
                 <Badge status={form.status}/>
+                {_fp&&<button onClick={()=>openFolder(_fp)} title={_fp}
+                  style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:13,display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}}>
+                  📂 <span style={{fontSize:11}}>פתח תיקייה</span>
+                </button>}
                 {saving&&<span style={{fontSize:12,color:'rgba(255,255,255,0.45)',display:'flex',alignItems:'center',gap:5}}><Spinner size={11} color='rgba(255,255,255,0.45)'/>שומר...</span>}
                 {saved&&!saving&&<span style={{fontSize:12,color:'#4ade80',fontWeight:500}}>✓ נשמר</span>}
               </div>
@@ -968,7 +1042,9 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             <div style={sec}>
               <SectionTitle icon="📋">משימות</SectionTitle>
               {[['יוסי','yossi','#607060'],['מיכאל','michael',GOLD],['פייגי','feigi','#8c6239']].map(([l,k,c])=>(
-                <div key={k} style={{marginBottom:10}}><FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>{inp(k)}</div>
+                <div key={k} style={{marginBottom:10}}><FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
+                  <RichTextarea value={form[k]||''} onChange={v=>set(k,v)} onBlur={autoSave} style={iS}/>
+                </div>
               ))}
             </div>
             <div style={sec}>
