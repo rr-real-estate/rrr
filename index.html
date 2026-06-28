@@ -437,45 +437,67 @@ function buildProjectRow(upd){
   return row;
 }
 
-// ═══════════════ BOLD RENDERING + RICH TEXTAREA ════════════════════
+// ═══════════════ RICH EDITOR (contenteditable) ══════════════════════
+// המרה: פורמט אחסון (**bold**, \n) ↔ HTML (<b>bold</b>, <br>)
+function storageToHtml(text){
+  if(!text)return'';
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>')
+    .replace(/\n/g,'<br>');
+}
+function htmlToStorage(html){
+  if(!html)return'';
+  return html
+    .replace(/<br\s*\/?>/gi,'\n')
+    .replace(/<\/div>/gi,'\n').replace(/<div[^>]*>/gi,'')
+    .replace(/<\/p>/gi,'\n').replace(/<p[^>]*>/gi,'')
+    .replace(/<strong>([\s\S]*?)<\/strong>/gi,'**$1**')
+    .replace(/<b>([\s\S]*?)<\/b>/gi,'**$1**')
+    .replace(/<[^>]+>/g,'')
+    .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+    .replace(/&nbsp;/g,' ')
+    .replace(/\n{3,}/g,'\n\n')
+    .trim();
+}
+// renderBold — לתצוגה בכרטיסי קנבן (טקסט מאוחסן → JSX)
 function renderBold(text){
   if(!text)return null;
-  const parts=text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((p,i)=>
+  return text.split(/(\*\*[^*]+\*\*)/g).map((p,i)=>
     p.startsWith('**')&&p.endsWith('**')&&p.length>4
       ?<strong key={i}>{p.slice(2,-2)}</strong>:p
   );
 }
-function RichTextarea({value,onChange,onBlur,style,rows=2}){
-  const taRef=React.useRef(null);
-  const wrapBold=()=>{
-    const ta=taRef.current;if(!ta)return;
-    const s=ta.selectionStart,e=ta.selectionEnd;
-    if(s===e)return;
-    const v=ta.value,sel=v.slice(s,e);
-    let nv,ns,ne;
-    if(sel.startsWith('**')&&sel.endsWith('**')&&sel.length>4){
-      nv=v.slice(0,s)+sel.slice(2,-2)+v.slice(e);ns=s;ne=e-4;
-    } else {
-      nv=v.slice(0,s)+'**'+sel+'**'+v.slice(e);ns=s;ne=e+4;
+function RichEditor({value,onChange,onFocus,onBlur,style}){
+  const divRef=React.useRef(null);
+  const focused=React.useRef(false);
+  // סנכרון ראשוני + כשערך חיצוני משתנה (לא בזמן עריכה)
+  React.useEffect(()=>{
+    if(divRef.current)divRef.current.innerHTML=storageToHtml(value||'');
+  },[]);
+  React.useEffect(()=>{
+    if(divRef.current&&!focused.current){
+      const h=storageToHtml(value||'');
+      if(divRef.current.innerHTML!==h)divRef.current.innerHTML=h;
     }
-    onChange(nv);
-    setTimeout(()=>{ta.selectionStart=ns;ta.selectionEnd=ne;},0);
-  };
+  },[value]);
   return(
-    <div>
-      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:3}}>
-        <button type="button" onMouseDown={ev=>{ev.preventDefault();wrapBold();}}
-          title="בולד (Ctrl+B)"
-          style={{padding:'1px 8px',fontSize:12,fontWeight:700,border:'1px solid #ddd0bb',borderRadius:5,background:'#fefcf8',cursor:'pointer',color:'#3a2a00',lineHeight:1.5,fontFamily:'serif'}}>
-          B
-        </button>
-      </div>
-      <textarea ref={taRef} value={value||''} rows={rows}
-        onChange={e=>onChange(e.target.value)} onBlur={onBlur}
-        onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='b'){e.preventDefault();wrapBold();}}}
-        style={{...style,resize:'vertical',lineHeight:1.5}}/>
-    </div>
+    <div ref={divRef} contentEditable suppressContentEditableWarning
+      onFocus={()=>{focused.current=true;if(onFocus)onFocus();}}
+      onBlur={()=>{focused.current=false;if(onBlur)onBlur();}}
+      onInput={()=>{if(onChange)onChange(htmlToStorage(divRef.current?.innerHTML||''));}}
+      onPaste={e=>{
+        e.preventDefault();
+        const t=e.clipboardData.getData('text/plain');
+        document.execCommand('insertText',false,t);
+      }}
+      onKeyDown={e=>{
+        // Enter = שורה חדשה בלי ליצור <div> חדש
+        if(e.key==='Enter'){e.preventDefault();document.execCommand('insertLineBreak');}
+      }}
+      style={{...style,minHeight:'2.4em',lineHeight:1.5,cursor:'text',
+        wordBreak:'break-word',whiteSpace:'pre-wrap'}}
+    />
   );
 }
 
@@ -486,42 +508,19 @@ function NotesWidget({value,onChange,onBlur,style}){
   const overdue=diff!==null&&diff>7;
   const [localText,setLocalText]=React.useState(text);
   const [focused,setFocused]=React.useState(false);
-  const taRef=React.useRef(null);
   React.useEffect(()=>{if(!focused)setLocalText(text);},[text,focused]);
-  const handleChange=e=>setLocalText(e.target.value);
-  const handleBlur=e=>{
+  const handleBlur=()=>{
     setFocused(false);
     onChange(localText.trim()?stampNote(localText,_currentUserName):'');
-    if(onBlur)onBlur(e);
-  };
-  const wrapBold=()=>{
-    const ta=taRef.current;if(!ta)return;
-    const s=ta.selectionStart,e=ta.selectionEnd;
-    if(s===e)return;
-    const v=ta.value,sel=v.slice(s,e);
-    let nv,ns,ne;
-    if(sel.startsWith('**')&&sel.endsWith('**')&&sel.length>4){
-      nv=v.slice(0,s)+sel.slice(2,-2)+v.slice(e);ns=s;ne=e-4;
-    } else {
-      nv=v.slice(0,s)+'**'+sel+'**'+v.slice(e);ns=s;ne=e+4;
-    }
-    setLocalText(nv);
-    setTimeout(()=>{ta.selectionStart=ns;ta.selectionEnd=ne;},0);
+    if(onBlur)onBlur();
   };
   return(
     <div>
-      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:3}}>
-        <button type="button" onMouseDown={ev=>{ev.preventDefault();wrapBold();}}
-          title="בולד (Ctrl+B)"
-          style={{padding:'1px 8px',fontSize:12,fontWeight:700,border:'1px solid #ddd0bb',borderRadius:5,background:'#fefcf8',cursor:'pointer',color:'#3a2a00',lineHeight:1.5,fontFamily:'serif'}}>
-          B
-        </button>
-      </div>
-      <textarea ref={taRef} value={localText} onChange={handleChange}
-        onFocus={()=>setFocused(true)} onBlur={handleBlur}
-        onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='b'){e.preventDefault();wrapBold();}}}
-        rows={2}
-        style={{...style,resize:'vertical',borderColor:overdue?'#dc2626':style?.border?.replace(/1px solid /,'')}}/>
+      <RichEditor value={localText}
+        onChange={v=>setLocalText(v)}
+        onFocus={()=>setFocused(true)}
+        onBlur={handleBlur}
+        style={{...style,borderColor:overdue?'#dc2626':undefined}}/>
       {date&&(
         <div style={{display:'flex',gap:8,alignItems:'center',marginTop:4,fontSize:11,
           color:overdue?'#dc2626':'#9a8e84',fontWeight:overdue?700:400}}>
@@ -663,7 +662,7 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
           {[['יוסי','yossi','#607060'],['מיכאל','michael',GOLD],['פייגי','feigi','#8c6239']].map(([l,k,c])=>(
             <div key={k} style={{marginBottom:7}}>
               <FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
-              <RichTextarea value={form[k]||''} onChange={v=>set(k,v)} onBlur={schedSave} style={iS}/>
+              <RichEditor value={form[k]||''} onChange={v=>set(k,v)} onBlur={schedSave} style={iS}/>
             </div>
           ))}
         </div>
@@ -1043,7 +1042,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
               <SectionTitle icon="📋">משימות</SectionTitle>
               {[['יוסי','yossi','#607060'],['מיכאל','michael',GOLD],['פייגי','feigi','#8c6239']].map(([l,k,c])=>(
                 <div key={k} style={{marginBottom:10}}><FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
-                  <RichTextarea value={form[k]||''} onChange={v=>set(k,v)} onBlur={autoSave} style={iS}/>
+                  <RichEditor value={form[k]||''} onChange={v=>set(k,v)} onBlur={autoSave} style={iS}/>
                 </div>
               ))}
             </div>
