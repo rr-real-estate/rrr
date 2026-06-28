@@ -2909,12 +2909,16 @@ function App(){
   const deleteProject=useCallback((rowNum)=>{setProjects(ps=>ps.filter(p=>p._row!==rowNum));},[]);
   const deleteCase=useCallback((rowNum)=>{setManaged(ms=>ms.filter(m=>m._row!==rowNum));},[]);
   const handleUpdateFolderLinks=useCallback(async(basePath)=>{
-    // כותב נתיב תיקייה לעמודה X (index 23) לכל תיק בניהול תיקים
-    await Promise.all(managed.map(c=>{
-      const fp=buildFolderPath(basePath,c.folder,c.status);
-      return api.put(`'ניהול תיקים'!X${c._row}`,[[fp]]);
-    }));
-    // עדכון state מקומי
+    if(!managed.length)return;
+    // כתיבה אחת — טווח רציף מהשורה הנמוכה לגבוהה
+    const sorted=[...managed].sort((a,b)=>a._row-b._row);
+    const minRow=sorted[0]._row;
+    const maxRow=sorted[sorted.length-1]._row;
+    const rowMap={};
+    sorted.forEach(c=>{rowMap[c._row]=buildFolderPath(basePath,c.folder,c.status);});
+    const values=[];
+    for(let r=minRow;r<=maxRow;r++)values.push([rowMap[r]||'']);
+    await api.put(`'ניהול תיקים'!X${minRow}:X${maxRow}`,values);
     setManaged(ms=>ms.map(c=>({...c,folderLink:buildFolderPath(basePath,c.folder,c.status)})));
   },[managed]);
   const counts=React.useMemo(()=>({
