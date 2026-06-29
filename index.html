@@ -1758,6 +1758,9 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
        [M.city,'city'],[M.street,'street'],[M.houseNum,'houseNum'],[M.aptNum,'aptNum'],
        [M.block,'block'],[M.parcel,'parcel'],[M.subParcel,'subParcel'],[M.bank,'bank'],[M.michael,'michael'],
       ].forEach(([i,k])=>row[i]=form[k]||'');
+      // עדכון אוטומטי של קישור תיקייה (עמודה X) לפי סטטוס
+      const _bp=localStorage.getItem('folderBasePath')||'';
+      if(_bp&&cas.folder){row[M.folderLink]=buildFolderPath(_bp,cas.folder,form.status);}
       await onSave(form._row,row);
       // If status changed TO בביצוע since last save, add to פרויקטים בביצוע
       if(form.status==='בביצוע'&&lastSavedStatusRef.current!=='בביצוע'){
@@ -2214,6 +2217,8 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
         row[M.advisorPhone]=form.advisorPhone;row[M.advisorEmail]=form.advisorEmail;
         row[M.block]=form.block;row[M.parcel]=form.parcel;row[M.subParcel]=form.subParcel;
         row[M.folder]=folder;
+        const _bp2=localStorage.getItem('folderBasePath')||'';
+        if(_bp2&&folder){row[M.folderLink]=buildFolderPath(_bp2,folder,form.status||'');}
         await api.put(`'ניהול תיקים'!A${cases.length+2}:${colLetter(24)}${cases.length+2}`,[row]);
         onAddCase({...form,_row:cases.length+2,_raw:row,folder,closeDate:'',michael:''});
         // יצירת תיקייה ב-Drive
@@ -3137,6 +3142,22 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
   const [basePath,setBasePath]=React.useState(()=>localStorage.getItem('folderBasePath')||'');
   const [updatingLinks,setUpdatingLinks]=React.useState(false);
   const [linksDone,setLinksDone]=React.useState(false);
+  const [checking,setChecking]=React.useState(false);
+  const [checkResult,setCheckResult]=React.useState(null); // {onlyInDrive, onlyInSheet, matched}
+  const handleCheckFolders=async()=>{
+    setChecking(true);setCheckResult(null);
+    try{
+      const resp=await fetch(APPS_SCRIPT_URL+'?type=checkFolders');
+      const data=await resp.json();
+      const driveFolders=new Set((data.folders||[]).map(f=>f.trim()));
+      const sheetFolders=new Set((managed||[]).map(c=>String(c.folder||'').trim()).filter(Boolean));
+      const onlyInDrive=[...driveFolders].filter(f=>!sheetFolders.has(f)).sort();
+      const onlyInSheet=[...sheetFolders].filter(f=>!driveFolders.has(f)).sort();
+      const matched=[...driveFolders].filter(f=>sheetFolders.has(f)).length;
+      setCheckResult({onlyInDrive,onlyInSheet,matched,total:driveFolders.size+sheetFolders.size-matched});
+    }catch(e){setCheckResult({error:e.message});}
+    finally{setChecking(false);}
+  };
   const saveBasePath=(v)=>{setBasePath(v);try{localStorage.setItem('folderBasePath',v);}catch{}};
   const handleUpdateLinks=async()=>{
     if(!basePath.trim()){alert('נא להזין נתיב בסיס תחילה');return;}
@@ -3226,6 +3247,51 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
             {updatingLinks?<><Spinner size={12} color={GOLD}/>מעדכן...</>:linksDone?'✓ עודכן!':'🔗 עדכן קישורים'}
           </button>
         </div>
+      </div>
+
+      <div style={sec}>
+        {secTitle('🔍','בדיקת עקביות תיקיות Drive')}
+        <div style={{fontSize:12,color:'#9a8e84',marginBottom:12,lineHeight:1.7}}>
+          משווה בין שמות התיקיות בתיקיית Drive לבין עמודה F בגיליון ניהול תיקים.
+        </div>
+        <button onClick={handleCheckFolders} disabled={checking}
+          style={{padding:'8px 18px',borderRadius:9,border:'none',background:BLACK,color:GOLD,cursor:checking?'not-allowed':'pointer',fontSize:13,fontWeight:500,fontFamily:'inherit',display:'flex',alignItems:'center',gap:7,opacity:checking?0.7:1,marginBottom:checkResult?14:0}}>
+          {checking?<><Spinner size={12} color={GOLD}/>בודק...</>:'🔍 בדוק עכשיו'}
+        </button>
+        {checkResult&&(checkResult.error
+          ?<div style={{color:'#dc2626',fontSize:12,padding:'10px 14px',background:'#fee2e2',borderRadius:8}}>{checkResult.error}</div>
+          :<div>
+            <div style={{display:'flex',gap:10,marginBottom:14,flexWrap:'wrap'}}>
+              <div style={{flex:1,minWidth:100,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
+                <div style={{fontSize:22,fontWeight:500,color:'#166534'}}>{checkResult.matched}</div>
+                <div style={{fontSize:11,color:'#9a8e84',marginTop:2}}>תואמים</div>
+              </div>
+              <div style={{flex:1,minWidth:100,background:checkResult.onlyInDrive.length?'#fff7ed':'#f9fafb',border:`1px solid ${checkResult.onlyInDrive.length?'#fed7aa':'#e5e7eb'}`,borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
+                <div style={{fontSize:22,fontWeight:500,color:checkResult.onlyInDrive.length?'#c2410c':'#9ca3af'}}>{checkResult.onlyInDrive.length}</div>
+                <div style={{fontSize:11,color:'#9a8e84',marginTop:2}}>רק ב-Drive</div>
+              </div>
+              <div style={{flex:1,minWidth:100,background:checkResult.onlyInSheet.length?'#fef2f2':'#f9fafb',border:`1px solid ${checkResult.onlyInSheet.length?'#fecaca':'#e5e7eb'}`,borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
+                <div style={{fontSize:22,fontWeight:500,color:checkResult.onlyInSheet.length?'#dc2626':'#9ca3af'}}>{checkResult.onlyInSheet.length}</div>
+                <div style={{fontSize:11,color:'#9a8e84',marginTop:2}}>רק בגיליון</div>
+              </div>
+            </div>
+            {checkResult.onlyInDrive.length>0&&<div style={{marginBottom:12}}>
+              <div style={{fontSize:12,fontWeight:600,color:'#c2410c',marginBottom:6}}>📂 קיים ב-Drive אך לא בגיליון:</div>
+              <div style={{background:'#fff7ed',borderRadius:8,padding:'10px 14px',maxHeight:160,overflowY:'auto'}}>
+                {checkResult.onlyInDrive.map(f=><div key={f} style={{fontSize:12,color:'#92400e',padding:'2px 0',borderBottom:'1px solid #fed7aa33'}}>{f}</div>)}
+              </div>
+            </div>}
+            {checkResult.onlyInSheet.length>0&&<div>
+              <div style={{fontSize:12,fontWeight:600,color:'#dc2626',marginBottom:6}}>📋 קיים בגיליון אך לא ב-Drive:</div>
+              <div style={{background:'#fef2f2',borderRadius:8,padding:'10px 14px',maxHeight:160,overflowY:'auto'}}>
+                {checkResult.onlyInSheet.map(f=><div key={f} style={{fontSize:12,color:'#991b1b',padding:'2px 0',borderBottom:'1px solid #fecaca33'}}>{f}</div>)}
+              </div>
+            </div>}
+            {checkResult.onlyInDrive.length===0&&checkResult.onlyInSheet.length===0&&(
+              <div style={{fontSize:13,color:'#166534',background:'#f0fdf4',borderRadius:8,padding:'10px 14px'}}>✅ כל התיקיות תואמות בדיוק!</div>
+            )}
+          </div>
+        )}
       </div>
 
     </div>
