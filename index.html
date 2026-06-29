@@ -2216,6 +2216,8 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
         row[M.folder]=folder;
         await api.put(`'ניהול תיקים'!A${cases.length+2}:${colLetter(24)}${cases.length+2}`,[row]);
         onAddCase({...form,_row:cases.length+2,_raw:row,folder,closeDate:'',michael:''});
+        // יצירת תיקייה ב-Drive
+        if(folder)fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'newFolder',folderName:folder})}).catch(()=>{});
         // הוסף שורה לפרויקטים בביצוע אם סטטוס = בביצוע
         if(form.status==='בביצוע'&&folder){
           try{
