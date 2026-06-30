@@ -1834,15 +1834,6 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
             </div>
             <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:5,flexShrink:0}}>
               <button onClick={onClose} style={{background:'rgba(255,255,255,0.1)',border:'none',borderRadius:8,width:32,height:32,color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
-              {extInstalled&&cas.block&&(
-                <button onClick={handleNadlan} title={`הורד עסקאות השוואה — גוש ${cas.block}`}
-                  style={{background:'rgba(39,174,96,0.2)',border:'1px solid rgba(39,174,96,0.5)',borderRadius:8,width:32,height:32,
-                    color:'#4ade80',cursor:'pointer',fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.2s'}}
-                  onMouseEnter={e=>e.currentTarget.style.background='rgba(39,174,96,0.35)'}
-                  onMouseLeave={e=>e.currentTarget.style.background='rgba(39,174,96,0.2)'}>
-                  📊
-                </button>
-              )}
               <button onClick={handleDelete} disabled={deleting} title={confirmDel?'לחץ שוב לאישור':'מחק תיק'}
                 style={{background:confirmDel?'#dc2626':'rgba(220,38,38,0.15)',border:'none',borderRadius:8,width:32,height:32,
                   color:confirmDel?'#fff':'#ef4444',cursor:deleting?'not-allowed':'pointer',fontSize:15,
@@ -1883,6 +1874,19 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
             ):null;
           })()}
         </div>
+        {extInstalled&&cas.block&&(
+          <div style={{padding:'8px 22px',background:'#fff',borderBottom:'1px solid #e0d8cc',flexShrink:0}}>
+            <button onClick={handleNadlan}
+              style={{width:'100%',padding:'8px 0',borderRadius:9,border:'1px solid rgba(22,163,74,0.4)',
+                background:'rgba(22,163,74,0.07)',color:'#15803d',cursor:'pointer',
+                fontSize:13,fontWeight:600,fontFamily:'inherit',
+                display:'flex',alignItems:'center',justifyContent:'center',gap:6,transition:'background 0.15s'}}
+              onMouseEnter={e=>e.currentTarget.style.background='rgba(22,163,74,0.15)'}
+              onMouseLeave={e=>e.currentTarget.style.background='rgba(22,163,74,0.07)'}>
+              📊 הורד עסקאות השוואה — גוש {cas.block}
+            </button>
+          </div>
+        )}
         {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 22px',fontSize:13,flexShrink:0}}>{err}</div>}
 
         {/* Content */}
@@ -3380,7 +3384,7 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
               // טען JSZip מ-CDN
               if(!window.JSZip)await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
               const base='https://raw.githubusercontent.com/rr-real-estate/rrr/main/nadlan_extension/';
-              const files=['manifest.json','background.js','content_webapp.js','content_nadlan.js'];
+              const files=['manifest.json','background.js','content_webapp.js','content_nadlan.js','xlsx.full.min.js'];
               const zip=new window.JSZip();
               const folder=zip.folder('nadlan_extension');
               await Promise.all(files.map(async f=>{
