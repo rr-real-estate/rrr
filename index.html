@@ -1731,6 +1731,10 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
   const [tab,setTab]=useState(0);
   const [err,setErr]=useState('');
   const lastSavedStatusRef=React.useRef(cas.status);
+  const extInstalled=document.documentElement.getAttribute('data-rrr-ext')==='1';
+  const handleNadlan=()=>{
+    window.dispatchEvent(new CustomEvent('RRR_NADLAN_REQUEST',{detail:{gush:cas.block,caseFolder:cas.folder,caseName:cas.folder}}));
+  };
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   const handleAdvisorChange=(v)=>{
@@ -1830,6 +1834,15 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
             </div>
             <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:5,flexShrink:0}}>
               <button onClick={onClose} style={{background:'rgba(255,255,255,0.1)',border:'none',borderRadius:8,width:32,height:32,color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+              {extInstalled&&cas.block&&(
+                <button onClick={handleNadlan} title={`הורד עסקאות השוואה — גוש ${cas.block}`}
+                  style={{background:'rgba(39,174,96,0.2)',border:'1px solid rgba(39,174,96,0.5)',borderRadius:8,width:32,height:32,
+                    color:'#4ade80',cursor:'pointer',fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.2s'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='rgba(39,174,96,0.35)'}
+                  onMouseLeave={e=>e.currentTarget.style.background='rgba(39,174,96,0.2)'}>
+                  📊
+                </button>
+              )}
               <button onClick={handleDelete} disabled={deleting} title={confirmDel?'לחץ שוב לאישור':'מחק תיק'}
                 style={{background:confirmDel?'#dc2626':'rgba(220,38,38,0.15)',border:'none',borderRadius:8,width:32,height:32,
                   color:confirmDel?'#fff':'#ef4444',cursor:deleting?'not-allowed':'pointer',fontSize:15,
@@ -3362,6 +3375,51 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
             )}
           </div>
         )}
+      </div>
+
+      {/* ── אינטגרציה עסקאות נדל"ן ── */}
+      <div style={sec}>
+        {secTitle('📊','אינטגרציה עסקאות נדל"ן')}
+        {(()=>{
+          const installed=document.documentElement.getAttribute('data-rrr-ext')==='1';
+          return(
+            <>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                <div style={{width:10,height:10,borderRadius:'50%',background:installed?'#16a34a':'#9ca3af',flexShrink:0}}/>
+                <span style={{fontSize:13,fontWeight:500,color:installed?'#166534':'#6b7280'}}>
+                  {installed?'Extension מותקן ופעיל ✓':'Extension לא מותקן'}
+                </span>
+              </div>
+              {!installed&&(
+                <div style={{fontSize:12,color:'#6b5e50',lineHeight:1.8,marginBottom:12}}>
+                  לאחר ההתקנה יופיע כפתור 📊 בכל פאנל תיק שיש לו גוש — לחיצה אחת תפתח את אתר נדלן עם הגוש כבר מולא, ולאחר פתרון CAPTCHA הסקריפט ירוץ אוטומטית ויוריד קובץ Excel עם כל עסקאות ההשוואה.
+                </div>
+              )}
+              <div style={{fontSize:13,fontWeight:600,color:'#3a2a00',marginBottom:10}}>הוראות התקנה:</div>
+              {[
+                ['1','הורד את תיקיית ה-Extension','לחץ על כפתור ה-RUN_UPLOAD.bat שמאפשר הורדה, או מצא את תיקיית nadlan_extension בתיקיית הפלט'],
+                ['2','פתח הרחבות Chrome','בכתובת chrome://extensions — הדבק בשורת הכתובת ולחץ Enter'],
+                ['3','הפעל "מצב מפתח"','בפינה הימנית העליונה של דף ההרחבות, הפעל את המתג "Developer mode"'],
+                ['4','טען ללא אריזה','לחץ "Load unpacked" ובחר את תיקיית nadlan_extension'],
+                ['5','רענן את הדף','לחץ F5 — הסטטוס כאן יתעדכן ל"מותקן"'],
+              ].map(([n,title,desc])=>(
+                <div key={n} style={{display:'flex',gap:12,marginBottom:12,alignItems:'flex-start'}}>
+                  <div style={{width:24,height:24,borderRadius:'50%',background:BLACK,color:GOLD,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,flexShrink:0,marginTop:1}}>{n}</div>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600,color:'#1a1510',marginBottom:2}}>{title}</div>
+                    <div style={{fontSize:12,color:'#6b5e50',lineHeight:1.6}}>{desc}</div>
+                  </div>
+                </div>
+              ))}
+              <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:9,padding:'10px 14px',marginTop:4}}>
+                <div style={{fontSize:12,color:'#92400e',lineHeight:1.7}}>
+                  ⚠️ ה-Extension הוא כלי פנימי — אין צורך לפרסם אותו ב-Chrome Web Store.<br/>
+                  ניתן להתקינו כ"Unpacked" על כל מחשב בנפרד. ה-Extension ניגש רק לאתר נדלן ולאתר המערכת שלנו.
+                </div>
+              </div>
+            </>
+          );
+        })()}
       </div>
 
     </div>
