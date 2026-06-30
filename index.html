@@ -1275,10 +1275,10 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
     if(daysFilter!=='all'){
       const maxDays=daysFilter==='today'?0:daysFilter==='2days'?2:7;
       arr=arr.filter(p=>{
-        if(!p._dueD)return false;
+        if(!p._dueD)return true; // ללא תאריך — תמיד מוצג
         const d=new Date(p._dueD);d.setHours(0,0,0,0);
         const diff=Math.round((d-today)/86400000);
-        return diff>=0&&diff<=maxDays;
+        return diff<=maxDays; // כולל באיחור (diff<0)
       });
     }
     return arr;
@@ -2488,7 +2488,7 @@ function LoginScreen({onLogin}){
 }
 
 // ═══════════════ DASHBOARD VIEW ══════════════════════════════════
-function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,onlineUsers,onPostMessage,onMarkRead}){
+function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,onlineUsers,onPostMessage,onMarkRead,onDeleteMessage}){
   const today=new Date();today.setHours(0,0,0,0);
   const in7=new Date(today);in7.setDate(in7.getDate()+7);
   const in14=new Date(today);in14.setDate(in14.getDate()+14);
@@ -2566,15 +2566,21 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
   const [msgDraft,setMsgDraft]=React.useState('');
   const [msgTo,setMsgTo]=React.useState('כולם');
   const [sending,setSending]=React.useState(false);
+  const [replyTo,setReplyTo]=React.useState(null);
   const visibleMsgs=React.useMemo(()=>(messages||[]).filter(m=>
     m.to==='כולם'||m.to===userName||m.from===userName
   ).slice().reverse(),[messages,userName]);
   const handleSend=async()=>{
     if(!msgDraft.trim()||!userName)return;
     setSending(true);
-    try{await onPostMessage(userName,msgTo,msgDraft);setMsgDraft('');}
-    finally{setSending(false);}
+    try{
+      const finalText=replyTo?`↩️ בתגובה ל-${replyTo.from}:\n"${replyTo.text.slice(0,60)}${replyTo.text.length>60?'…':''}"\n\n${msgDraft}`:msgDraft;
+      await onPostMessage(userName,msgTo,finalText);
+      setMsgDraft('');setReplyTo(null);
+    }finally{setSending(false);}
   };
+  const PIN_COLORS=['#cc3333','#2563eb','#16a34a','#d97706'];
+  const noteRotations=[-1.8,1.2,-0.7,1.5,-1.1,0.9,-1.4,1.7,-0.5,1.1];
 
   return(
     <div style={{padding:'28px 32px',animation:'fadeIn 0.3s ease'}}>
@@ -2668,69 +2674,118 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
           );
         })()}
 
-        {/* ── שמאל: לוח מודעות ── */}
-        <div style={{...sec,padding:0,overflow:'hidden'}}>
+        {/* ── שמאל: לוח מודעות (קורקבורד) ── */}
+        <div style={{borderRadius:14,overflow:'hidden',boxShadow:'0 2px 12px rgba(0,0,0,0.13)',display:'flex',flexDirection:'column'}}>
           {/* כותרת */}
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:8,background:'#fdfaf5'}}>
-            <span style={{fontSize:15}}>📋</span>
-            <span style={{fontSize:13,fontWeight:600,color:'#3a2a00'}}>לוח מודעות</span>
-            <span style={{marginRight:'auto',fontSize:11,color:'#9a8e84'}}>{visibleMsgs.filter(m=>!m.readBy.includes(userName)&&m.from!==userName).length} חדש</span>
+          <div style={{padding:'12px 16px',display:'flex',alignItems:'center',gap:8,background:'#6b4226'}}>
+            <span style={{fontSize:15}}>📌</span>
+            <span style={{fontSize:13,fontWeight:600,color:'#fef3c7'}}>לוח מודעות</span>
+            {visibleMsgs.filter(m=>!m.readBy.includes(userName)&&m.from!==userName).length>0&&(
+              <span style={{marginRight:'auto',fontSize:11,background:'#dc2626',color:'#fff',borderRadius:10,padding:'1px 8px',fontWeight:600}}>
+                {visibleMsgs.filter(m=>!m.readBy.includes(userName)&&m.from!==userName).length} חדש
+              </span>
+            )}
           </div>
 
-          {/* רשימת הודעות */}
-          <div style={{maxHeight:300,overflowY:'auto'}}>
+          {/* קורקבורד */}
+          <div style={{
+            background:'#b87333',
+            backgroundImage:'radial-gradient(ellipse at 20% 30%, #c8813a 0%, #a0602a 40%, #8b5120 100%)',
+            padding:'14px 12px',
+            minHeight:220,
+            maxHeight:380,
+            overflowY:'auto',
+            display:'flex',
+            flexDirection:'column',
+            gap:14,
+          }}>
             {visibleMsgs.length===0?(
-              <div style={{padding:'28px 0',textAlign:'center',color:'#9a8e84',fontSize:13}}>אין הודעות</div>
-            ):visibleMsgs.map(m=>{
+              <div style={{textAlign:'center',color:'#f5deb3',fontSize:13,opacity:0.7,paddingTop:40}}>אין פתקים 📌</div>
+            ):visibleMsgs.map((m,idx)=>{
               const isMine=m.from===userName;
+              const isYellow=m.to==='כולם';
               const isRead=m.readBy.includes(userName);
               const canRead=!isMine&&!isRead;
+              const rot=noteRotations[idx%noteRotations.length];
+              const pinColor=PIN_COLORS[idx%PIN_COLORS.length];
               return(
-                <div key={m._row} style={{padding:'11px 16px',borderBottom:'1px solid #f5f1eb',
-                  background:canRead?'#fefdf8':'#fff',
-                  borderRight:`3px solid ${isMine?GOLD:canRead?'#7c3aed':'#d4cabb'}`}}>
-                  {/* שורת מידע */}
-                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:5,flexWrap:'wrap'}}>
-                    <span style={{fontSize:11,fontWeight:600,color:isMine?GOLD3:'#3730a3'}}>{m.from}</span>
-                    <span style={{fontSize:10,color:'#9a8e84'}}>→</span>
-                    <span style={{fontSize:11,background:m.to==='כולם'?'#f0fdf4':'#ede9fe',color:m.to==='כולם'?'#166534':'#5b21b6',borderRadius:10,padding:'1px 7px',fontWeight:500}}>{m.to}</span>
-                    <span style={{fontSize:10,color:'#c4b9aa',marginRight:'auto'}}>{m.date}</span>
-                    {isRead&&!isMine&&<span style={{fontSize:10,color:'#9a8e84'}}>✓</span>}
+                <div key={m._row} style={{
+                  background:isYellow?'#fef08a':'#ffffff',
+                  borderRadius:3,
+                  padding:'14px 14px 10px',
+                  boxShadow:`${rot>0?2:-2}px 4px 10px rgba(0,0,0,0.3), inset 0 -2px 0 rgba(0,0,0,0.07)`,
+                  position:'relative',
+                  transform:`rotate(${rot}deg)`,
+                  transition:'transform 0.15s',
+                  cursor:'default',
+                }}
+                onMouseEnter={e=>e.currentTarget.style.transform='rotate(0deg) scale(1.02)'}
+                onMouseLeave={e=>e.currentTarget.style.transform=`rotate(${rot}deg)`}>
+                  {/* סיכה */}
+                  <div style={{position:'absolute',top:-7,left:'50%',transform:'translateX(-50%)',
+                    width:13,height:13,borderRadius:'50%',background:pinColor,
+                    boxShadow:`0 1px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.4)`,zIndex:2}}/>
+                  {/* מידע שולח */}
+                  <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:6,flexWrap:'wrap'}}>
+                    <span style={{fontSize:11,fontWeight:700,color:isYellow?'#78350f':'#1e3a5f'}}>{m.from}</span>
+                    {!isYellow&&<span style={{fontSize:10,color:'#6b7280'}}>→ {m.to}</span>}
+                    <span style={{marginRight:'auto',fontSize:10,color:'#9a8e84'}}>{m.date}</span>
+                    {isRead&&!isMine&&<span style={{fontSize:10,color:'#9a8e84',opacity:0.7}}>✓</span>}
                   </div>
                   {/* טקסט */}
-                  <div style={{fontSize:12,color:'#3a3228',lineHeight:1.55,whiteSpace:'pre-wrap',wordBreak:'break-word',marginBottom:canRead?8:0}}>{m.text}</div>
-                  {/* כפתור קראתי */}
-                  {canRead&&(
-                    <button onClick={()=>onMarkRead&&onMarkRead(m._row,userName,m.readBy)}
-                      style={{fontSize:11,padding:'3px 12px',borderRadius:12,border:'1px solid #d1d5db',background:'#f9fafb',color:'#374151',cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>
-                      ✓ קראתי
-                    </button>
-                  )}
+                  <div style={{fontSize:12,color:'#1a1510',lineHeight:1.6,whiteSpace:'pre-wrap',wordBreak:'break-word',marginBottom:8,fontFamily:'inherit'}}>{m.text}</div>
+                  {/* כפתורים */}
+                  <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+                    {canRead&&(
+                      <button onClick={()=>onMarkRead&&onMarkRead(m._row,userName,m.readBy)}
+                        style={{fontSize:10,padding:'2px 9px',borderRadius:10,border:`1px solid ${isYellow?'#d97706':'#6b7280'}`,background:'transparent',color:isYellow?'#92400e':'#374151',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
+                        ✓ קראתי
+                      </button>
+                    )}
+                    {userName&&(
+                      <button onClick={()=>{setReplyTo(m);setMsgTo(m.from===userName?'כולם':m.from);}}
+                        style={{fontSize:10,padding:'2px 9px',borderRadius:10,border:`1px solid ${isYellow?'#d97706':'#6b7280'}`,background:'transparent',color:isYellow?'#92400e':'#374151',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
+                        ↩️ הגב
+                      </button>
+                    )}
+                    {isMine&&(
+                      <button onClick={()=>{if(confirm('למחוק את הפתק?'))onDeleteMessage&&onDeleteMessage(m._row);}}
+                        style={{fontSize:10,padding:'2px 9px',borderRadius:10,border:'1px solid #dc262655',background:'transparent',color:'#dc2626',cursor:'pointer',fontFamily:'inherit',fontWeight:600,marginRight:'auto'}}>
+                        🗑️
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
 
           {/* טופס שליחה */}
-          <div style={{padding:'12px 16px',borderTop:'1px solid #ede8e0',background:'#fafaf7'}}>
-            <div style={{display:'flex',gap:6,marginBottom:7}}>
+          <div style={{padding:'10px 14px',background:'#5a3720',borderTop:'2px solid #4a2d18'}}>
+            {replyTo&&(
+              <div style={{background:'#7a4f30',borderRadius:7,padding:'6px 10px',marginBottom:8,display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:11,color:'#fde68a',flex:1}}>↩️ בתגובה ל-{replyTo.from}: "{replyTo.text.slice(0,50)}{replyTo.text.length>50?'…':''}"</span>
+                <button onClick={()=>setReplyTo(null)} style={{background:'none',border:'none',color:'#fde68a',cursor:'pointer',fontSize:14,padding:'0 2px',lineHeight:1}}>✕</button>
+              </div>
+            )}
+            <div style={{display:'flex',gap:6,marginBottom:7,alignItems:'center'}}>
+              <span style={{fontSize:11,color:'#fde68a',flexShrink:0}}>אל:</span>
               <select value={msgTo} onChange={e=>setMsgTo(e.target.value)}
-                style={{fontSize:11,padding:'4px 8px',borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',color:'#3a2a00',flex:'0 0 auto',outline:'none',fontFamily:'inherit'}}>
+                style={{fontSize:11,padding:'4px 8px',borderRadius:7,border:'1px solid #8b6040',background:'#6b4226',color:'#fef3c7',flex:'0 0 auto',outline:'none',fontFamily:'inherit'}}>
                 <option value="כולם">כולם</option>
                 {['יוסי','מיכאל','פייגי'].filter(n=>n!==userName).map(n=><option key={n} value={n}>{n}</option>)}
               </select>
-              <span style={{fontSize:11,color:'#9a8e84',alignSelf:'center'}}>← נמען</span>
             </div>
             <textarea value={msgDraft} onChange={e=>setMsgDraft(e.target.value)}
-              placeholder="כתוב הודעה..."
+              placeholder="כתוב פתק..."
               rows={2}
               onKeyDown={e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();handleSend();}}}
-              style={{width:'100%',fontSize:12,padding:'7px 10px',borderRadius:8,border:'1px solid #ddd0bb',resize:'none',outline:'none',fontFamily:'inherit',boxSizing:'border-box',background:'#fff'}}/>
+              style={{width:'100%',fontSize:12,padding:'7px 10px',borderRadius:8,border:'1px solid #8b6040',resize:'none',outline:'none',fontFamily:'inherit',boxSizing:'border-box',background:'#fff',color:'#1a1510'}}/>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6}}>
-              <span style={{fontSize:10,color:'#c4b9aa'}}>Ctrl+Enter לשליחה</span>
+              <span style={{fontSize:10,color:'#c49a6c'}}>Ctrl+Enter לשליחה</span>
               <button onClick={handleSend} disabled={sending||!msgDraft.trim()||!userName}
-                style={{fontSize:12,padding:'5px 16px',borderRadius:8,border:'none',background:GOLD,color:'#fff',cursor:'pointer',fontWeight:600,fontFamily:'inherit',opacity:sending||!msgDraft.trim()?0.5:1}}>
-                {sending?'שולח...':'שלח'}
+                style={{fontSize:12,padding:'5px 16px',borderRadius:8,border:'none',background:GOLD,color:'#1a0a00',cursor:'pointer',fontWeight:700,fontFamily:'inherit',opacity:sending||!msgDraft.trim()?0.5:1}}>
+                {sending?'שולח...':'📌 פרסם'}
               </button>
             </div>
           </div>
@@ -3413,13 +3468,16 @@ function App(){
     await api.append("'הודעות'",[[nowHe(),from,to,text.trim(),'']]);
     await loadMsgsPresence();
   },[loadMsgsPresence]);
-  // סימון קראתי
   const markRead=useCallback(async(msgRow,uName,currentReadBy)=>{
     if(currentReadBy.includes(uName))return;
     const newReadBy=[...currentReadBy,uName];
     await api.put(`'הודעות'!E${msgRow}`,[[newReadBy.join(',')]]);
     setMessages(ms=>ms.map(m=>m._row===msgRow?{...m,readBy:newReadBy}:m));
   },[]);
+  const deleteMessage=useCallback(async(msgRow)=>{
+    await api.deleteSheetRow('הודעות',msgRow);
+    await loadMsgsPresence();
+  },[loadMsgsPresence]);
   const handleLogin=useCallback(async(tok)=>{
     api.token=tok;setToken(tok);
     try{
@@ -3466,7 +3524,7 @@ function App(){
         onLogout={()=>{api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);}}/>
       <div style={{flex:1,overflowY:'auto',overflowX:'hidden',marginRight:232,height:'100vh'}}>
         {error&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{error}</div>}
-        {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}} messages={messages} onlineUsers={onlineUsers} onPostMessage={postMessage} onMarkRead={markRead}/>}
+        {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}} messages={messages} onlineUsers={onlineUsers} onPostMessage={postMessage} onMarkRead={markRead} onDeleteMessage={deleteMessage}/>}
         {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)}/>}
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject}/>}
         {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject}/>}
