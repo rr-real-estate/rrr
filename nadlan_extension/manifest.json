@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "RRR – אינטגרציה נדלן",
+  "version": "1.0",
+  "description": "מחבר את מערכת ניהול התיקים רובינשטיין רוזנטל לאתר עסקאות נדלן של רשות המיסים",
+  "permissions": ["storage", "tabs", "scripting"],
+  "host_permissions": [
+    "https://nadlan.taxes.gov.il/*",
+    "https://rr-real-estate.github.io/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://rr-real-estate.github.io/*"],
+      "js": ["content_webapp.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://nadlan.taxes.gov.il/*"],
+      "js": ["content_nadlan.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
