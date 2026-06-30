@@ -2575,14 +2575,11 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
     </div>
   );
 
-  // ── לוח מודעות ──
-  const [calWeekOffset,setCalWeekOffset]=React.useState(0);
-  const HE_DAYS=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-  const calDays=React.useMemo(()=>{
-    const base=new Date();base.setHours(0,0,0,0);
-    base.setDate(base.getDate()-base.getDay()+calWeekOffset*7); // ראשון בשבוע
-    return Array.from({length:7},(_,i)=>{const d=new Date(base);d.setDate(d.getDate()+i);return d;});
-  },[calWeekOffset]);
+  // ── לוח שנה חודשי ──
+  const [calMonthOffset,setCalMonthOffset]=React.useState(0);
+  const [calSelectedDay,setCalSelectedDay]=React.useState(null);
+  const MONTHS_HE=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+  const DAY_SHORT=['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
   const tasksByDay=React.useMemo(()=>{
     const map={};
     activeProjs.forEach(p=>{
@@ -2593,10 +2590,6 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
       map[key].push(p);
     });
     return map;
-  },[activeProjs]);
-  const overdueForCal=React.useMemo(()=>{
-    const todayD=new Date();todayD.setHours(0,0,0,0);
-    return activeProjs.filter(p=>(p._dueD||p._expD)&&(p._dueD||p._expD)<todayD);
   },[activeProjs]);
 
   return(
@@ -2691,99 +2684,93 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
           );
         })()}
 
-        {/* ── שמאל: לוח שנה ── */}
+        {/* ── שמאל: לוח שנה חודשי ── */}
         {(()=>{
           const todayD=new Date();todayD.setHours(0,0,0,0);
-          const PERSON_COLORS={'יוסי':'#e67e22','מיכאל':'#2563eb','פייגי':'#9333ea'};
-          const fmtShort=d=>d.toLocaleDateString('he-IL',{day:'numeric',month:'numeric'});
-          const weekStart=calDays[0];
-          const weekEnd=calDays[6];
+          const todayKey=todayD.toISOString().split('T')[0];
+          const baseDate=new Date(todayD.getFullYear(),todayD.getMonth()+calMonthOffset,1);
+          const monthLabel=`${MONTHS_HE[baseDate.getMonth()]} ${baseDate.getFullYear()}`;
+          const daysInMonth=new Date(baseDate.getFullYear(),baseDate.getMonth()+1,0).getDate();
+          const startDow=baseDate.getDay();
+          const cells=[...Array(startDow).fill(null),...Array.from({length:daysInMonth},(_,i)=>new Date(baseDate.getFullYear(),baseDate.getMonth(),i+1))];
+          while(cells.length%7!==0)cells.push(null);
+          const numRows=cells.length/7;
+          const selectedTasks=calSelectedDay?(tasksByDay[calSelectedDay]||[]):[];
           return(
             <div style={{...sec,padding:0,overflow:'hidden',height:480,display:'flex',flexDirection:'column'}}>
               {/* כותרת + ניווט */}
-              <div style={{padding:'11px 16px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:8,background:'#fdfaf5',flexShrink:0}}>
+              <div style={{padding:'10px 16px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:8,background:'#fdfaf5',flexShrink:0}}>
                 <span style={{fontSize:15}}>📅</span>
-                <span style={{fontSize:13,fontWeight:600,color:'#3a2a00'}}>לוח שנה</span>
-                <span style={{fontSize:11,color:'#9a8e84',marginLeft:4}}>{fmtShort(weekStart)} – {fmtShort(weekEnd)}</span>
-                <div style={{marginRight:'auto',display:'flex',gap:4,alignItems:'center'}}>
-                  <button onClick={()=>setCalWeekOffset(o=>o-1)}
-                    style={{width:26,height:26,borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',color:'#6b5e50'}}>‹</button>
-                  {calWeekOffset!==0&&<button onClick={()=>setCalWeekOffset(0)}
-                    style={{fontSize:11,padding:'3px 9px',borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',color:'#6b5e50',fontFamily:'inherit'}}>היום</button>}
-                  <button onClick={()=>setCalWeekOffset(o=>o+1)}
-                    style={{width:26,height:26,borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',color:'#6b5e50'}}>›</button>
-                </div>
+                <span style={{fontSize:13,fontWeight:600,color:'#3a2a00',flex:1}}>{monthLabel}</span>
+                <button onClick={()=>setCalMonthOffset(o=>o-1)}
+                  style={{width:26,height:26,borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',color:'#6b5e50'}}>‹</button>
+                {calMonthOffset!==0&&<button onClick={()=>{setCalMonthOffset(0);setCalSelectedDay(null);}}
+                  style={{fontSize:11,padding:'3px 9px',borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',color:'#6b5e50',fontFamily:'inherit'}}>היום</button>}
+                <button onClick={()=>setCalMonthOffset(o=>o+1)}
+                  style={{width:26,height:26,borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',color:'#6b5e50'}}>›</button>
               </div>
-
-              {/* תוכן */}
-              <div style={{flex:1,overflowY:'auto'}}>
-                {/* באיחור — רק בשבוע הנוכחי */}
-                {calWeekOffset===0&&overdueForCal.length>0&&(
-                  <div style={{borderBottom:'1px solid #fecaca',background:'#fff5f5'}}>
-                    <div style={{padding:'7px 14px 4px',display:'flex',alignItems:'center',gap:6}}>
-                      <span style={{fontSize:11,fontWeight:700,color:'#dc2626'}}>⚠️ באיחור</span>
-                      <span style={{fontSize:10,color:'#dc2626',background:'#fee2e2',borderRadius:8,padding:'1px 6px'}}>{overdueForCal.length}</span>
-                    </div>
-                    <div style={{padding:'2px 14px 8px',display:'flex',flexDirection:'column',gap:4}}>
-                      {overdueForCal.slice(0,5).map(p=>{
-                        const persons=[p.yossi&&'יוסי',p.michael&&'מיכאל',p.feigi&&'פייגי'].filter(Boolean);
-                        return(
-                          <div key={p._row} onClick={()=>onOpenProject&&onOpenProject(p._row)}
-                            style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'4px 8px',borderRadius:7,background:'#fee2e2',transition:'opacity 0.15s'}}
-                            onMouseEnter={e=>e.currentTarget.style.opacity='0.75'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
-                            <span style={{fontSize:12,fontWeight:600,color:'#991b1b',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</span>
-                            <span style={{fontSize:10,color:'#b91c1c'}}>{p.dueDate||p.expected}</span>
-                            <div style={{display:'flex',gap:2}}>
-                              {persons.map(n=><span key={n} style={{width:16,height:16,borderRadius:'50%',background:PERSON_COLORS[n],display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'#fff',fontWeight:700}}>{n[0]}</span>)}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {overdueForCal.length>5&&<div style={{fontSize:11,color:'#dc2626',padding:'2px 8px'}}>ועוד {overdueForCal.length-5}...</div>}
-                    </div>
-                  </div>
-                )}
-
-                {/* ימי השבוע */}
-                {calDays.map(day=>{
+              {/* שמות ימים */}
+              <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',background:'#f5f1e8',borderBottom:'1px solid #ede8e0',flexShrink:0}}>
+                {DAY_SHORT.map(d=>(
+                  <div key={d} style={{textAlign:'center',fontSize:10,fontWeight:600,color:'#9a8e84',padding:'5px 0'}}>{d}</div>
+                ))}
+              </div>
+              {/* גריד ימים */}
+              <div style={{flex:1,display:'grid',gridTemplateColumns:'repeat(7,1fr)',gridTemplateRows:`repeat(${numRows},1fr)`,minHeight:0}}>
+                {cells.map((day,i)=>{
+                  if(!day)return <div key={`e${i}`} style={{background:'#fafaf7',borderBottom:'1px solid #f0ebe2',borderLeft:'1px solid #f0ebe2'}}/>;
                   const key=day.toISOString().split('T')[0];
-                  const dayTasks=tasksByDay[key]||[];
-                  const isToday=day.getTime()===todayD.getTime();
+                  const count=(tasksByDay[key]||[]).length;
+                  const isToday=key===todayKey;
                   const isPast=day<todayD;
-                  const dayName=HE_DAYS[day.getDay()];
+                  const isSelected=calSelectedDay===key;
+                  const hasOverdue=isPast&&count>0;
                   return(
-                    <div key={key} style={{borderBottom:'1px solid #f0ebe2',background:isToday?'#fffdf5':isPast?'#fafaf8':'#fff'}}>
-                      <div style={{padding:'7px 14px 4px',display:'flex',alignItems:'center',gap:8}}>
-                        <div style={{width:32,height:32,borderRadius:'50%',background:isToday?GOLD:'transparent',
-                          display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                          <span style={{fontSize:12,fontWeight:isToday?700:500,color:isToday?'#fff':isPast?'#c4b9aa':'#6b5e50',lineHeight:1.1}}>{day.getDate()}</span>
-                          <span style={{fontSize:8,color:isToday?'#fff9e0':isPast?'#c4b9aa':'#9a8e84',lineHeight:1}}>{String(day.getMonth()+1).padStart(2,'0')}</span>
-                        </div>
-                        <span style={{fontSize:12,fontWeight:isToday?700:500,color:isToday?GOLD3:isPast?'#c4b9aa':'#3a2a00'}}>{dayName}{isToday?' — היום':''}</span>
-                        {dayTasks.length>0&&<span style={{marginRight:'auto',fontSize:10,background:isToday?`${GOLD}22`:'#f0ebe2',color:isToday?GOLD3:'#9a8e84',borderRadius:8,padding:'1px 6px',fontWeight:600}}>{dayTasks.length}</span>}
+                    <div key={key} onClick={()=>count>0&&setCalSelectedDay(isSelected?null:key)}
+                      style={{
+                        borderBottom:'1px solid #f0ebe2',borderLeft:'1px solid #f0ebe2',
+                        display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:2,
+                        cursor:count>0?'pointer':'default',
+                        background:isSelected?'#fef9e0':isToday?'#fffbf0':isPast?'#fafaf7':'#fff',
+                        transition:'background 0.1s',
+                      }}
+                      onMouseEnter={e=>{if(count>0)e.currentTarget.style.background=isSelected?'#fef3c7':'#f0ebe2';}}
+                      onMouseLeave={e=>{e.currentTarget.style.background=isSelected?'#fef9e0':isToday?'#fffbf0':isPast?'#fafaf7':'#fff';}}>
+                      <div style={{width:24,height:24,borderRadius:'50%',background:isToday?GOLD:'transparent',
+                        display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        <span style={{fontSize:12,fontWeight:isToday?700:400,color:isToday?'#fff':isPast?'#b8a898':'#2d2520'}}>{day.getDate()}</span>
                       </div>
-                      {dayTasks.length>0&&(
-                        <div style={{padding:'2px 14px 8px',display:'flex',flexDirection:'column',gap:3}}>
-                          {dayTasks.map(p=>{
-                            const persons=[p.yossi&&'יוסי',p.michael&&'מיכאל',p.feigi&&'פייגי'].filter(Boolean);
-                            return(
-                              <div key={p._row} onClick={()=>onOpenProject&&onOpenProject(p._row)}
-                                style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'5px 8px',borderRadius:7,
-                                  background:isToday?'#fef9e8':'#f5f3ef',transition:'background 0.12s'}}
-                                onMouseEnter={e=>e.currentTarget.style.background=isToday?'#fef3c7':'#ede8e0'}
-                                onMouseLeave={e=>e.currentTarget.style.background=isToday?'#fef9e8':'#f5f3ef'}>
-                                <span style={{fontSize:12,fontWeight:600,color:'#1a1510',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</span>
-                                <div style={{display:'flex',gap:2,flexShrink:0}}>
-                                  {persons.map(n=><span key={n} style={{width:16,height:16,borderRadius:'50%',background:PERSON_COLORS[n],display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'#fff',fontWeight:700}}>{n[0]}</span>)}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                      {count>0&&(
+                        <span style={{fontSize:10,fontWeight:700,lineHeight:1,padding:'1px 5px',borderRadius:8,
+                          background:hasOverdue?'#fee2e2':isToday?`${GOLD}33`:'#e8e0d0',
+                          color:hasOverdue?'#dc2626':isToday?GOLD3:'#6b5e50',
+                          border:`1px solid ${hasOverdue?'#fca5a5':isToday?`${GOLD}55`:'#d4cabb'}`}}>{count}</span>
                       )}
                     </div>
                   );
                 })}
+              </div>
+              {/* פרטי יום נבחר */}
+              <div style={{height:88,borderTop:'1px solid #ede8e0',background:'#fdfaf5',overflowY:'auto',flexShrink:0}}>
+                {calSelectedDay?(
+                  selectedTasks.length>0?(
+                    <div style={{padding:'6px 12px',display:'flex',flexDirection:'column',gap:3}}>
+                      {selectedTasks.map(p=>(
+                        <div key={p._row} onClick={()=>onOpenProject&&onOpenProject(p._row)}
+                          style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'4px 8px',borderRadius:7,background:'#f0ebe2',transition:'background 0.12s'}}
+                          onMouseEnter={e=>e.currentTarget.style.background='#e8e0d0'}
+                          onMouseLeave={e=>e.currentTarget.style.background='#f0ebe2'}>
+                          <span style={{fontSize:12,fontWeight:600,color:'#1a1510',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</span>
+                          <span style={{fontSize:11,color:'#9a8e84',flexShrink:0}}>{p.dueDate||p.expected||''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ):(
+                    <div style={{height:'100%',display:'flex',alignItems:'center',justifyContent:'center',color:'#b8a898',fontSize:12}}>אין תיקים ביום זה</div>
+                  )
+                ):(
+                  <div style={{height:'100%',display:'flex',alignItems:'center',justifyContent:'center',color:'#c4b9aa',fontSize:12}}>לחץ על יום עם תיקים לפרטים</div>
+                )}
               </div>
             </div>
           );
@@ -3436,11 +3423,12 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
               )}
               <div style={{fontSize:13,fontWeight:600,color:'#3a2a00',marginBottom:10}}>הוראות התקנה:</div>
               {[
-                ['1','הורד את תיקיית ה-Extension','לחץ על כפתור ה-RUN_UPLOAD.bat שמאפשר הורדה, או מצא את תיקיית nadlan_extension בתיקיית הפלט'],
-                ['2','פתח הרחבות Chrome','בכתובת chrome://extensions — הדבק בשורת הכתובת ולחץ Enter'],
-                ['3','הפעל "מצב מפתח"','בפינה הימנית העליונה של דף ההרחבות, הפעל את המתג "Developer mode"'],
-                ['4','טען ללא אריזה','לחץ "Load unpacked" ובחר את תיקיית nadlan_extension'],
-                ['5','רענן את הדף','לחץ F5 — הסטטוס כאן יתעדכן ל"מותקן"'],
+                ['1','הורד את ה-Extension','לחץ על כפתור 📥 הורד Extension (ZIP) מעמוד זה'],
+                ['2','חלץ את הקובץ','לחץ לחיצה ימנית על הקובץ שהורד ובחר "חלץ הכל" — תיווצר תיקייה בשם nadlan_extension'],
+                ['3','פתח הרחבות Chrome','בכתובת chrome://extensions — הדבק בשורת הכתובת ולחץ Enter'],
+                ['4','הפעל "מצב פיתוח"','בפינה השמאלית העליונה של דף ההרחבות, הפעל את המתג "מצב פיתוח"'],
+                ['5','טען פריט unpacked','לחץ "טען פריט unpacked" ובחר את תיקיית nadlan_extension'],
+                ['6','רענן את הדף','לחץ F5 — הסטטוס כאן יתעדכן ל"מותקן"'],
               ].map(([n,title,desc])=>(
                 <div key={n} style={{display:'flex',gap:12,marginBottom:12,alignItems:'flex-start'}}>
                   <div style={{width:24,height:24,borderRadius:'50%',background:BLACK,color:GOLD,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,flexShrink:0,marginTop:1}}>{n}</div>
