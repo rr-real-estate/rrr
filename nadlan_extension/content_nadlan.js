@@ -15,23 +15,33 @@ const { gush, caseName } = nadlan_pending;
 
 // ─── עמוד חיפוש — מלא טופס ───────────────────────────────────────────
 if (url.includes('startpageNadlanNewDesign') || url.includes('svinfonadlan2010/') && !url.includes('Perut')) {
-  await new Promise(r => setTimeout(r, 800));
+  await new Promise(r => setTimeout(r, 900));
 
-  // לחץ על "לפי גוש/חלקה"
+  // לחץ על "לפי גוש/חלקה" והמתן לרינדור השדות
   const rb = document.getElementById('rbMegush');
-  if (rb) { rb.click(); await new Promise(r => setTimeout(r, 300)); }
+  if (rb) { rb.click(); await new Promise(r => setTimeout(r, 600)); }
 
-  // מלא גוש
-  const inp = document.getElementById('txtmegusha');
-  if (inp) inp.value = gush;
+  // מלא גוש — כל שדות הגוש (מגוש + עד גוש)
+  document.querySelectorAll('input[id*="gusha"],input[name*="gusha"]').forEach(inp => {
+    if (inp.type !== 'checkbox' && inp.type !== 'radio') inp.value = gush;
+  });
 
   // סוג נכס: 1 = דירת מגורים
   const typeEl = document.getElementById('ContentUsersPage_DDLTypeNehes');
   if (typeEl) typeEl.value = '1';
 
+  // מהות עסקה: הכל
+  const subTypeEl = document.getElementById('ContentUsersPage_DDLSubTypeNehes');
+  if (subTypeEl) {
+    const allOpt = Array.from(subTypeEl.options).find(o => o.text.trim() === 'הכל' || o.value === '' || o.value === '0');
+    if (allOpt) subTypeEl.value = allOpt.value;
+  }
+
   // טווח זמן: 5 = 36 חודשים
   const dateEl = document.getElementById('ContentUsersPage_DDLDateType');
   if (dateEl) dateEl.value = '5';
+
+  await new Promise(r => setTimeout(r, 400));
 
   // הצג הודעה למשתמש
   showBanner(`✅ גוש ${gush} מולא אוטומטית — לחץ חיפוש ופתור את ה-CAPTCHA`);
@@ -71,13 +81,16 @@ const upd = (t, d, tot) => {
 };
 
 try {
-  // ── טען SheetJS ──
-  if (typeof XLSX === 'undefined') await new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    s.onload = res; s.onerror = () => rej(new Error('נכשל טעינת SheetJS'));
-    document.head.appendChild(s);
-  });
+  // ── טען SheetJS מהExtension (עוקף CSP של הדף) ──
+  if (typeof XLSX === 'undefined') {
+    const src = chrome.runtime.getURL('xlsx.full.min.js');
+    const resp = await fetch(src);
+    if (!resp.ok) throw new Error('נכשל טעינת xlsx.full.min.js מה-Extension');
+    const code = await resp.text();
+    // eval בעולם המבודד של content-script — לא מושפע מ-CSP של הדף
+    (0, eval)(code);
+    if (typeof XLSX === 'undefined') throw new Error('XLSX לא אותחל כראוי');
+  }
 
   // ── שדות ──
   const F = [
