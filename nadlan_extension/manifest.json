@@ -19,14 +19,8 @@
     },
     {
       "matches": ["https://nadlan.taxes.gov.il/*"],
-      "js": ["content_nadlan.js"],
+      "js": ["xlsx.full.min.js", "content_nadlan.js"],
       "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["xlsx.full.min.js"],
-      "matches": ["https://nadlan.taxes.gov.il/*"]
     }
   ]
 }
