@@ -81,16 +81,8 @@ const upd = (t, d, tot) => {
 };
 
 try {
-  // ── טען SheetJS מהExtension (עוקף CSP של הדף) ──
-  if (typeof XLSX === 'undefined') {
-    const src = chrome.runtime.getURL('xlsx.full.min.js');
-    const resp = await fetch(src);
-    if (!resp.ok) throw new Error('נכשל טעינת xlsx.full.min.js מה-Extension');
-    const code = await resp.text();
-    // eval בעולם המבודד של content-script — לא מושפע מ-CSP של הדף
-    (0, eval)(code);
-    if (typeof XLSX === 'undefined') throw new Error('XLSX לא אותחל כראוי');
-  }
+  // ── SheetJS נטען כ-content script לפני קובץ זה (manifest.json) ──
+  if (typeof XLSX === 'undefined') throw new Error('XLSX לא זמין — בדוק שxlsx.full.min.js נמצא בתיקיית ה-Extension');
 
   // ── שדות ──
   const F = [
