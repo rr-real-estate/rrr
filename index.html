@@ -2576,24 +2576,28 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
   );
 
   // ── לוח מודעות ──
-  const [msgDraft,setMsgDraft]=React.useState('');
-  const [msgTo,setMsgTo]=React.useState('כולם');
-  const [sending,setSending]=React.useState(false);
-  const [replyTo,setReplyTo]=React.useState(null);
-  const visibleMsgs=React.useMemo(()=>(messages||[]).filter(m=>
-    m.to==='כולם'||m.to===userName||m.from===userName
-  ).slice().reverse(),[messages,userName]);
-  const handleSend=async()=>{
-    if(!msgDraft.trim()||!userName)return;
-    setSending(true);
-    try{
-      const finalText=replyTo?`↩️ בתגובה ל-${replyTo.from}:\n"${replyTo.text.slice(0,60)}${replyTo.text.length>60?'…':''}"\n\n${msgDraft}`:msgDraft;
-      await onPostMessage(userName,'כולם',finalText);
-      setMsgDraft('');setReplyTo(null);
-    }finally{setSending(false);}
-  };
-  const PIN_COLORS=['#cc3333','#2563eb','#16a34a','#d97706'];
-  const noteRotations=[-1.8,1.2,-0.7,1.5,-1.1,0.9,-1.4,1.7,-0.5,1.1];
+  const [calWeekOffset,setCalWeekOffset]=React.useState(0);
+  const HE_DAYS=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  const calDays=React.useMemo(()=>{
+    const base=new Date();base.setHours(0,0,0,0);
+    base.setDate(base.getDate()-base.getDay()+calWeekOffset*7); // ראשון בשבוע
+    return Array.from({length:7},(_,i)=>{const d=new Date(base);d.setDate(d.getDate()+i);return d;});
+  },[calWeekOffset]);
+  const tasksByDay=React.useMemo(()=>{
+    const map={};
+    activeProjs.forEach(p=>{
+      const d=p._dueD||p._expD;
+      if(!d)return;
+      const key=d.toISOString().split('T')[0];
+      if(!map[key])map[key]=[];
+      map[key].push(p);
+    });
+    return map;
+  },[activeProjs]);
+  const overdueForCal=React.useMemo(()=>{
+    const todayD=new Date();todayD.setHours(0,0,0,0);
+    return activeProjs.filter(p=>(p._dueD||p._expD)&&(p._dueD||p._expD)<todayD);
+  },[activeProjs]);
 
   return(
     <div style={{padding:'28px 32px',animation:'fadeIn 0.3s ease'}}>
@@ -2687,99 +2691,99 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
           );
         })()}
 
-        {/* ── שמאל: צ'אט קבוצתי ── */}
+        {/* ── שמאל: לוח שנה ── */}
         {(()=>{
-          const NAME_COLORS={'יוסי':'#e67e22','מיכאל':'#2563eb','פייגי':'#9333ea'};
-          const chronoMsgs=[...visibleMsgs].reverse(); // ישן→חדש
-          const unreadCount=visibleMsgs.filter(m=>!m.readBy.includes(userName)&&m.from!==userName).length;
+          const todayD=new Date();todayD.setHours(0,0,0,0);
+          const PERSON_COLORS={'יוסי':'#e67e22','מיכאל':'#2563eb','פייגי':'#9333ea'};
+          const fmtShort=d=>d.toLocaleDateString('he-IL',{day:'numeric',month:'numeric'});
+          const weekStart=calDays[0];
+          const weekEnd=calDays[6];
           return(
-            <div style={{borderRadius:14,overflow:'hidden',boxShadow:'0 2px 12px rgba(0,0,0,0.13)',display:'flex',flexDirection:'column',height:480}}>
-              {/* כותרת סגנון וואטסאפ */}
-              <div style={{padding:'10px 14px',background:'#075e54',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
-                <div style={{width:38,height:38,borderRadius:'50%',background:'#128c7e',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>👥</div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:600,color:'#fff'}}>משרד רובינשטיין רוזנטל</div>
-                  <div style={{fontSize:11,color:'#9de0d9'}}>
-                    {['יוסי','מיכאל','פייגי'].join(', ')}
-                  </div>
+            <div style={{...sec,padding:0,overflow:'hidden',height:480,display:'flex',flexDirection:'column'}}>
+              {/* כותרת + ניווט */}
+              <div style={{padding:'11px 16px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:8,background:'#fdfaf5',flexShrink:0}}>
+                <span style={{fontSize:15}}>📅</span>
+                <span style={{fontSize:13,fontWeight:600,color:'#3a2a00'}}>לוח שנה</span>
+                <span style={{fontSize:11,color:'#9a8e84',marginLeft:4}}>{fmtShort(weekStart)} – {fmtShort(weekEnd)}</span>
+                <div style={{marginRight:'auto',display:'flex',gap:4,alignItems:'center'}}>
+                  <button onClick={()=>setCalWeekOffset(o=>o-1)}
+                    style={{width:26,height:26,borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',color:'#6b5e50'}}>‹</button>
+                  {calWeekOffset!==0&&<button onClick={()=>setCalWeekOffset(0)}
+                    style={{fontSize:11,padding:'3px 9px',borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',color:'#6b5e50',fontFamily:'inherit'}}>היום</button>}
+                  <button onClick={()=>setCalWeekOffset(o=>o+1)}
+                    style={{width:26,height:26,borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',color:'#6b5e50'}}>›</button>
                 </div>
-                {unreadCount>0&&<span style={{background:'#25d366',color:'#fff',borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700,flexShrink:0}}>{unreadCount}</span>}
               </div>
 
-              {/* אזור הודעות */}
-              <div style={{flex:1,overflowY:'auto',background:'#e5ddd5',padding:'10px 10px 4px',display:'flex',flexDirection:'column',gap:3}}>
-                {chronoMsgs.length===0?(
-                  <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'#9a8e84',fontSize:13}}>אין הודעות עדיין</div>
-                ):chronoMsgs.map((m,idx)=>{
-                  const isMine=m.from===userName;
-                  const isRead=m.readBy.includes(userName);
-                  const showName=!isMine&&(idx===0||chronoMsgs[idx-1].from!==m.from);
-                  const nameColor=NAME_COLORS[m.from]||'#075e54';
-                  const isPrivate=m.to!=='כולם';
+              {/* תוכן */}
+              <div style={{flex:1,overflowY:'auto'}}>
+                {/* באיחור — רק בשבוע הנוכחי */}
+                {calWeekOffset===0&&overdueForCal.length>0&&(
+                  <div style={{borderBottom:'1px solid #fecaca',background:'#fff5f5'}}>
+                    <div style={{padding:'7px 14px 4px',display:'flex',alignItems:'center',gap:6}}>
+                      <span style={{fontSize:11,fontWeight:700,color:'#dc2626'}}>⚠️ באיחור</span>
+                      <span style={{fontSize:10,color:'#dc2626',background:'#fee2e2',borderRadius:8,padding:'1px 6px'}}>{overdueForCal.length}</span>
+                    </div>
+                    <div style={{padding:'2px 14px 8px',display:'flex',flexDirection:'column',gap:4}}>
+                      {overdueForCal.slice(0,5).map(p=>{
+                        const persons=[p.yossi&&'יוסי',p.michael&&'מיכאל',p.feigi&&'פייגי'].filter(Boolean);
+                        return(
+                          <div key={p._row} onClick={()=>onOpenProject&&onOpenProject(p._row)}
+                            style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'4px 8px',borderRadius:7,background:'#fee2e2',transition:'opacity 0.15s'}}
+                            onMouseEnter={e=>e.currentTarget.style.opacity='0.75'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
+                            <span style={{fontSize:12,fontWeight:600,color:'#991b1b',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</span>
+                            <span style={{fontSize:10,color:'#b91c1c'}}>{p.dueDate||p.expected}</span>
+                            <div style={{display:'flex',gap:2}}>
+                              {persons.map(n=><span key={n} style={{width:16,height:16,borderRadius:'50%',background:PERSON_COLORS[n],display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'#fff',fontWeight:700}}>{n[0]}</span>)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {overdueForCal.length>5&&<div style={{fontSize:11,color:'#dc2626',padding:'2px 8px'}}>ועוד {overdueForCal.length-5}...</div>}
+                    </div>
+                  </div>
+                )}
+
+                {/* ימי השבוע */}
+                {calDays.map(day=>{
+                  const key=day.toISOString().split('T')[0];
+                  const dayTasks=tasksByDay[key]||[];
+                  const isToday=day.getTime()===todayD.getTime();
+                  const isPast=day<todayD;
+                  const dayName=HE_DAYS[day.getDay()];
                   return(
-                    <div key={m._row} style={{display:'flex',justifyContent:isMine?'flex-end':'flex-start',marginBottom:1}}>
-                      <div style={{
-                        maxWidth:'78%',
-                        background:isMine?'#d9fdd3':'#fff',
-                        borderRadius:isMine?'12px 2px 12px 12px':'2px 12px 12px 12px',
-                        padding:'6px 10px 4px',
-                        boxShadow:'0 1px 1px rgba(0,0,0,0.1)',
-                        position:'relative',
-                      }}>
-                        {showName&&<div style={{fontSize:11,fontWeight:700,color:nameColor,marginBottom:2}}>{m.from}</div>}
-                        <div style={{fontSize:12,color:'#111',lineHeight:1.55,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{m.text}</div>
-                        <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:4,marginTop:2}}>
-                          <span style={{fontSize:10,color:'#9a8e84'}}>{m.date}</span>
-                          {isMine&&<span style={{fontSize:11,color:isRead?'#53bdeb':'#9a8e84'}}>✓✓</span>}
+                    <div key={key} style={{borderBottom:'1px solid #f0ebe2',background:isToday?'#fffdf5':isPast?'#fafaf8':'#fff'}}>
+                      <div style={{padding:'7px 14px 4px',display:'flex',alignItems:'center',gap:8}}>
+                        <div style={{width:32,height:32,borderRadius:'50%',background:isToday?GOLD:'transparent',
+                          display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                          <span style={{fontSize:12,fontWeight:isToday?700:500,color:isToday?'#fff':isPast?'#c4b9aa':'#6b5e50',lineHeight:1.1}}>{day.getDate()}</span>
+                          <span style={{fontSize:8,color:isToday?'#fff9e0':isPast?'#c4b9aa':'#9a8e84',lineHeight:1}}>{String(day.getMonth()+1).padStart(2,'0')}</span>
                         </div>
-                        {/* כפתורי פעולה */}
-                        <div style={{display:'flex',gap:4,marginTop:4,justifyContent:isMine?'flex-end':'flex-start'}}>
-                          {!isMine&&!isRead&&(
-                            <button onClick={()=>onMarkRead&&onMarkRead(m._row,userName,m.readBy)}
-                              style={{fontSize:10,padding:'1px 7px',borderRadius:8,border:'1px solid #d1d5db',background:'#f3f4f6',color:'#374151',cursor:'pointer',fontFamily:'inherit'}}>
-                              קראתי
-                            </button>
-                          )}
-                          <button onClick={()=>setReplyTo(m)}
-                            style={{fontSize:10,padding:'1px 7px',borderRadius:8,border:'1px solid #d1d5db',background:'#f3f4f6',color:'#374151',cursor:'pointer',fontFamily:'inherit'}}>
-                            ↩️
-                          </button>
-                          {isMine&&(
-                            <button onClick={()=>{if(confirm('למחוק הודעה?'))onDeleteMessage&&onDeleteMessage(m._row);}}
-                              style={{fontSize:10,padding:'1px 7px',borderRadius:8,border:'1px solid #fecaca',background:'#fef2f2',color:'#dc2626',cursor:'pointer',fontFamily:'inherit'}}>
-                              🗑️
-                            </button>
-                          )}
-                        </div>
+                        <span style={{fontSize:12,fontWeight:isToday?700:500,color:isToday?GOLD3:isPast?'#c4b9aa':'#3a2a00'}}>{dayName}{isToday?' — היום':''}</span>
+                        {dayTasks.length>0&&<span style={{marginRight:'auto',fontSize:10,background:isToday?`${GOLD}22`:'#f0ebe2',color:isToday?GOLD3:'#9a8e84',borderRadius:8,padding:'1px 6px',fontWeight:600}}>{dayTasks.length}</span>}
                       </div>
+                      {dayTasks.length>0&&(
+                        <div style={{padding:'2px 14px 8px',display:'flex',flexDirection:'column',gap:3}}>
+                          {dayTasks.map(p=>{
+                            const persons=[p.yossi&&'יוסי',p.michael&&'מיכאל',p.feigi&&'פייגי'].filter(Boolean);
+                            return(
+                              <div key={p._row} onClick={()=>onOpenProject&&onOpenProject(p._row)}
+                                style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'5px 8px',borderRadius:7,
+                                  background:isToday?'#fef9e8':'#f5f3ef',transition:'background 0.12s'}}
+                                onMouseEnter={e=>e.currentTarget.style.background=isToday?'#fef3c7':'#ede8e0'}
+                                onMouseLeave={e=>e.currentTarget.style.background=isToday?'#fef9e8':'#f5f3ef'}>
+                                <span style={{fontSize:12,fontWeight:600,color:'#1a1510',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</span>
+                                <div style={{display:'flex',gap:2,flexShrink:0}}>
+                                  {persons.map(n=><span key={n} style={{width:16,height:16,borderRadius:'50%',background:PERSON_COLORS[n],display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'#fff',fontWeight:700}}>{n[0]}</span>)}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
-              </div>
-
-              {/* שורת קלט */}
-              <div style={{background:'#f0f0f0',borderTop:'1px solid #ddd',padding:'6px 10px',flexShrink:0}}>
-                {replyTo&&(
-                  <div style={{background:'#fff',borderRight:`3px solid #075e54`,borderRadius:6,padding:'5px 9px',marginBottom:6,display:'flex',alignItems:'center',gap:8}}>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:10,color:'#075e54',fontWeight:600}}>{replyTo.from}</div>
-                      <div style={{fontSize:11,color:'#6b7280',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{replyTo.text.slice(0,60)}{replyTo.text.length>60?'…':''}</div>
-                    </div>
-                    <button onClick={()=>setReplyTo(null)} style={{background:'none',border:'none',color:'#9a8e84',cursor:'pointer',fontSize:16,padding:'0 2px',lineHeight:1,flexShrink:0}}>✕</button>
-                  </div>
-                )}
-                <div style={{display:'flex',gap:6,alignItems:'flex-end'}}>
-                  <textarea value={msgDraft} onChange={e=>setMsgDraft(e.target.value)}
-                    placeholder="הקלד הודעה..."
-                    rows={1}
-                    onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend();}}}
-                    style={{flex:1,fontSize:13,padding:'8px 12px',borderRadius:20,border:'none',resize:'none',outline:'none',fontFamily:'inherit',boxSizing:'border-box',background:'#fff',boxShadow:'0 1px 2px rgba(0,0,0,0.1)',lineHeight:1.4}}/>
-                  <button onClick={handleSend} disabled={sending||!msgDraft.trim()||!userName}
-                    style={{width:38,height:38,borderRadius:'50%',border:'none',background:msgDraft.trim()?'#128c7e':'#9a8e84',color:'#fff',cursor:msgDraft.trim()?'pointer':'default',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,transition:'background 0.15s'}}>
-                    {sending?'…':'➤'}
-                  </button>
-                </div>
-                <div style={{fontSize:10,color:'#9a8e84',marginTop:3,textAlign:'center'}}>Enter לשליחה · Shift+Enter לשורה חדשה</div>
               </div>
             </div>
           );
@@ -3382,13 +3386,48 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
         {secTitle('📊','אינטגרציה עסקאות נדל"ן')}
         {(()=>{
           const installed=document.documentElement.getAttribute('data-rrr-ext')==='1';
+          const [dlState,setDlState]=React.useState('idle'); // idle | loading | done | error
+          const downloadZip=async()=>{
+            setDlState('loading');
+            try{
+              // טען JSZip מ-CDN
+              if(!window.JSZip)await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+              const base='https://raw.githubusercontent.com/rr-real-estate/rrr/main/nadlan_extension/';
+              const files=['manifest.json','background.js','content_webapp.js','content_nadlan.js'];
+              const zip=new window.JSZip();
+              const folder=zip.folder('nadlan_extension');
+              await Promise.all(files.map(async f=>{
+                const r=await fetch(base+f);
+                if(!r.ok)throw new Error('לא ניתן להוריד: '+f);
+                folder.file(f,await r.text());
+              }));
+              const blob=await zip.generateAsync({type:'blob'});
+              const a=document.createElement('a');
+              a.href=URL.createObjectURL(blob);
+              a.download='nadlan_extension.zip';
+              a.click();
+              setDlState('done');
+              setTimeout(()=>setDlState('idle'),4000);
+            }catch(e){setDlState('error');setTimeout(()=>setDlState('idle'),4000);}
+          };
           return(
             <>
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,flexWrap:'wrap'}}>
                 <div style={{width:10,height:10,borderRadius:'50%',background:installed?'#16a34a':'#9ca3af',flexShrink:0}}/>
                 <span style={{fontSize:13,fontWeight:500,color:installed?'#166534':'#6b7280'}}>
                   {installed?'Extension מותקן ופעיל ✓':'Extension לא מותקן'}
                 </span>
+                <button onClick={downloadZip} disabled={dlState==='loading'}
+                  style={{marginRight:'auto',padding:'6px 16px',borderRadius:9,border:'none',
+                    background:dlState==='done'?'#16a34a':dlState==='error'?'#dc2626':BLACK,
+                    color:dlState==='done'||dlState==='error'?'#fff':GOLD,
+                    cursor:dlState==='loading'?'wait':'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',
+                    display:'flex',alignItems:'center',gap:6,opacity:dlState==='loading'?0.7:1}}>
+                  {dlState==='loading'?<><Spinner size={11} color={GOLD}/>מוריד...</>
+                   :dlState==='done'?'✓ הורד בהצלחה'
+                   :dlState==='error'?'❌ שגיאה'
+                   :'📥 הורד Extension (ZIP)'}
+                </button>
               </div>
               {!installed&&(
                 <div style={{fontSize:12,color:'#6b5e50',lineHeight:1.8,marginBottom:12}}>
