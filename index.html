@@ -2575,7 +2575,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
     setSending(true);
     try{
       const finalText=replyTo?`↩️ בתגובה ל-${replyTo.from}:\n"${replyTo.text.slice(0,60)}${replyTo.text.length>60?'…':''}"\n\n${msgDraft}`:msgDraft;
-      await onPostMessage(userName,msgTo,finalText);
+      await onPostMessage(userName,'כולם',finalText);
       setMsgDraft('');setReplyTo(null);
     }finally{setSending(false);}
   };
@@ -2631,16 +2631,16 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
               return rankA-rankB;
             });
           return(
-            <div style={{...sec,padding:0,overflow:'hidden'}}>
-              <div style={{padding:'14px 20px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:10,background:'#fdfaf5'}}>
+            <div style={{...sec,padding:0,overflow:'hidden',height:480,display:'flex',flexDirection:'column'}}>
+              <div style={{padding:'14px 20px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:10,background:'#fdfaf5',flexShrink:0}}>
                 <span style={{fontSize:15}}>📬</span>
                 <span style={{fontSize:13,fontWeight:600,color:'#3a2a00'}}>המשימות שלי — {userName}</span>
                 <span style={{marginRight:'auto',fontSize:11,color:'#9a8e84'}}>{myTasks.length} משימות</span>
               </div>
               {myTasks.length===0?(
-                <div style={{padding:'32px 0',textAlign:'center',color:'#9a8e84',fontSize:13}}>אין משימות פתוחות 🎉</div>
+                <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'#9a8e84',fontSize:13}}>אין משימות פתוחות 🎉</div>
               ):(
-                <div style={{maxHeight:420,overflowY:'auto'}}>
+                <div style={{flex:1,overflowY:'auto'}}>
                   {myTasks.map((p,i)=>{
                     const isOverdue=p._daysLeft!==null&&p._daysLeft<0;
                     const isToday=p._daysLeft===0;
@@ -2674,122 +2674,103 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
           );
         })()}
 
-        {/* ── שמאל: לוח מודעות (קורקבורד) ── */}
-        <div style={{borderRadius:14,overflow:'hidden',boxShadow:'0 2px 12px rgba(0,0,0,0.13)',display:'flex',flexDirection:'column'}}>
-          {/* כותרת */}
-          <div style={{padding:'12px 16px',display:'flex',alignItems:'center',gap:8,background:'#6b4226'}}>
-            <span style={{fontSize:15}}>📌</span>
-            <span style={{fontSize:13,fontWeight:600,color:'#fef3c7'}}>לוח מודעות</span>
-            {visibleMsgs.filter(m=>!m.readBy.includes(userName)&&m.from!==userName).length>0&&(
-              <span style={{marginRight:'auto',fontSize:11,background:'#dc2626',color:'#fff',borderRadius:10,padding:'1px 8px',fontWeight:600}}>
-                {visibleMsgs.filter(m=>!m.readBy.includes(userName)&&m.from!==userName).length} חדש
-              </span>
-            )}
-          </div>
-
-          {/* קורקבורד */}
-          <div style={{
-            background:'#b87333',
-            backgroundImage:'radial-gradient(ellipse at 20% 30%, #c8813a 0%, #a0602a 40%, #8b5120 100%)',
-            padding:'14px 12px',
-            minHeight:220,
-            maxHeight:380,
-            overflowY:'auto',
-            display:'flex',
-            flexDirection:'column',
-            gap:14,
-          }}>
-            {visibleMsgs.length===0?(
-              <div style={{textAlign:'center',color:'#f5deb3',fontSize:13,opacity:0.7,paddingTop:40}}>אין פתקים 📌</div>
-            ):visibleMsgs.map((m,idx)=>{
-              const isMine=m.from===userName;
-              const isYellow=m.to==='כולם';
-              const isRead=m.readBy.includes(userName);
-              const canRead=!isMine&&!isRead;
-              const rot=noteRotations[idx%noteRotations.length];
-              const pinColor=PIN_COLORS[idx%PIN_COLORS.length];
-              return(
-                <div key={m._row} style={{
-                  background:isYellow?'#fef08a':'#ffffff',
-                  borderRadius:3,
-                  padding:'14px 14px 10px',
-                  boxShadow:`${rot>0?2:-2}px 4px 10px rgba(0,0,0,0.3), inset 0 -2px 0 rgba(0,0,0,0.07)`,
-                  position:'relative',
-                  transform:`rotate(${rot}deg)`,
-                  transition:'transform 0.15s',
-                  cursor:'default',
-                }}
-                onMouseEnter={e=>e.currentTarget.style.transform='rotate(0deg) scale(1.02)'}
-                onMouseLeave={e=>e.currentTarget.style.transform=`rotate(${rot}deg)`}>
-                  {/* סיכה */}
-                  <div style={{position:'absolute',top:-7,left:'50%',transform:'translateX(-50%)',
-                    width:13,height:13,borderRadius:'50%',background:pinColor,
-                    boxShadow:`0 1px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.4)`,zIndex:2}}/>
-                  {/* מידע שולח */}
-                  <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:6,flexWrap:'wrap'}}>
-                    <span style={{fontSize:11,fontWeight:700,color:isYellow?'#78350f':'#1e3a5f'}}>{m.from}</span>
-                    {!isYellow&&<span style={{fontSize:10,color:'#6b7280'}}>→ {m.to}</span>}
-                    <span style={{marginRight:'auto',fontSize:10,color:'#9a8e84'}}>{m.date}</span>
-                    {isRead&&!isMine&&<span style={{fontSize:10,color:'#9a8e84',opacity:0.7}}>✓</span>}
-                  </div>
-                  {/* טקסט */}
-                  <div style={{fontSize:12,color:'#1a1510',lineHeight:1.6,whiteSpace:'pre-wrap',wordBreak:'break-word',marginBottom:8,fontFamily:'inherit'}}>{m.text}</div>
-                  {/* כפתורים */}
-                  <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
-                    {canRead&&(
-                      <button onClick={()=>onMarkRead&&onMarkRead(m._row,userName,m.readBy)}
-                        style={{fontSize:10,padding:'2px 9px',borderRadius:10,border:`1px solid ${isYellow?'#d97706':'#6b7280'}`,background:'transparent',color:isYellow?'#92400e':'#374151',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
-                        ✓ קראתי
-                      </button>
-                    )}
-                    {userName&&(
-                      <button onClick={()=>{setReplyTo(m);setMsgTo(m.from===userName?'כולם':m.from);}}
-                        style={{fontSize:10,padding:'2px 9px',borderRadius:10,border:`1px solid ${isYellow?'#d97706':'#6b7280'}`,background:'transparent',color:isYellow?'#92400e':'#374151',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
-                        ↩️ הגב
-                      </button>
-                    )}
-                    {isMine&&(
-                      <button onClick={()=>{if(confirm('למחוק את הפתק?'))onDeleteMessage&&onDeleteMessage(m._row);}}
-                        style={{fontSize:10,padding:'2px 9px',borderRadius:10,border:'1px solid #dc262655',background:'transparent',color:'#dc2626',cursor:'pointer',fontFamily:'inherit',fontWeight:600,marginRight:'auto'}}>
-                        🗑️
-                      </button>
-                    )}
+        {/* ── שמאל: צ'אט קבוצתי ── */}
+        {(()=>{
+          const NAME_COLORS={'יוסי':'#e67e22','מיכאל':'#2563eb','פייגי':'#9333ea'};
+          const chronoMsgs=[...visibleMsgs].reverse(); // ישן→חדש
+          const unreadCount=visibleMsgs.filter(m=>!m.readBy.includes(userName)&&m.from!==userName).length;
+          return(
+            <div style={{borderRadius:14,overflow:'hidden',boxShadow:'0 2px 12px rgba(0,0,0,0.13)',display:'flex',flexDirection:'column',height:480}}>
+              {/* כותרת סגנון וואטסאפ */}
+              <div style={{padding:'10px 14px',background:'#075e54',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+                <div style={{width:38,height:38,borderRadius:'50%',background:'#128c7e',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>👥</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:600,color:'#fff'}}>משרד רובינשטיין רוזנטל</div>
+                  <div style={{fontSize:11,color:'#9de0d9'}}>
+                    {['יוסי','מיכאל','פייגי'].join(', ')}
                   </div>
                 </div>
-              );
-            })}
-          </div>
-
-          {/* טופס שליחה */}
-          <div style={{padding:'10px 14px',background:'#5a3720',borderTop:'2px solid #4a2d18'}}>
-            {replyTo&&(
-              <div style={{background:'#7a4f30',borderRadius:7,padding:'6px 10px',marginBottom:8,display:'flex',alignItems:'center',gap:8}}>
-                <span style={{fontSize:11,color:'#fde68a',flex:1}}>↩️ בתגובה ל-{replyTo.from}: "{replyTo.text.slice(0,50)}{replyTo.text.length>50?'…':''}"</span>
-                <button onClick={()=>setReplyTo(null)} style={{background:'none',border:'none',color:'#fde68a',cursor:'pointer',fontSize:14,padding:'0 2px',lineHeight:1}}>✕</button>
+                {unreadCount>0&&<span style={{background:'#25d366',color:'#fff',borderRadius:10,padding:'1px 8px',fontSize:11,fontWeight:700,flexShrink:0}}>{unreadCount}</span>}
               </div>
-            )}
-            <div style={{display:'flex',gap:6,marginBottom:7,alignItems:'center'}}>
-              <span style={{fontSize:11,color:'#fde68a',flexShrink:0}}>אל:</span>
-              <select value={msgTo} onChange={e=>setMsgTo(e.target.value)}
-                style={{fontSize:11,padding:'4px 8px',borderRadius:7,border:'1px solid #8b6040',background:'#6b4226',color:'#fef3c7',flex:'0 0 auto',outline:'none',fontFamily:'inherit'}}>
-                <option value="כולם">כולם</option>
-                {['יוסי','מיכאל','פייגי'].filter(n=>n!==userName).map(n=><option key={n} value={n}>{n}</option>)}
-              </select>
+
+              {/* אזור הודעות */}
+              <div style={{flex:1,overflowY:'auto',background:'#e5ddd5',padding:'10px 10px 4px',display:'flex',flexDirection:'column',gap:3}}>
+                {chronoMsgs.length===0?(
+                  <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'#9a8e84',fontSize:13}}>אין הודעות עדיין</div>
+                ):chronoMsgs.map((m,idx)=>{
+                  const isMine=m.from===userName;
+                  const isRead=m.readBy.includes(userName);
+                  const showName=!isMine&&(idx===0||chronoMsgs[idx-1].from!==m.from);
+                  const nameColor=NAME_COLORS[m.from]||'#075e54';
+                  const isPrivate=m.to!=='כולם';
+                  return(
+                    <div key={m._row} style={{display:'flex',justifyContent:isMine?'flex-end':'flex-start',marginBottom:1}}>
+                      <div style={{
+                        maxWidth:'78%',
+                        background:isMine?'#d9fdd3':'#fff',
+                        borderRadius:isMine?'12px 2px 12px 12px':'2px 12px 12px 12px',
+                        padding:'6px 10px 4px',
+                        boxShadow:'0 1px 1px rgba(0,0,0,0.1)',
+                        position:'relative',
+                      }}>
+                        {showName&&<div style={{fontSize:11,fontWeight:700,color:nameColor,marginBottom:2}}>{m.from}</div>}
+                        <div style={{fontSize:12,color:'#111',lineHeight:1.55,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{m.text}</div>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:4,marginTop:2}}>
+                          <span style={{fontSize:10,color:'#9a8e84'}}>{m.date}</span>
+                          {isMine&&<span style={{fontSize:11,color:isRead?'#53bdeb':'#9a8e84'}}>✓✓</span>}
+                        </div>
+                        {/* כפתורי פעולה */}
+                        <div style={{display:'flex',gap:4,marginTop:4,justifyContent:isMine?'flex-end':'flex-start'}}>
+                          {!isMine&&!isRead&&(
+                            <button onClick={()=>onMarkRead&&onMarkRead(m._row,userName,m.readBy)}
+                              style={{fontSize:10,padding:'1px 7px',borderRadius:8,border:'1px solid #d1d5db',background:'#f3f4f6',color:'#374151',cursor:'pointer',fontFamily:'inherit'}}>
+                              קראתי
+                            </button>
+                          )}
+                          <button onClick={()=>setReplyTo(m)}
+                            style={{fontSize:10,padding:'1px 7px',borderRadius:8,border:'1px solid #d1d5db',background:'#f3f4f6',color:'#374151',cursor:'pointer',fontFamily:'inherit'}}>
+                            ↩️
+                          </button>
+                          {isMine&&(
+                            <button onClick={()=>{if(confirm('למחוק הודעה?'))onDeleteMessage&&onDeleteMessage(m._row);}}
+                              style={{fontSize:10,padding:'1px 7px',borderRadius:8,border:'1px solid #fecaca',background:'#fef2f2',color:'#dc2626',cursor:'pointer',fontFamily:'inherit'}}>
+                              🗑️
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* שורת קלט */}
+              <div style={{background:'#f0f0f0',borderTop:'1px solid #ddd',padding:'6px 10px',flexShrink:0}}>
+                {replyTo&&(
+                  <div style={{background:'#fff',borderRight:`3px solid #075e54`,borderRadius:6,padding:'5px 9px',marginBottom:6,display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:10,color:'#075e54',fontWeight:600}}>{replyTo.from}</div>
+                      <div style={{fontSize:11,color:'#6b7280',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{replyTo.text.slice(0,60)}{replyTo.text.length>60?'…':''}</div>
+                    </div>
+                    <button onClick={()=>setReplyTo(null)} style={{background:'none',border:'none',color:'#9a8e84',cursor:'pointer',fontSize:16,padding:'0 2px',lineHeight:1,flexShrink:0}}>✕</button>
+                  </div>
+                )}
+                <div style={{display:'flex',gap:6,alignItems:'flex-end'}}>
+                  <textarea value={msgDraft} onChange={e=>setMsgDraft(e.target.value)}
+                    placeholder="הקלד הודעה..."
+                    rows={1}
+                    onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend();}}}
+                    style={{flex:1,fontSize:13,padding:'8px 12px',borderRadius:20,border:'none',resize:'none',outline:'none',fontFamily:'inherit',boxSizing:'border-box',background:'#fff',boxShadow:'0 1px 2px rgba(0,0,0,0.1)',lineHeight:1.4}}/>
+                  <button onClick={handleSend} disabled={sending||!msgDraft.trim()||!userName}
+                    style={{width:38,height:38,borderRadius:'50%',border:'none',background:msgDraft.trim()?'#128c7e':'#9a8e84',color:'#fff',cursor:msgDraft.trim()?'pointer':'default',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,transition:'background 0.15s'}}>
+                    {sending?'…':'➤'}
+                  </button>
+                </div>
+                <div style={{fontSize:10,color:'#9a8e84',marginTop:3,textAlign:'center'}}>Enter לשליחה · Shift+Enter לשורה חדשה</div>
+              </div>
             </div>
-            <textarea value={msgDraft} onChange={e=>setMsgDraft(e.target.value)}
-              placeholder="כתוב פתק..."
-              rows={2}
-              onKeyDown={e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();handleSend();}}}
-              style={{width:'100%',fontSize:12,padding:'7px 10px',borderRadius:8,border:'1px solid #8b6040',resize:'none',outline:'none',fontFamily:'inherit',boxSizing:'border-box',background:'#fff',color:'#1a1510'}}/>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6}}>
-              <span style={{fontSize:10,color:'#c49a6c'}}>Ctrl+Enter לשליחה</span>
-              <button onClick={handleSend} disabled={sending||!msgDraft.trim()||!userName}
-                style={{fontSize:12,padding:'5px 16px',borderRadius:8,border:'none',background:GOLD,color:'#1a0a00',cursor:'pointer',fontWeight:700,fontFamily:'inherit',opacity:sending||!msgDraft.trim()?0.5:1}}>
-                {sending?'שולח...':'📌 פרסם'}
-              </button>
-            </div>
-          </div>
-        </div>
+          );
+        })()}
 
       </div>{/* סוף גריד 2 עמודות */}
 
