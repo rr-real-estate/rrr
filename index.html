@@ -3433,14 +3433,13 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
               // טען JSZip מ-CDN
               if(!window.JSZip)await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
               const base='https://raw.githubusercontent.com/rr-real-estate/rrr/main/nadlan_extension/';
-              const files=['manifest.json','background.js','content_webapp.js','content_nadlan.js','xlsx.full.min.js','Logo_smol.png'];
-              const binaryFiles=new Set(['xlsx.full.min.js','Logo_smol.png']);
+              const files=['manifest.json','background.js','content_webapp.js','content_nadlan.js','exceljs.min.js','Logo_smol.png'];
+              const binaryFiles=new Set(['Logo_smol.png']);
               const zip=new window.JSZip();
-              const folder=zip.folder('nadlan_extension');
               await Promise.all(files.map(async f=>{
                 const r=await fetch(base+f);
                 if(!r.ok)throw new Error('לא ניתן להוריד: '+f);
-                folder.file(f,binaryFiles.has(f)?await r.arrayBuffer():await r.text());
+                zip.file(f,binaryFiles.has(f)?await r.arrayBuffer():await r.text());
               }));
               const blob=await zip.generateAsync({type:'blob'});
               const a=document.createElement('a');
