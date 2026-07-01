@@ -1732,8 +1732,39 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
   const [err,setErr]=useState('');
   const lastSavedStatusRef=React.useRef(cas.status);
   const extInstalled=document.documentElement.getAttribute('data-rrr-ext')==='1';
+  const [nadlState,setNadlState]=useState('idle'); // idle|loading|done|error
+  const [nadlResult,setNadlResult]=useState(null); // {link,filename}
+  const nadlReqRef=React.useRef(null);
+  const hasDriveFolder=!!cas.folder;
+
+  React.useEffect(()=>{
+    const handler=async(e)=>{
+      if(e.detail.requestId!==nadlReqRef.current)return;
+      if(e.detail.saveToDrive&&e.detail.data){
+        try{
+          const resp=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify({type:'saveToDrive',folderName:cas.folder,filename:e.detail.filename,data:e.detail.data})});
+          const result=await resp.json();
+          if(result.success){setNadlState('done');setNadlResult({link:result.link,filename:result.name});}
+          else throw new Error(result.error||'שגיאה');
+        }catch(err){setNadlState('error');}
+      }else{
+        setNadlState('done');setNadlResult({filename:e.detail.filename});
+      }
+    };
+    window.addEventListener('RRR_NADLAN_RESULT',handler);
+    return()=>window.removeEventListener('RRR_NADLAN_RESULT',handler);
+  },[cas.folder]);
+
   const handleNadlan=()=>{
-    window.dispatchEvent(new CustomEvent('RRR_NADLAN_REQUEST',{detail:{gush:cas.block,caseFolder:cas.folder,caseName:cas.folder}}));
+    if(!cas.block)return;
+    const reqId=Date.now();
+    nadlReqRef.current=reqId;
+    setNadlState('loading');setNadlResult(null);
+    window.dispatchEvent(new CustomEvent('RRR_NADLAN_REQUEST',{detail:{
+      gush:cas.block,caseFolder:cas.folder,caseName:cas.folder,
+      saveToDrive:hasDriveFolder,folderName:cas.folder,
+      propTypeName:null,requestId:reqId,
+    }}));
   };
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
 
@@ -1876,15 +1907,27 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
         </div>
         {extInstalled&&cas.block&&(
           <div style={{padding:'8px 22px',background:'#fff',borderBottom:'1px solid #e0d8cc',flexShrink:0}}>
-            <button onClick={handleNadlan}
-              style={{width:'100%',padding:'8px 0',borderRadius:9,border:'1px solid rgba(22,163,74,0.4)',
-                background:'rgba(22,163,74,0.07)',color:'#15803d',cursor:'pointer',
+            <button onClick={handleNadlan} disabled={nadlState==='loading'}
+              style={{width:'100%',padding:'8px 0',borderRadius:9,
+                border:`1px solid ${nadlState==='done'?'rgba(22,163,74,0.6)':nadlState==='error'?'rgba(220,38,38,0.4)':'rgba(22,163,74,0.4)'}`,
+                background:nadlState==='done'?'rgba(22,163,74,0.1)':nadlState==='error'?'rgba(220,38,38,0.07)':'rgba(22,163,74,0.07)',
+                color:nadlState==='done'?'#15803d':nadlState==='error'?'#dc2626':'#15803d',
+                cursor:nadlState==='loading'?'not-allowed':'pointer',
                 fontSize:13,fontWeight:600,fontFamily:'inherit',
-                display:'flex',alignItems:'center',justifyContent:'center',gap:6,transition:'background 0.15s'}}
-              onMouseEnter={e=>e.currentTarget.style.background='rgba(22,163,74,0.15)'}
-              onMouseLeave={e=>e.currentTarget.style.background='rgba(22,163,74,0.07)'}>
-              📊 הורד עסקאות השוואה — גוש {cas.block}
+                display:'flex',alignItems:'center',justifyContent:'center',gap:6,transition:'all 0.15s'}}
+              onMouseEnter={e=>{if(nadlState==='idle')e.currentTarget.style.background='rgba(22,163,74,0.15)';}}
+              onMouseLeave={e=>{if(nadlState==='idle')e.currentTarget.style.background='rgba(22,163,74,0.07)';}}>
+              {nadlState==='loading'?<><Spinner size={12} color="#15803d"/>מוריד עסקאות...</>
+               :nadlState==='done'?<>{hasDriveFolder?`✓ נשמר ב-Drive — ${nadlResult?.filename||''}`:(`✓ הורד — ${nadlResult?.filename||''}`)}</>
+               :nadlState==='error'?'❌ שגיאה — נסה שנית'
+               :`📊 הורד עסקאות השוואה — גוש ${cas.block}`}
             </button>
+            {nadlState==='done'&&nadlResult?.link&&(
+              <a href={nadlResult.link} target="_blank" rel="noreferrer"
+                style={{display:'block',textAlign:'center',fontSize:11,color:'#15803d',marginTop:4,textDecoration:'none',fontWeight:600}}>
+                📂 פתח קובץ ב-Drive ↗
+              </a>
+            )}
           </div>
         )}
         {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 22px',fontSize:13,flexShrink:0}}>{err}</div>}
@@ -2377,6 +2420,7 @@ function Sidebar({view,setView,user,onLogout,loading,counts}){
     {id:'projects',icon:'📁',label:'פרויקטים בביצוע',count:counts.active},
     {id:'clients',icon:'⏳',label:'ממתין ללקוח',count:counts.client},
     {id:'managed',icon:'🗂️',label:'כלל התיקים',count:counts.managed},
+    {id:'nadlan',icon:'🏡',label:'עסקאות נדל"ן'},
     {id:'reports',icon:'📊',label:'דוחות'},
     {id:'settings',icon:'⚙️',label:'הגדרות'},
   ];
@@ -3456,6 +3500,107 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
     </div>
   );
 }
+function NadlanSearchView(){
+  const [gush,setGush]=useState('');
+  const [propType,setPropType]=useState('דירת מגורים');
+  const [nadState,setNadState]=useState('idle'); // idle|loading|done|error
+  const [nadMsg,setNadMsg]=useState('');
+  const reqRef=React.useRef(null);
+  const extInstalled=document.documentElement.getAttribute('data-rrr-ext')==='1';
+
+  const PROP_TYPES=[
+    {key:'דירת מגורים',label:'🏠 דירת מגורים'},
+    {key:'בניין',label:'🏢 בניין'},
+    {key:'קרקע חקלאית',label:'🌾 קרקע חקלאית'},
+    {key:'קרקע',label:'🗺️ קרקע'},
+    {key:'כללי',label:'📋 כללי'},
+  ];
+
+  React.useEffect(()=>{
+    const handler=(e)=>{
+      if(e.detail.requestId!==reqRef.current)return;
+      const {filename,count}=e.detail;
+      setNadState('done');
+      setNadMsg(`✓ ${count} עסקאות — ${filename||''}`);
+      setTimeout(()=>{setNadState('idle');setNadMsg('');},8000);
+    };
+    window.addEventListener('RRR_NADLAN_RESULT',handler);
+    return()=>window.removeEventListener('RRR_NADLAN_RESULT',handler);
+  },[]);
+
+  const handleDownload=()=>{
+    const g=gush.trim();
+    if(!g||nadState==='loading')return;
+    const reqId=Date.now();
+    reqRef.current=reqId;
+    setNadState('loading');setNadMsg('');
+    window.dispatchEvent(new CustomEvent('RRR_NADLAN_REQUEST',{detail:{
+      gush:g,caseName:`גוש ${g}`,caseFolder:'',
+      saveToDrive:false,
+      propTypeName:propType==='כללי'?null:propType,
+      requestId:reqId,
+    }}));
+  };
+
+  if(!extInstalled){
+    return(
+      <div style={{padding:'28px 32px',animation:'fadeIn 0.3s ease'}}>
+        <div style={{...sec,textAlign:'center',padding:40}}>
+          <div style={{fontSize:40,marginBottom:16}}>🔌</div>
+          <div style={{fontSize:16,fontWeight:600,color:'#3a2a00',marginBottom:8}}>Extension לא מותקן</div>
+          <div style={{fontSize:13,color:'#9a8e84',lineHeight:1.7}}>כדי להשתמש בחיפוש עסקאות נדלן, יש להתקין את ה-Extension תחילה</div>
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{padding:'28px 32px',animation:'fadeIn 0.3s ease'}}>
+      <h2 style={{fontSize:22,fontWeight:500,color:GOLD3,marginBottom:20}}>🏡 עסקאות נדל"ן</h2>
+      <div style={{...sec,maxWidth:560}}>
+        <div style={{marginBottom:18}}>
+          <label style={{fontSize:12,fontWeight:600,color:'#5a4e44',display:'block',marginBottom:6}}>מספר גוש</label>
+          <input type="number" value={gush} onChange={e=>setGush(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&handleDownload()}
+            placeholder="לדוגמה: 15172"
+            style={{width:'100%',padding:'10px 14px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:15,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}}/>
+        </div>
+        <div style={{marginBottom:22}}>
+          <label style={{fontSize:12,fontWeight:600,color:'#5a4e44',display:'block',marginBottom:8}}>סוג נכס</label>
+          <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+            {PROP_TYPES.map(pt=>(
+              <button key={pt.key} onClick={()=>setPropType(pt.key)}
+                style={{padding:'7px 14px',borderRadius:20,
+                  border:`1px solid ${propType===pt.key?GOLD:'#ddd0bb'}`,
+                  background:propType===pt.key?`${GOLD}22`:'#fff',
+                  color:propType===pt.key?GOLD3:'#6b5e50',
+                  cursor:'pointer',fontSize:13,fontWeight:propType===pt.key?700:400,
+                  fontFamily:'inherit',transition:'all 0.15s'}}>
+                {pt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <button onClick={handleDownload} disabled={!gush.trim()||nadState==='loading'}
+          style={{width:'100%',padding:'11px',borderRadius:10,border:'none',
+            background:nadState==='done'?'#16a34a':nadState==='error'?'#dc2626':BLACK,
+            color:nadState==='done'||nadState==='error'?'#fff':GOLD,
+            cursor:!gush.trim()||nadState==='loading'?'not-allowed':'pointer',
+            fontSize:14,fontWeight:600,fontFamily:'inherit',
+            display:'flex',alignItems:'center',justifyContent:'center',gap:8,transition:'all 0.2s'}}>
+          {nadState==='loading'?<><Spinner size={14} color={GOLD}/>מוריד עסקאות...</>
+           :nadState==='done'?nadMsg
+           :nadState==='error'?`❌ שגיאה — נסה שנית`
+           :`📥 הורד עסקאות — ${propType}`}
+        </button>
+        <div style={{marginTop:14,padding:'10px 14px',background:'#fdfaf5',borderRadius:9,border:'1px solid #ede8e0',fontSize:12,color:'#9a8e84',lineHeight:1.7}}>
+          לאחר לחיצה יפתח אתר נדלן עם הגוש מולא אוטומטית — פתור את ה-CAPTCHA ואת שאר התהליך יעשה הסקריפט אוטומטית.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App(){
   const [token,setToken]=useState(null);
   const [user,setUser]=useState(null);
@@ -3598,6 +3743,7 @@ function App(){
         {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)}/>}
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject}/>}
         {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject}/>}
+        {view==='nadlan'&&<NadlanSearchView/>}
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
         {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user} managed={managed} onUpdateFolderLinks={handleUpdateFolderLinks}/>}
       </div>
