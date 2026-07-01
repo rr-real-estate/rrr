@@ -89,12 +89,8 @@ if (url.includes('startpageNadlanNewDesign') || url.includes('svinfonadlan2010/'
 
   await new Promise(r => setTimeout(r, 300));
 
-  // הצג הודעה למשתמש
-  showBanner(`✅ גוש ${gush} מולא אוטומטית — לחץ חיפוש ופתור את ה-CAPTCHA`);
-
-  // לחץ חיפוש
-  const btn = document.getElementById('ContentUsersPage_btnHipus');
-  if (btn) btn.click();
+  // הצג הודעה — המשתמש לוחץ חיפוש בעצמו
+  showBanner(`✅ גוש ${gush} מולא אוטומטית — ניתן לשנות ערכים, ואז לחץ חיפוש ופתור CAPTCHA`);
 
   return;
 }
@@ -220,9 +216,9 @@ try {
   ws['!cols'] = [{ wch: 4 }, ...F.map(([, l]) => ({ wch: Math.max(l.length + 4, 14) }))];
   XLSX.utils.book_append_sheet(wb, ws, 'עסקאות');
 
-  const d = new Date();
-  const stamp = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
-  const filename = `עסקאות_גוש${gush}_${rows.length}רשומות_${stamp}.xlsx`;
+  // שם קובץ — מספר התיק (5 ספרות מסוף caseName), או גוש אם אין
+  const tikNum = (caseName || '').match(/(\d{4,6})\s*$/)?.[1] || gush;
+  const filename = `${tikNum}.xlsx`;
 
   if (saveToDrive) {
     // שלח base64 בחזרה לאפליקציה — היא תשמור ל-Drive
