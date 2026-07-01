@@ -9,12 +9,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
   }
 
-  // העבר תוצאות מהנדלן חזרה לאפליקציה
+  // העבר תוצאות מהנדלן חזרה לאפליקציה — שלח לכל לשוניות האתר
   if (msg.type === 'NADLAN_DONE') {
     chrome.tabs.query({ url: 'https://rr-real-estate.github.io/*' }, (tabs) => {
-      if (tabs.length > 0) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: 'NADLAN_RESULT', ...msg });
-      }
+      tabs.forEach(tab => {
+        chrome.tabs.sendMessage(tab.id, { type: 'NADLAN_RESULT', ...msg });
+      });
     });
   }
 
