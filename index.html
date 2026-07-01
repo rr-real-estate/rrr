@@ -3502,6 +3502,7 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
   );
 }
 function NadlanSearchView(){
+  const sec={background:'#fff',borderRadius:14,padding:'20px 22px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
   const [gush,setGush]=useState('');
   const [propType,setPropType]=useState('דירת מגורים');
   const [nadState,setNadState]=useState('idle'); // idle|loading|done|error
