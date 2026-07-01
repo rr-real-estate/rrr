@@ -12,7 +12,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // העבר תוצאות מהנדלן חזרה לאפליקציה — שלח לכל לשוניות האתר
   if (msg.type === 'NADLAN_DONE') {
     chrome.tabs.query({ url: 'https://rr-real-estate.github.io/*' }, (tabs) => {
+      console.log('[RRR] NADLAN_DONE received, found', tabs.length, 'tabs, reqId:', msg.requestId);
       tabs.forEach(tab => {
+        console.log('[RRR] sending NADLAN_RESULT to tab', tab.id);
         chrome.tabs.sendMessage(tab.id, { type: 'NADLAN_RESULT', ...msg });
       });
     });
