@@ -239,7 +239,7 @@ async function sendTaskEmails(prev,next,editorEmail){
 
 // עדכון סטטוס בגיליון "ניהול תיקים" כשסטטוס משתנה ב"פרויקטים בביצוע"
 async function syncStatusToManaged(managedCases,projectName,newStatus,onUpdateCase){
-  const STATUS_MAP={'נשלח לבנק':'הסתיים','נשלח לבנק / לקוח':'הסתיים','בהמתנה':'ממתין'};
+  const STATUS_MAP={'בהמתנה':'ממתין'};
   const targetStatus=STATUS_MAP[newStatus]||'בביצוע';
   const match=managedCases.find(c=>c.folder&&c.folder.trim()===projectName.trim());
   if(!match)return;
