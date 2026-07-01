@@ -16,18 +16,16 @@ const { gush, caseName, saveToDrive, propTypeName, requestId } = nadlan_pending;
 // ─── עמוד חיפוש — מלא טופס ───────────────────────────────────────────
 if (url.includes('startpageNadlanNewDesign') || url.includes('svinfonadlan2010/') && !url.includes('Perut')) {
 
-  // המתן לטעינת הדף המלאה — poll עד שהטופס קיים
   await new Promise(r => {
     const iv = setInterval(() => {
       if (document.getElementById('rbMegush') && document.readyState === 'complete') {
         clearInterval(iv); r();
       }
     }, 200);
-    setTimeout(r, 5000); // fallback max 5s
+    setTimeout(r, 5000);
   });
   await new Promise(r => setTimeout(r, 800));
 
-  // לחץ "לפי גוש/חלקה" והמתן לרינדור השדות (VIEWSTATE מתחלף = postback הסתיים)
   const rb = document.getElementById('rbMegush');
   if (!rb) return;
   const vsBeforeRb = document.getElementById('__VIEWSTATE')?.value;
@@ -42,22 +40,19 @@ if (url.includes('startpageNadlanNewDesign') || url.includes('svinfonadlan2010/'
   });
   await new Promise(r => setTimeout(r, 600));
 
-  // מלא גוש בשדה הראשון
   const gushInputs = Array.from(document.querySelectorAll('input[id*="gusha"],input[name*="gusha"]'))
     .filter(inp => inp.type !== 'checkbox' && inp.type !== 'radio');
   if (gushInputs[0]) gushInputs[0].value = gush;
 
-  // לחץ "העתקת גוש חלקה" (מעתיק לשדה השני)
   const copyBtn = Array.from(document.querySelectorAll('input[type=button],button'))
     .find(b => (b.value || b.textContent || '').includes('העתקת'));
   if (copyBtn) {
     copyBtn.click();
     await new Promise(r => setTimeout(r, 400));
   } else if (gushInputs[1]) {
-    gushInputs[1].value = gush; // fallback — מלא ידנית
+    gushInputs[1].value = gush;
   }
 
-  // סוג נכס — קבע ללא postback
   const typeEl = document.getElementById('ContentUsersPage_DDLTypeNehes');
   if (typeEl) {
     let targetValue = '1';
@@ -68,7 +63,6 @@ if (url.includes('startpageNadlanNewDesign') || url.includes('svinfonadlan2010/'
     typeEl.value = targetValue;
   }
 
-  // המתן עד שDDLSubTypeNehes טעון (יש בו יותר מאפשרות אחת)
   const subTypeEl = document.getElementById('ContentUsersPage_DDLSubTypeNehes');
   if (subTypeEl) {
     await new Promise(r => {
@@ -83,15 +77,11 @@ if (url.includes('startpageNadlanNewDesign') || url.includes('svinfonadlan2010/'
     if (allOpt) subTypeEl.value = allOpt.value;
   }
 
-  // טווח זמן: 5 = 36 חודשים
   const dateEl = document.getElementById('ContentUsersPage_DDLDateType');
   if (dateEl) dateEl.value = '5';
 
   await new Promise(r => setTimeout(r, 300));
-
-  // הצג הודעה — המשתמש לוחץ חיפוש בעצמו
   showBanner(`✅ גוש ${gush} מולא אוטומטית — ניתן לשנות ערכים, ואז לחץ חיפוש ופתור CAPTCHA`);
-
   return;
 }
 
@@ -100,7 +90,6 @@ if (!url.includes('InfoNadlanPerutWithMap')) return;
 
 await new Promise(r => setTimeout(r, 600));
 
-// ── UI פרוגרס ──
 const ui = document.createElement('div');
 ui.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:2147483647;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;font-family:Arial;direction:rtl';
 ui.innerHTML = `<div style="background:#fff;padding:28px 36px;border-radius:14px;min-width:380px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)">
@@ -123,8 +112,7 @@ const upd = (t, d, tot) => {
 };
 
 try {
-  // ── SheetJS נטען כ-content script לפני קובץ זה (manifest.json) ──
-  if (typeof XLSX === 'undefined') throw new Error('XLSX לא זמין — בדוק שxlsx.full.min.js נמצא בתיקיית ה-Extension');
+  if (typeof ExcelJS === 'undefined') throw new Error('ExcelJS לא זמין — בדוק שexceljs.min.js נמצא בתיקיית ה-Extension');
 
   // ── שדות ──
   const F = [
@@ -146,7 +134,7 @@ try {
     ['lblTifkudYchida','תפקוד יחידה'],
     ['lblShumaHalakim','שומה חלקים'],
     ['lblMahutZchut','מהות הזכות'],
-    ['lblTava','לפי טבע'],
+    ['lblTava','לפי תבע'],
     ['lblMofaGush','מופעי גו"ח']
   ];
 
@@ -167,7 +155,6 @@ try {
     return p;
   };
 
-  // ── שליפת שורה בודדת ──
   const fetchRow = async (ctl) => {
     const p = getFormBase();
     p['__EVENTTARGET'] = 'ctl00$ContentUsersPage$GridMultiD1$' + ctl + '$LogShow';
@@ -182,7 +169,6 @@ try {
     return row;
   };
 
-  // ── מעבר דף ──
   const goPage = async (n) => {
     const p = getFormBase();
     p['__EVENTTARGET'] = 'ctl00$ContentUsersPage$GridMultiD1';
@@ -220,12 +206,6 @@ try {
   upd('מעבד ומעצב נתונים...', TOTAL, TOTAL);
   await new Promise(r => setTimeout(r, 100));
 
-  // ── גיליון 1: גולמי — כל עמודות, RTL בלבד ──
-  const wsRaw = XLSX.utils.json_to_sheet(rows);
-  wsRaw['!views'] = [{ rightToLeft: true }];
-  wsRaw['!cols']  = [{ wch: 4 }, ...F.map(([, l]) => ({ wch: Math.max(l.length + 4, 14) }))];
-
-  // ── גיליון 2: מעוצב ──
   const OUTPUT_COLS = [
     'תאריך עסקה','כתובת','כניסה','דירה','ישוב',
     'גוש','חלקה','תת חלקה',
@@ -234,17 +214,17 @@ try {
     'קומות בבניין','דירות בבניין','שנת בנייה',
     'שווי מכירה בש"ח','מחיר למ"ר ברוטו','מחיר למ"ר נטו',
     'מעלית','סוג עסקה','תפקוד בנין','תפקוד יחידה',
-    'שומה חלקים','מהות הזכות','לפי טבע','מופעי גו"ח'
+    'שומה חלקים','מהות הזכות','לפי תבע','מופעי גו"ח'
   ];
   const PRICE_COLS = new Set(['שווי מכירה בש"ח','מחיר למ"ר ברוטו','מחיר למ"ר נטו']);
 
   const transformed = rows.map(r => {
-    const parts  = (r['גוש-חלקה'] || '').split('-');
-    const strip  = s => (s || '').replace(/^0+/, '') || '0';
-    const price  = parseInt((r['מחיר מוצהר (₪)'] || '0').replace(/,/g, '')) || 0;
-    const bruto  = parseFloat(r['שטח ברוטו']) || 0;
-    const neto   = parseFloat(r['שטח נטו'])   || 0;
-    const addr   = [r['רחוב'], r['בית']].filter(v => v && v !== '--').join(' ');
+    const parts = (r['גוש-חלקה'] || '').split('-');
+    const strip = s => (s || '').replace(/^0+/, '') || '0';
+    const price = parseInt((r['מחיר מוצהר (₪)'] || '0').replace(/,/g, '')) || 0;
+    const bruto = parseFloat(r['שטח ברוטו']) || 0;
+    const neto  = parseFloat(r['שטח נטו'])   || 0;
+    const addr  = [r['רחוב'], r['בית']].filter(v => v && v !== '--').join(' ');
     return {
       'תאריך עסקה'       : r['תאריך עסקה'] || '',
       'כתובת'            : addr,
@@ -276,55 +256,71 @@ try {
       'תפקוד יחידה'      : r['תפקוד יחידה'] || '',
       'שומה חלקים'       : r['שומה חלקים'] || '',
       'מהות הזכות'       : r['מהות הזכות'] || '',
-      'לפי טבע'          : r['לפי טבע'] || '',
+      'לפי תבע'          : r['לפי תבע'] || '',
       'מופעי גו"ח'       : r['מופעי גו"ח'] || ''
     };
   });
 
-  // ── בנה גיליון מעוצב ──
-  const BORDER = { style: 'thin', color: { rgb: '000000' } };
-  const BORD4  = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER };
-  const BASE_S = { font: { name: 'David', sz: 12 }, alignment: { horizontal: 'center', vertical: 'center' }, border: BORD4 };
-  const HEAD_S = { font: { name: 'David', sz: 12, bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: BORD4 };
+  // ── בנה workbook ──
+  upd('בונה קובץ Excel...', TOTAL, TOTAL);
+  await new Promise(r => setTimeout(r, 100));
 
-  const wsStyled = {};
-  wsStyled['!views'] = [{ rightToLeft: true }];
-  wsStyled['!cols']  = OUTPUT_COLS.map(c => ({ wch: Math.max(c.length + 4, 14) }));
+  const wb = new ExcelJS.Workbook();
 
-  OUTPUT_COLS.forEach((col, c) => {
-    wsStyled[XLSX.utils.encode_cell({ r: 0, c })] = { v: col, t: 's', s: HEAD_S };
-  });
+  // ── גיליון 1: גולמי (RTL, ללא עיצוב) ──
+  const wsRaw = wb.addWorksheet('עסקאות גולמי', { views: [{ rightToLeft: true }] });
+  const rawHeaders = F.map(([, l]) => l).concat(['#']);
+  wsRaw.columns = rawHeaders.map(h => ({ header: h, key: h, width: Math.max(h.length + 4, 14) }));
+  rows.forEach(row => wsRaw.addRow(rawHeaders.map(h => row[h] ?? '')));
 
-  transformed.forEach((row, ri) => {
-    OUTPUT_COLS.forEach((col, c) => {
-      const v    = row[col];
-      const isN  = typeof v === 'number';
-      const cell = { v, t: isN ? 'n' : 's', s: BASE_S };
-      if (PRICE_COLS.has(col)) cell.z = '#,##0';
-      wsStyled[XLSX.utils.encode_cell({ r: ri + 1, c })] = cell;
+  // ── גיליון 2: מעוצב ──
+  const wsStyled = wb.addWorksheet('עסקאות נדל"ן', { views: [{ rightToLeft: true }] });
+  wsStyled.columns = OUTPUT_COLS.map(col => ({ header: col, key: col, width: Math.max(col.length + 4, 14) }));
+  transformed.forEach(row => wsStyled.addRow(OUTPUT_COLS.map(col => row[col] ?? '')));
+
+  // סגנונות
+  const THIN      = { style: 'thin', color: { argb: 'FF000000' } };
+  const ALL_BRD   = { top: THIN, bottom: THIN, left: THIN, right: THIN };
+  const FONT_BASE = { name: 'David', size: 12 };
+  const FONT_BOLD = { name: 'David', size: 12, bold: true };
+  const ALIGN_CTR = { horizontal: 'center', vertical: 'middle', readingOrder: 2 };
+
+  wsStyled.eachRow((row, rn) => {
+    row.eachCell({ includeEmpty: true }, cell => {
+      cell.font      = rn === 1 ? FONT_BOLD : FONT_BASE;
+      cell.alignment = ALIGN_CTR;
+      cell.border    = ALL_BRD;
     });
   });
 
-  wsStyled['!ref'] = XLSX.utils.encode_range(
-    { r: 0, c: 0 },
-    { r: transformed.length, c: OUTPUT_COLS.length - 1 }
-  );
+  // פורמט מטבע
+  const priceColNums = OUTPUT_COLS.reduce((a, c, i) => { if (PRICE_COLS.has(c)) a.push(i + 1); return a; }, []);
+  wsStyled.eachRow((row, rn) => {
+    if (rn === 1) return;
+    priceColNums.forEach(c => { row.getCell(c).numFmt = '#,##0'; });
+  });
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, wsRaw,    'עסקאות גולמי');
-  XLSX.utils.book_append_sheet(wb, wsStyled, 'עסקאות נדל"ן');
+  // ── ייצוא ──
+  const buffer = await wb.xlsx.writeBuffer();
 
-  // שם קובץ — מספר התיק (5 ספרות מסוף caseName), או גוש אם אין
   const tikNum = (caseName || '').match(/(\d{4,6})\s*$/)?.[1] || gush;
   const filename = `${tikNum}.xlsx`;
 
   if (saveToDrive) {
-    // שלח base64 בחזרה לאפליקציה — היא תשמור ל-Drive
-    const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+    const uint8 = new Uint8Array(buffer);
+    let binary = ''; const CS = 8192;
+    for (let i = 0; i < uint8.length; i += CS) binary += String.fromCharCode(...uint8.subarray(i, i + CS));
+    const base64 = btoa(binary);
     chrome.storage.local.remove('nadlan_pending');
     chrome.runtime.sendMessage({ type: 'NADLAN_DONE', gush, count: rows.length, filename, data: base64, saveToDrive: true, requestId });
   } else {
-    XLSX.writeFile(wb, filename);
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const burl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = burl; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(burl);
     chrome.storage.local.remove('nadlan_pending');
     chrome.runtime.sendMessage({ type: 'NADLAN_DONE', gush, count: rows.length, filename, requestId });
   }
@@ -337,7 +333,6 @@ try {
   ui.remove();
 }
 
-// ── עזר: banner ──
 function showBanner(text) {
   const b = document.createElement('div');
   b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999999;background:#154360;color:#fff;text-align:center;padding:12px 20px;font-size:15px;font-family:Arial;direction:rtl;box-shadow:0 2px 8px rgba(0,0,0,.3)';
