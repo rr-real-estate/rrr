@@ -1742,7 +1742,10 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
       if(e.detail.requestId!==nadlReqRef.current)return;
       if(e.detail.saveToDrive&&e.detail.data){
         try{
-          const resp=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify({type:'saveToDrive',folderName:cas.folder,filename:e.detail.filename,data:e.detail.data})});
+          const ctrl=new AbortController();
+          const tid=setTimeout(()=>ctrl.abort(),30000);
+          const resp=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify({type:'saveToDrive',folderName:cas.folder,filename:e.detail.filename,data:e.detail.data}),signal:ctrl.signal});
+          clearTimeout(tid);
           const result=await resp.json();
           if(result.success){setNadlState('done');setNadlResult({link:result.link,filename:result.name});}
           else throw new Error(result.error||'שגיאה');
