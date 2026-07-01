@@ -1,8 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "RRR – אינטגרציה נדלן",
+  "name": "RR – רובינשטיין רוזנטל שמאות מקרקעין",
   "version": "1.0",
-  "description": "מחבר את מערכת ניהול התיקים רובינשטיין רוזנטל לאתר עסקאות נדלן של רשות המיסים",
+  "description": "חיבור מערכת ניהול תיקים לאתר עסקאות נדלן של רשות המיסים",
+  "icons": {
+    "16": "Logo_smol.png",
+    "32": "Logo_smol.png",
+    "48": "Logo_smol.png",
+    "128": "Logo_smol.png"
+  },
   "permissions": ["storage", "tabs", "scripting"],
   "host_permissions": [
     "https://nadlan.taxes.gov.il/*",
