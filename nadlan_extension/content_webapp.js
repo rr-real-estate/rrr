@@ -13,7 +13,9 @@ window.addEventListener('RRR_NADLAN_REQUEST', (e) => {
 
 // קבל תוצאה מחזרה מ-content_nadlan.js ושלח לאפליקציה
 chrome.runtime.onMessage.addListener((msg) => {
+  console.log('[RRR] content_webapp received:', msg.type, 'reqId:', msg.requestId);
   if (msg.type === 'NADLAN_RESULT') {
+    console.log('[RRR] dispatching RRR_NADLAN_RESULT, saveToDrive:', msg.saveToDrive);
     window.dispatchEvent(new CustomEvent('RRR_NADLAN_RESULT', { detail: msg }));
   }
 });
