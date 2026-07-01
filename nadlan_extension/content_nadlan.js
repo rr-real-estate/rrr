@@ -15,58 +15,71 @@ const { gush, caseName, saveToDrive, propTypeName, requestId } = nadlan_pending;
 
 // ─── עמוד חיפוש — מלא טופס ───────────────────────────────────────────
 if (url.includes('startpageNadlanNewDesign') || url.includes('svinfonadlan2010/') && !url.includes('Perut')) {
-  await new Promise(r => setTimeout(r, 900));
 
-  // לחץ על "לפי גוש/חלקה" והמתן לרינדור השדות
-  const rb = document.getElementById('rbMegush');
-  if (rb) { rb.click(); await new Promise(r => setTimeout(r, 600)); }
-
-  // מלא גוש — כל שדות הגוש (מגוש + עד גוש)
-  document.querySelectorAll('input[id*="gusha"],input[name*="gusha"]').forEach(inp => {
-    if (inp.type !== 'checkbox' && inp.type !== 'radio') inp.value = gush;
+  // המתן לטעינת הדף המלאה — poll עד שהטופס קיים
+  await new Promise(r => {
+    const iv = setInterval(() => {
+      if (document.getElementById('rbMegush') && document.readyState === 'complete') {
+        clearInterval(iv); r();
+      }
+    }, 200);
+    setTimeout(r, 5000); // fallback max 5s
   });
+  await new Promise(r => setTimeout(r, 800));
 
-  // סוג נכס + מהות עסקה — trigger postback ע"י החלפת סוג זמנית
+  // לחץ "לפי גוש/חלקה" והמתן לרינדור השדות (VIEWSTATE מתחלף = postback הסתיים)
+  const rb = document.getElementById('rbMegush');
+  if (!rb) return;
+  const vsBeforeRb = document.getElementById('__VIEWSTATE')?.value;
+  rb.click();
+  await new Promise(r => {
+    let t = 0;
+    const iv = setInterval(() => {
+      if (document.getElementById('__VIEWSTATE')?.value !== vsBeforeRb || (t += 200) >= 5000) {
+        clearInterval(iv); r();
+      }
+    }, 200);
+  });
+  await new Promise(r => setTimeout(r, 600));
+
+  // מלא גוש בשדה הראשון
+  const gushInputs = Array.from(document.querySelectorAll('input[id*="gusha"],input[name*="gusha"]'))
+    .filter(inp => inp.type !== 'checkbox' && inp.type !== 'radio');
+  if (gushInputs[0]) gushInputs[0].value = gush;
+
+  // לחץ "העתקת גוש חלקה" (מעתיק לשדה השני)
+  const copyBtn = Array.from(document.querySelectorAll('input[type=button],button'))
+    .find(b => (b.value || b.textContent || '').includes('העתקת'));
+  if (copyBtn) {
+    copyBtn.click();
+    await new Promise(r => setTimeout(r, 400));
+  } else if (gushInputs[1]) {
+    gushInputs[1].value = gush; // fallback — מלא ידנית
+  }
+
+  // סוג נכס — קבע ללא postback
   const typeEl = document.getElementById('ContentUsersPage_DDLTypeNehes');
-  if (typeEl && typeEl.options.length > 1) {
-    // קבע ערך יעד
+  if (typeEl) {
     let targetValue = '1';
     if (propTypeName) {
       const opt = Array.from(typeEl.options).find(o => o.text.trim().includes(propTypeName));
       if (opt) targetValue = opt.value;
     }
-    // עזר: המתן לרענון VIEWSTATE (postback)
-    const waitPostback = async (ms = 2500) => {
-      const before = document.getElementById('__VIEWSTATE')?.value;
-      await new Promise(r => {
-        const t = Date.now();
-        const iv = setInterval(() => {
-          if (document.getElementById('__VIEWSTATE')?.value !== before || Date.now()-t > ms) {
-            clearInterval(iv); r();
-          }
-        }, 150);
-      });
-      await new Promise(r => setTimeout(r, 300));
-    };
-    // בחר ערך שונה מהיעד כדי "לשחרר" את DDLSubTypeNehes
-    const tempOpt = Array.from(typeEl.options).find(o =>
-      o.value && o.value !== '' && o.value !== '0' && o.value !== targetValue
-    );
-    if (tempOpt) {
-      typeEl.value = tempOpt.value;
-      typeEl.dispatchEvent(new Event('change', { bubbles: true }));
-      await waitPostback();
-    }
-    // עכשיו החזר לסוג הנכון
     typeEl.value = targetValue;
-    typeEl.dispatchEvent(new Event('change', { bubbles: true }));
-    await waitPostback();
   }
 
-  // מהות עסקה: הכל — עכשיו DDLSubTypeNehes מעודכן מהשרת
+  // המתן עד שDDLSubTypeNehes טעון (יש בו יותר מאפשרות אחת)
   const subTypeEl = document.getElementById('ContentUsersPage_DDLSubTypeNehes');
   if (subTypeEl) {
-    const allOpt = Array.from(subTypeEl.options).find(o => o.text.trim() === 'הכל' || o.value === '' || o.value === '0');
+    await new Promise(r => {
+      let t = 0;
+      const iv = setInterval(() => {
+        if (subTypeEl.options.length > 1 || (t += 200) >= 5000) { clearInterval(iv); r(); }
+      }, 200);
+    });
+    const allOpt = Array.from(subTypeEl.options).find(o =>
+      o.text.trim() === 'הכל' || o.value === '' || o.value === '0'
+    );
     if (allOpt) subTypeEl.value = allOpt.value;
   }
 
@@ -74,7 +87,7 @@ if (url.includes('startpageNadlanNewDesign') || url.includes('svinfonadlan2010/'
   const dateEl = document.getElementById('ContentUsersPage_DDLDateType');
   if (dateEl) dateEl.value = '5';
 
-  await new Promise(r => setTimeout(r, 400));
+  await new Promise(r => setTimeout(r, 300));
 
   // הצג הודעה למשתמש
   showBanner(`✅ גוש ${gush} מולא אוטומטית — לחץ חיפוש ופתור את ה-CAPTCHA`);
