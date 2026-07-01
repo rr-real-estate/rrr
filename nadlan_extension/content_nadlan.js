@@ -208,12 +208,87 @@ try {
     }
   }
 
-  // ── בנה Excel ──
-  upd('בונה קובץ Excel...', TOTAL, TOTAL);
+  // ── טרנספורמציה ──
+  upd('מעבד ומעצב נתונים...', TOTAL, TOTAL);
   await new Promise(r => setTimeout(r, 100));
+
+  const OUTPUT_COLS = [
+    'תאריך עסקה','כתובת','כניסה','דירה','ישוב',
+    'גוש','חלקה','תת חלקה',
+    'חדרים','קומה','שטח ברוטו','שטח נטו',
+    'מגרש','גג','מחסן','חצר','גלריה','חניה',
+    'קומות בבניין','דירות בבניין','שנת בנייה',
+    'שווי מכירה בש"ח','מחיר למ"ר ברוטו','מחיר למ"ר נטו'
+  ];
+  const PRICE_COLS = new Set(['שווי מכירה בש"ח','מחיר למ"ר ברוטו','מחיר למ"ר נטו']);
+
+  const transformed = rows.map(r => {
+    const parts  = (r['גוש-חלקה'] || '').split('-');
+    const strip  = s => (s || '').replace(/^0+/, '') || '0';
+    const price  = parseInt((r['מחיר מוצהר (₪)'] || '0').replace(/,/g, '')) || 0;
+    const bruto  = parseFloat(r['שטח ברוטו']) || 0;
+    const neto   = parseFloat(r['שטח נטו'])   || 0;
+    const addr   = [r['רחוב'], r['בית']].filter(v => v && v !== '--').join(' ');
+    return {
+      'תאריך עסקה'      : r['תאריך עסקה'] || '',
+      'כתובת'           : addr,
+      'כניסה'           : r['כניסה'] || '',
+      'דירה'            : r['דירה']   || '',
+      'ישוב'            : r['ישוב']   || '',
+      'גוש'             : strip(parts[0]),
+      'חלקה'            : strip(parts[1]),
+      'תת חלקה'         : strip(parts[2]),
+      'חדרים'           : Math.round(parseFloat(r['חדרים']) || 0),
+      'קומה'            : Math.round(parseFloat(r['קומה'])  || 0),
+      'שטח ברוטו'       : bruto,
+      'שטח נטו'         : neto,
+      'מגרש'            : r['מגרש']  || '',
+      'גג'              : r['גג']    || '',
+      'מחסן'            : r['מחסן'] || '',
+      'חצר'             : r['חצר']  || '',
+      'גלריה'           : r['גלריה'] || '',
+      'חניה'            : (r['חניה'] || '').replace(/\s*רכבים\s*/g, '').trim(),
+      'קומות בבניין'    : r['קומות בבניין'] || '',
+      'דירות בבניין'    : r['דירות בבניין'] || '',
+      'שנת בנייה'       : r['שנת בנייה'] || '',
+      'שווי מכירה בש"ח': price,
+      'מחיר למ"ר ברוטו': bruto > 0 ? Math.round(price / bruto) : 0,
+      'מחיר למ"ר נטו'  : neto  > 0 ? Math.round(price / neto)  : 0
+    };
+  });
+
+  // ── בנה גיליון עם עיצוב ──
+  const BORDER = { style: 'thin', color: { rgb: '000000' } };
+  const BORD4  = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER };
+  const BASE_S = { font: { name: 'David', sz: 12 }, alignment: { horizontal: 'center', vertical: 'center' }, border: BORD4 };
+  const HEAD_S = { font: { name: 'David', sz: 12, bold: true }, alignment: { horizontal: 'center', vertical: 'center' }, border: BORD4 };
+
+  const ws = {};
+  ws['!views'] = [{ rightToLeft: true }];
+  ws['!cols']  = OUTPUT_COLS.map(c => ({ wch: Math.max(c.length + 4, 14) }));
+
+  // שורת כותרות
+  OUTPUT_COLS.forEach((col, c) => {
+    ws[XLSX.utils.encode_cell({ r: 0, c })] = { v: col, t: 's', s: HEAD_S };
+  });
+
+  // שורות נתונים
+  transformed.forEach((row, ri) => {
+    OUTPUT_COLS.forEach((col, c) => {
+      const v    = row[col];
+      const isN  = typeof v === 'number';
+      const cell = { v, t: isN ? 'n' : 's', s: BASE_S };
+      if (PRICE_COLS.has(col)) cell.z = '#,##0';
+      ws[XLSX.utils.encode_cell({ r: ri + 1, c })] = cell;
+    });
+  });
+
+  ws['!ref'] = XLSX.utils.encode_range(
+    { r: 0, c: 0 },
+    { r: transformed.length, c: OUTPUT_COLS.length - 1 }
+  );
+
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [{ wch: 4 }, ...F.map(([, l]) => ({ wch: Math.max(l.length + 4, 14) }))];
   XLSX.utils.book_append_sheet(wb, ws, 'עסקאות');
 
   // שם קובץ — מספר התיק (5 ספרות מסוף caseName), או גוש אם אין
