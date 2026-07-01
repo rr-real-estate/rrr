@@ -15,7 +15,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       console.log('[RRR] NADLAN_DONE received, found', tabs.length, 'tabs, reqId:', msg.requestId);
       tabs.forEach(tab => {
         console.log('[RRR] sending NADLAN_RESULT to tab', tab.id);
-        chrome.tabs.sendMessage(tab.id, { type: 'NADLAN_RESULT', ...msg });
+        chrome.tabs.sendMessage(tab.id, { ...msg, type: 'NADLAN_RESULT' });
       });
     });
   }
