@@ -26,18 +26,44 @@ if (url.includes('startpageNadlanNewDesign') || url.includes('svinfonadlan2010/'
     if (inp.type !== 'checkbox' && inp.type !== 'radio') inp.value = gush;
   });
 
-  // סוג נכס — לפי propTypeName או ברירת מחדל 1 (דירת מגורים)
+  // סוג נכס + מהות עסקה — trigger postback ע"י החלפת סוג זמנית
   const typeEl = document.getElementById('ContentUsersPage_DDLTypeNehes');
-  if (typeEl) {
+  if (typeEl && typeEl.options.length > 1) {
+    // קבע ערך יעד
+    let targetValue = '1';
     if (propTypeName) {
       const opt = Array.from(typeEl.options).find(o => o.text.trim().includes(propTypeName));
-      typeEl.value = opt ? opt.value : '1';
-    } else {
-      typeEl.value = '1';
+      if (opt) targetValue = opt.value;
     }
+    // עזר: המתן לרענון VIEWSTATE (postback)
+    const waitPostback = async (ms = 2500) => {
+      const before = document.getElementById('__VIEWSTATE')?.value;
+      await new Promise(r => {
+        const t = Date.now();
+        const iv = setInterval(() => {
+          if (document.getElementById('__VIEWSTATE')?.value !== before || Date.now()-t > ms) {
+            clearInterval(iv); r();
+          }
+        }, 150);
+      });
+      await new Promise(r => setTimeout(r, 300));
+    };
+    // בחר ערך שונה מהיעד כדי "לשחרר" את DDLSubTypeNehes
+    const tempOpt = Array.from(typeEl.options).find(o =>
+      o.value && o.value !== '' && o.value !== '0' && o.value !== targetValue
+    );
+    if (tempOpt) {
+      typeEl.value = tempOpt.value;
+      typeEl.dispatchEvent(new Event('change', { bubbles: true }));
+      await waitPostback();
+    }
+    // עכשיו החזר לסוג הנכון
+    typeEl.value = targetValue;
+    typeEl.dispatchEvent(new Event('change', { bubbles: true }));
+    await waitPostback();
   }
 
-  // מהות עסקה: הכל
+  // מהות עסקה: הכל — עכשיו DDLSubTypeNehes מעודכן מהשרת
   const subTypeEl = document.getElementById('ContentUsersPage_DDLSubTypeNehes');
   if (subTypeEl) {
     const allOpt = Array.from(subTypeEl.options).find(o => o.text.trim() === 'הכל' || o.value === '' || o.value === '0');
