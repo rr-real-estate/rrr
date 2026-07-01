@@ -11,7 +11,7 @@ const url = window.location.href;
 const { nadlan_pending } = await chrome.storage.local.get('nadlan_pending');
 if (!nadlan_pending?.gush) return;
 
-const { gush, caseName } = nadlan_pending;
+const { gush, caseName, saveToDrive, propTypeName, requestId } = nadlan_pending;
 
 // ─── עמוד חיפוש — מלא טופס ───────────────────────────────────────────
 if (url.includes('startpageNadlanNewDesign') || url.includes('svinfonadlan2010/') && !url.includes('Perut')) {
@@ -26,9 +26,16 @@ if (url.includes('startpageNadlanNewDesign') || url.includes('svinfonadlan2010/'
     if (inp.type !== 'checkbox' && inp.type !== 'radio') inp.value = gush;
   });
 
-  // סוג נכס: 1 = דירת מגורים
+  // סוג נכס — לפי propTypeName או ברירת מחדל 1 (דירת מגורים)
   const typeEl = document.getElementById('ContentUsersPage_DDLTypeNehes');
-  if (typeEl) typeEl.value = '1';
+  if (typeEl) {
+    if (propTypeName) {
+      const opt = Array.from(typeEl.options).find(o => o.text.trim().includes(propTypeName));
+      typeEl.value = opt ? opt.value : '1';
+    } else {
+      typeEl.value = '1';
+    }
+  }
 
   // מהות עסקה: הכל
   const subTypeEl = document.getElementById('ContentUsersPage_DDLSubTypeNehes');
@@ -178,13 +185,16 @@ try {
   const stamp = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
   const filename = `עסקאות_גוש${gush}_${rows.length}רשומות_${stamp}.xlsx`;
 
-  XLSX.writeFile(wb, filename);
-
-  // נקה storage
-  chrome.storage.local.remove('nadlan_pending');
-
-  // עדכן אפליקציה
-  chrome.runtime.sendMessage({ type: 'NADLAN_DONE', gush, count: rows.length, filename });
+  if (saveToDrive) {
+    // שלח base64 בחזרה לאפליקציה — היא תשמור ל-Drive
+    const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+    chrome.storage.local.remove('nadlan_pending');
+    chrome.runtime.sendMessage({ type: 'NADLAN_DONE', gush, count: rows.length, filename, data: base64, saveToDrive: true, requestId });
+  } else {
+    XLSX.writeFile(wb, filename);
+    chrome.storage.local.remove('nadlan_pending');
+    chrome.runtime.sendMessage({ type: 'NADLAN_DONE', gush, count: rows.length, filename, requestId });
+  }
 
   upd('✅ הסתיים! ' + rows.length + ' עסקאות — ' + filename, TOTAL, TOTAL);
   setTimeout(() => ui.remove(), 5000);
