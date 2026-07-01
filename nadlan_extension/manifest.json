@@ -25,7 +25,7 @@
     },
     {
       "matches": ["https://nadlan.taxes.gov.il/*"],
-      "js": ["xlsx.full.min.js", "content_nadlan.js"],
+      "js": ["exceljs.min.js", "content_nadlan.js"],
       "run_at": "document_idle"
     }
   ]
