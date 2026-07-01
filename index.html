@@ -3509,19 +3509,10 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
 function NadlanSearchView(){
   const sec={background:'#fff',borderRadius:14,padding:'20px 22px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
   const [gush,setGush]=useState('');
-  const [propType,setPropType]=useState('דירת מגורים');
   const [nadState,setNadState]=useState('idle'); // idle|loading|done|error
   const [nadMsg,setNadMsg]=useState('');
   const reqRef=React.useRef(null);
   const extInstalled=document.documentElement.getAttribute('data-rrr-ext')==='1';
-
-  const PROP_TYPES=[
-    {key:'דירת מגורים',label:'🏠 דירת מגורים'},
-    {key:'בניין',label:'🏢 בניין'},
-    {key:'קרקע חקלאית',label:'🌾 קרקע חקלאית'},
-    {key:'קרקע',label:'🗺️ קרקע'},
-    {key:'כללי',label:'📋 כללי'},
-  ];
 
   React.useEffect(()=>{
     const handler=(e)=>{
@@ -3544,7 +3535,7 @@ function NadlanSearchView(){
     window.dispatchEvent(new CustomEvent('RRR_NADLAN_REQUEST',{detail:{
       gush:g,caseName:`גוש ${g}`,caseFolder:'',
       saveToDrive:false,
-      propTypeName:propType==='כללי'?null:propType,
+      propTypeName:'דירת מגורים',
       requestId:reqId,
     }}));
   };
@@ -3569,24 +3560,8 @@ function NadlanSearchView(){
           <label style={{fontSize:12,fontWeight:600,color:'#5a4e44',display:'block',marginBottom:6}}>מספר גוש</label>
           <input type="number" value={gush} onChange={e=>setGush(e.target.value)}
             onKeyDown={e=>e.key==='Enter'&&handleDownload()}
-            placeholder="לדוגמה: 15172"
+            placeholder="לדוגמה: 4048"
             style={{width:'100%',padding:'10px 14px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:15,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}}/>
-        </div>
-        <div style={{marginBottom:22}}>
-          <label style={{fontSize:12,fontWeight:600,color:'#5a4e44',display:'block',marginBottom:8}}>סוג נכס</label>
-          <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
-            {PROP_TYPES.map(pt=>(
-              <button key={pt.key} onClick={()=>setPropType(pt.key)}
-                style={{padding:'7px 14px',borderRadius:20,
-                  border:`1px solid ${propType===pt.key?GOLD:'#ddd0bb'}`,
-                  background:propType===pt.key?`${GOLD}22`:'#fff',
-                  color:propType===pt.key?GOLD3:'#6b5e50',
-                  cursor:'pointer',fontSize:13,fontWeight:propType===pt.key?700:400,
-                  fontFamily:'inherit',transition:'all 0.15s'}}>
-                {pt.label}
-              </button>
-            ))}
-          </div>
         </div>
         <button onClick={handleDownload} disabled={!gush.trim()||nadState==='loading'}
           style={{width:'100%',padding:'11px',borderRadius:10,border:'none',
@@ -3598,7 +3573,7 @@ function NadlanSearchView(){
           {nadState==='loading'?<><Spinner size={14} color={GOLD}/>מוריד עסקאות...</>
            :nadState==='done'?nadMsg
            :nadState==='error'?`❌ שגיאה — נסה שנית`
-           :`📥 הורד עסקאות — ${propType}`}
+           :`📥 הורד עסקאות — דירת מגורים`}
         </button>
         <div style={{marginTop:14,padding:'10px 14px',background:'#fdfaf5',borderRadius:9,border:'1px solid #ede8e0',fontSize:12,color:'#9a8e84',lineHeight:1.7}}>
           לאחר לחיצה יפתח אתר נדלן עם הגוש מולא אוטומטית — פתור את ה-CAPTCHA ואת שאר התהליך יעשה הסקריפט אוטומטית.
