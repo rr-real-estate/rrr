@@ -278,6 +278,13 @@ try {
     };
   });
 
+  // ── מיון לפי תאריך עסקה מהחדש לישן ──
+  const parseDate = s => {
+    const [d, m, y] = (s || '').split('/');
+    return y && m && d ? new Date(+y, +m - 1, +d) : new Date(0);
+  };
+  transformed.sort((a, b) => parseDate(b['תאריך עסקה']) - parseDate(a['תאריך עסקה']));
+
   // ── בנה workbook ──
   upd('בונה קובץ Excel...', TOTAL, TOTAL);
   await new Promise(r => setTimeout(r, 100));
