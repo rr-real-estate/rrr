@@ -1739,7 +1739,9 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
 
   React.useEffect(()=>{
     const handler=async(e)=>{
+      console.log('[RRR] RRR_NADLAN_RESULT received, reqId:',e.detail.requestId,'expected:',nadlReqRef.current);
       if(e.detail.requestId!==nadlReqRef.current)return;
+      console.log('[RRR] requestId matched! saveToDrive:',e.detail.saveToDrive,'hasData:',!!e.detail.data);
       if(e.detail.saveToDrive&&e.detail.data){
         try{
           const ctrl=new AbortController();
