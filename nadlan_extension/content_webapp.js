@@ -6,10 +6,8 @@ document.documentElement.setAttribute('data-rrr-ext', '1');
 
 // קבל בקשת הורדה מהאפליקציה
 window.addEventListener('RRR_NADLAN_REQUEST', (e) => {
-  const { gush, caseFolder, caseName } = e.detail;
-  // שמור בסטורג' לשימוש content_nadlan.js
-  chrome.storage.local.set({ nadlan_pending: { gush, caseFolder, caseName } });
-  // פתח טאב
+  const { gush, caseFolder, caseName, saveToDrive, folderName, propTypeName, requestId } = e.detail;
+  chrome.storage.local.set({ nadlan_pending: { gush, caseFolder, caseName, saveToDrive, folderName, propTypeName, requestId } });
   chrome.runtime.sendMessage({ type: 'OPEN_NADLAN' });
 });
 
