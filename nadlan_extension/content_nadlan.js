@@ -206,58 +206,74 @@ try {
   upd('מעבד ומעצב נתונים...', TOTAL, TOTAL);
   await new Promise(r => setTimeout(r, 100));
 
+  // סינון שורות ריקות
+  const fLabels = F.map(([, l]) => l);
+  const validRows = rows.filter(row => fLabels.some(l => row[l] && String(row[l]).trim() !== ''));
+
   const OUTPUT_COLS = [
-    'תאריך עסקה','כתובת','כניסה','דירה','ישוב',
-    'גוש','חלקה','תת חלקה',
-    'חדרים','קומה','שטח ברוטו','שטח נטו',
-    'מגרש','גג','מחסן','חצר','גלריה','חניה',
-    'קומות בבניין','דירות בבניין','שנת בנייה',
-    'שווי מכירה בש"ח','מחיר למ"ר ברוטו','מחיר למ"ר נטו',
-    'מעלית','סוג עסקה','תפקוד בנין','תפקוד יחידה',
-    'שומה חלקים','מהות הזכות','לפי תבע','מופעי גו"ח'
+    'תאריך עסקה','כתובת','כניסה','דירה','ישוב',       // 1-5
+    'גוש','חלקה','תת חלקה',                             // 6-8
+    'חדרים','קומה','שטח ברוטו','שטח נטו',               // 9-12
+    'גג','חצר',                                          // 13-14
+    'שנת בנייה',                                         // 15
+    'שווי מכירה בש"ח','חלק נמכר','מחיר למ"ר ברוטו','מחיר למ"ר נטו', // 16-19
+    'קומות בבניין','דירות בבניין',                       // 20-21
+    'מעלית',                                              // 22
+    'מגרש','מחסן','גלריה','חניה',                        // 23-26
+    'סוג עסקה','תפקוד בנין','תפקוד יחידה',              // 27-29
+    'מהות הזכות','לפי תבע','מופעי גו"ח'                 // 30-32
   ];
   const PRICE_COLS = new Set(['שווי מכירה בש"ח','מחיר למ"ר ברוטו','מחיר למ"ר נטו']);
 
-  const transformed = rows.map(r => {
+  const toNum = (v, fn = parseFloat) => { const n = fn(String(v || '').replace(/,/g, '')); return isNaN(n) ? 0 : n; };
+  // מספר אם ניתן לפרסר, אחרת מחרוזת (לשדות כמו דירה שיכולים להיות גם אותיות)
+  const toNumOrStr = v => { const n = parseInt(String(v || '')); return isNaN(n) ? (v || '') : n; };
+
+  const transformed = validRows.map(r => {
     const parts = (r['גוש-חלקה'] || '').split('-');
-    const strip = s => (s || '').replace(/^0+/, '') || '0';
-    const price = parseInt((r['מחיר מוצהר (₪)'] || '0').replace(/,/g, '')) || 0;
-    const bruto = parseFloat(r['שטח ברוטו']) || 0;
-    const neto  = parseFloat(r['שטח נטו'])   || 0;
+    const stripNum = s => { const n = parseInt((s || '').replace(/^0+/, '') || '0'); return isNaN(n) ? 0 : n; };
+    const price = toNum(r['מחיר מוצהר (₪)'], parseInt);
+    const bruto = toNum(r['שטח ברוטו']);
+    const neto  = toNum(r['שטח נטו']);
     const addr  = [r['רחוב'], r['בית']].filter(v => v && v !== '--').join(' ');
+    // חלק נמכר: "2 / 1 בלתי מסוימים" → 1/2 = 0.5
+    const shumaNums = (r['שומה חלקים'] || '').match(/\d+/g);
+    const halakVal  = shumaNums && shumaNums.length >= 2 && parseInt(shumaNums[0]) > 0
+      ? parseInt(shumaNums[1]) / parseInt(shumaNums[0]) : '';
     return {
       'תאריך עסקה'       : r['תאריך עסקה'] || '',
       'כתובת'            : addr,
       'כניסה'            : r['כניסה'] || '',
-      'דירה'             : r['דירה']   || '',
+      'דירה'             : toNumOrStr(r['דירה']),
       'ישוב'             : r['ישוב']   || '',
-      'גוש'              : strip(parts[0]),
-      'חלקה'             : strip(parts[1]),
-      'תת חלקה'          : strip(parts[2]),
-      'חדרים'            : Math.round(parseFloat(r['חדרים']) || 0),
-      'קומה'             : Math.round(parseFloat(r['קומה'])  || 0),
+      'גוש'              : stripNum(parts[0]),
+      'חלקה'             : stripNum(parts[1]),
+      'תת חלקה'          : stripNum(parts[2]),
+      'חדרים'            : Math.round(toNum(r['חדרים'])),
+      'קומה'             : Math.round(toNum(r['קומה'])),
       'שטח ברוטו'        : bruto,
       'שטח נטו'          : neto,
-      'מגרש'             : r['מגרש']  || '',
-      'גג'               : r['גג']    || '',
-      'מחסן'             : r['מחסן'] || '',
-      'חצר'              : r['חצר']  || '',
-      'גלריה'            : r['גלריה'] || '',
-      'חניה'             : (r['חניה'] || '').replace(/\s*רכבים\s*/g, '').trim(),
-      'קומות בבניין'     : r['קומות בבניין'] || '',
-      'דירות בבניין'     : r['דירות בבניין'] || '',
-      'שנת בנייה'        : r['שנת בנייה'] || '',
+      'גג'               : toNum(r['גג']),
+      'חצר'              : toNum(r['חצר']),
+      'שנת בנייה'        : toNum(r['שנת בנייה'], parseInt) || '',
       'שווי מכירה בש"ח'  : price,
-      'מחיר למ"ר ברוטו'  : bruto > 0 ? Math.round(price / bruto) : 0,
-      'מחיר למ"ר נטו'    : neto  > 0 ? Math.round(price / neto)  : 0,
+      'חלק נמכר'         : halakVal,
+      // מחיר למ"ר ברוטו/נטו — יוגדרו כנוסחה בגיליון
+      'מחיר למ"ר ברוטו'  : null,
+      'מחיר למ"ר נטו'    : null,
+      'קומות בבניין'     : toNum(r['קומות בבניין'], parseInt),
+      'דירות בבניין'     : toNum(r['דירות בבניין'], parseInt),
       'מעלית'            : r['מעלית'] || '',
+      'מגרש'             : toNum(r['מגרש']),
+      'מחסן'             : toNum(r['מחסן']),
+      'גלריה'            : toNum(r['גלריה']),
+      'חניה'             : toNum((r['חניה'] || '').replace(/\s*רכבים\s*/g, ''), parseInt),
       'סוג עסקה'         : r['סוג עסקה'] || '',
       'תפקוד בנין'       : r['תפקוד בנין'] || '',
       'תפקוד יחידה'      : r['תפקוד יחידה'] || '',
-      'שומה חלקים'       : r['שומה חלקים'] || '',
       'מהות הזכות'       : r['מהות הזכות'] || '',
-      'לפי תבע'          : r['לפי תבע'] || '',
-      'מופעי גו"ח'       : r['מופעי גו"ח'] || ''
+      'לפי תבע'          : toNum(r['לפי תבע']),
+      'מופעי גו"ח'       : toNum(r['מופעי גו"ח'], parseInt)
     };
   });
 
@@ -271,12 +287,36 @@ try {
   const wsRaw = wb.addWorksheet('עסקאות גולמי', { views: [{ rightToLeft: true }] });
   const rawHeaders = F.map(([, l]) => l).concat(['#']);
   wsRaw.columns = rawHeaders.map(h => ({ header: h, key: h, width: Math.max(h.length + 4, 14) }));
-  rows.forEach(row => wsRaw.addRow(rawHeaders.map(h => row[h] ?? '')));
+  validRows.forEach(row => wsRaw.addRow(rawHeaders.map(h => row[h] ?? '')));
 
   // ── גיליון 2: מעוצב ──
+  const toColLetter = n => { let s = ''; while (n > 0) { s = String.fromCharCode(65 + (n - 1) % 26) + s; n = Math.floor((n - 1) / 26); } return s; };
+  const COL_BRUTO  = OUTPUT_COLS.indexOf('שטח ברוטו')       + 1; // 11 = K
+  const COL_NETO   = OUTPUT_COLS.indexOf('שטח נטו')         + 1; // 12 = L
+  const COL_SHOVI  = OUTPUT_COLS.indexOf('שווי מכירה בש"ח') + 1; // 16 = P
+  const COL_HALAK  = OUTPUT_COLS.indexOf('חלק נמכר')        + 1; // 17 = Q
+  const COL_LMR_B  = OUTPUT_COLS.indexOf('מחיר למ"ר ברוטו') + 1; // 18 = R
+  const COL_LMR_N  = OUTPUT_COLS.indexOf('מחיר למ"ר נטו')   + 1; // 19 = S
+  const K = toColLetter(COL_BRUTO), L = toColLetter(COL_NETO);
+  const P = toColLetter(COL_SHOVI), Q = toColLetter(COL_HALAK);
+
   const wsStyled = wb.addWorksheet('עסקאות נדל"ן', { views: [{ rightToLeft: true }] });
   wsStyled.columns = OUTPUT_COLS.map(col => ({ header: col, key: col, width: Math.max(col.length + 4, 14) }));
-  transformed.forEach(row => wsStyled.addRow(OUTPUT_COLS.map(col => row[col] ?? '')));
+
+  // הוסף שורות עם נוסחאות לעמודות מחיר למ"ר
+  const styledRows = [];
+  transformed.forEach(tRow => {
+    const values = OUTPUT_COLS.map(col => {
+      if (col === 'מחיר למ"ר ברוטו' || col === 'מחיר למ"ר נטו') return null;
+      return tRow[col] ?? '';
+    });
+    styledRows.push(wsStyled.addRow(values));
+  });
+  styledRows.forEach((exRow, ri) => {
+    const rn = ri + 2; // שורה 1 = כותרות
+    exRow.getCell(COL_LMR_B).value = { formula: `${P}${rn}/${Q}${rn}/${K}${rn}` };
+    exRow.getCell(COL_LMR_N).value = { formula: `${P}${rn}/${Q}${rn}/${L}${rn}` };
+  });
 
   // סגנונות
   const THIN      = { style: 'thin', color: { argb: 'FF000000' } };
@@ -293,11 +333,11 @@ try {
     });
   });
 
-  // פורמט מטבע
-  const priceColNums = OUTPUT_COLS.reduce((a, c, i) => { if (PRICE_COLS.has(c)) a.push(i + 1); return a; }, []);
+  // פורמט מטבע — שווי מכירה + מחיר למ"ר ברוטו + מחיר למ"ר נטו
+  const priceColNums = [COL_SHOVI, COL_LMR_B, COL_LMR_N];
   wsStyled.eachRow((row, rn) => {
     if (rn === 1) return;
-    priceColNums.forEach(c => { row.getCell(c).numFmt = '#,##0'; });
+    priceColNums.forEach(c => { row.getCell(c).numFmt = '"₪ "#,##0'; });
   });
 
   // ── ייצוא ──
@@ -312,7 +352,7 @@ try {
     for (let i = 0; i < uint8.length; i += CS) binary += String.fromCharCode(...uint8.subarray(i, i + CS));
     const base64 = btoa(binary);
     chrome.storage.local.remove('nadlan_pending');
-    chrome.runtime.sendMessage({ type: 'NADLAN_DONE', gush, count: rows.length, filename, data: base64, saveToDrive: true, requestId });
+    chrome.runtime.sendMessage({ type: 'NADLAN_DONE', gush, count: validRows.length, filename, data: base64, saveToDrive: true, requestId });
   } else {
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const burl = URL.createObjectURL(blob);
@@ -322,10 +362,10 @@ try {
     document.body.removeChild(a);
     URL.revokeObjectURL(burl);
     chrome.storage.local.remove('nadlan_pending');
-    chrome.runtime.sendMessage({ type: 'NADLAN_DONE', gush, count: rows.length, filename, requestId });
+    chrome.runtime.sendMessage({ type: 'NADLAN_DONE', gush, count: validRows.length, filename, requestId });
   }
 
-  upd('✅ הסתיים! ' + rows.length + ' עסקאות — ' + filename, TOTAL, TOTAL);
+  upd('✅ הסתיים! ' + validRows.length + ' עסקאות — ' + filename, TOTAL, TOTAL);
   setTimeout(() => ui.remove(), 5000);
 
 } catch (e) {
