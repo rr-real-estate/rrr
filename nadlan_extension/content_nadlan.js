@@ -16,6 +16,7 @@ const { gush, caseName, saveToDrive, propTypeName, requestId } = nadlan_pending;
 // ─── עמוד חיפוש — מלא טופס ───────────────────────────────────────────
 if (url.includes('startpageNadlanNewDesign') || url.includes('svinfonadlan2010/') && !url.includes('Perut')) {
 
+  // המתן לטעינת הדף ולנוכחות rbMegush
   await new Promise(r => {
     const iv = setInterval(() => {
       if (document.getElementById('rbMegush') && document.readyState === 'complete') {
@@ -24,63 +25,66 @@ if (url.includes('startpageNadlanNewDesign') || url.includes('svinfonadlan2010/'
     }, 200);
     setTimeout(r, 5000);
   });
-  await new Promise(r => setTimeout(r, 800));
+  await new Promise(r => setTimeout(r, 500));
 
   const rb = document.getElementById('rbMegush');
   if (!rb) return;
-  const vsBeforeRb = document.getElementById('__VIEWSTATE')?.value;
+
+  // לחיצה על "לפי גוש/חלקה" — פעולה client-side בלבד, ללא PostBack
   rb.click();
+
+  // המתן עד שתיבת גוש תהפוך לנראית (client-side DOM show/hide, מהיר)
   await new Promise(r => {
     let t = 0;
     const iv = setInterval(() => {
-      if (document.getElementById('__VIEWSTATE')?.value !== vsBeforeRb || (t += 200) >= 5000) {
-        clearInterval(iv); r();
-      }
-    }, 200);
+      const gf = document.getElementById('txtmegusha');
+      if ((gf && gf.offsetParent !== null) || (t += 100) >= 2000) { clearInterval(iv); r(); }
+    }, 100);
   });
-  await new Promise(r => setTimeout(r, 600));
+  await new Promise(r => setTimeout(r, 300));
 
-  const gushInputs = Array.from(document.querySelectorAll('input[id*="gusha"],input[name*="gusha"]'))
-    .filter(inp => inp.type !== 'checkbox' && inp.type !== 'radio');
-  if (gushInputs[0]) gushInputs[0].value = gush;
+  // 1. מלא שדה גוש
+  const gushInput = document.getElementById('txtmegusha');
+  if (gushInput) {
+    gushInput.value = gush;
+    gushInput.dispatchEvent(new Event('input', { bubbles: true }));
+    gushInput.dispatchEvent(new Event('change', { bubbles: true }));
+  }
 
-  const copyBtn = Array.from(document.querySelectorAll('input[type=button],button'))
-    .find(b => (b.value || b.textContent || '').includes('העתקת'));
+  // 2. לחץ "העתקת גוש/חלקה" — זהו תג <a>, לא button!
+  //    לחיצה מעתיקה את הגוש לשדות txtadGush ו-txtadHelka
+  const copyBtn = document.getElementById('ContentUsersPage_copyGushHelka');
   if (copyBtn) {
     copyBtn.click();
     await new Promise(r => setTimeout(r, 400));
-  } else if (gushInputs[1]) {
-    gushInputs[1].value = gush;
   }
 
+  // 3. בחר סוג נכס — dispatch 'change' כדי לעדכן את DDLMahutIska
   const typeEl = document.getElementById('ContentUsersPage_DDLTypeNehes');
   if (typeEl) {
-    let targetValue = '1';
+    let targetValue = '1'; // ברירת מחדל: דירת מגורים
     if (propTypeName) {
       const opt = Array.from(typeEl.options).find(o => o.text.trim().includes(propTypeName));
       if (opt) targetValue = opt.value;
     }
     typeEl.value = targetValue;
+    // חשוב: dispatch change כדי שה-jQuery listener יפעיל ויעדכן DDLMahutIska
+    typeEl.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 400));
   }
 
-  const subTypeEl = document.getElementById('ContentUsersPage_DDLSubTypeNehes');
-  if (subTypeEl) {
-    await new Promise(r => {
-      let t = 0;
-      const iv = setInterval(() => {
-        if (subTypeEl.options.length > 1 || (t += 200) >= 5000) { clearInterval(iv); r(); }
-      }, 200);
-    });
-    const allOpt = Array.from(subTypeEl.options).find(o =>
-      o.text.trim() === 'הכל' || o.value === '' || o.value === '0'
-    );
-    if (allOpt) subTypeEl.value = allOpt.value;
+  // 4. בחר מהות עסקה = הכל (999)
+  //    DDLMahutIska מתאפשר לאחר בחירת סוג נכס תקין
+  const mahutEl = document.getElementById('ContentUsersPage_DDLMahutIska');
+  if (mahutEl && !mahutEl.disabled) {
+    mahutEl.value = '999';
   }
 
+  // 5. טווח תאריכים = 36 חודשים
   const dateEl = document.getElementById('ContentUsersPage_DDLDateType');
   if (dateEl) dateEl.value = '5';
 
-  await new Promise(r => setTimeout(r, 300));
+  await new Promise(r => setTimeout(r, 200));
   showBanner(`✅ גוש ${gush} מולא אוטומטית — ניתן לשנות ערכים, ואז לחץ חיפוש ופתור CAPTCHA`);
   return;
 }
