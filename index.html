@@ -81,13 +81,11 @@ const M={openDate:0,closeDate:1,fee:2,caseNum:3,status:4,folder:5,
 const USER_BY_EMAIL={
   'yr@yrr.co.il':'יוסי','a0504105070@gmail.com':'יוסי',
   'office@yrr.co.il':'פייגי','mr@mrr.co.il':'מיכאל',
-  'kobi@yrr.co.il':'קובי',
 };
 const USER_ROLES={
   'מיכאל':'שמאי מקרקעין וכלכלן',
   'יוסי':'שמאי מקרקעין, כלכלן והנדסאי בניין',
   'פייגי':'מזכירה',
-  'קובי':'מתמחה בשמאות מקרקעין',
 };
 // עמודות משימה → בעלים + מייל
 const TASK_FIELDS=[
@@ -294,6 +292,22 @@ let dynamicCheckOpts=new Set(BASE_CHECK);
 // cols 20+21 are DATE fields ("דרישת/השלמת מסמכים לאחר ביקור"), not checkboxes
 const CHECK_COLS=[P.advance,P.docs,P.buildingFile,P.transactions,P.visitSheet];
 const DATE_RE=/^\d{1,2}\/\d{1,2}\/\d{4}$/;
+
+// ═══════════════ TOKEN REFRESH ════════════════════════════════════
+let _tokenClient=null;
+let _tokenRefreshTimer=null;
+function _startTokenRefresh(onNewToken){
+  if(_tokenRefreshTimer)clearInterval(_tokenRefreshTimer);
+  _tokenRefreshTimer=setInterval(()=>{
+    if(!_tokenClient)return;
+    // prompt:'' = silent refresh, no popup if Google session still active
+    _tokenClient.callback=(r)=>{if(r.access_token)onNewToken(r.access_token);};
+    _tokenClient.requestAccessToken({prompt:''});
+  },45*60*1000); // כל 45 דקות
+}
+function _stopTokenRefresh(){
+  if(_tokenRefreshTimer){clearInterval(_tokenRefreshTimer);_tokenRefreshTimer=null;}
+}
 
 // ═══════════════ API ══════════════════════════════════════════════
 const api={
@@ -2505,12 +2519,12 @@ function LoginScreen({onLogin}){
   const handle=()=>{
     setBusy(true);
     try{
-      const c=google.accounts.oauth2.initTokenClient({
+      _tokenClient=google.accounts.oauth2.initTokenClient({
         client_id:CONFIG.CLIENT_ID,scope:CONFIG.SCOPES,
         callback:(r)=>{setBusy(false);if(r.access_token)onLogin(r.access_token);},
         error_callback:()=>setBusy(false),
       });
-      c.requestAccessToken();
+      _tokenClient.requestAccessToken();
     }catch(e){setBusy(false);alert(e.message);}
   };
   return(
@@ -3678,6 +3692,7 @@ function App(){
   },[loadMsgsPresence]);
   const handleLogin=useCallback(async(tok)=>{
     api.token=tok;setToken(tok);
+    _startTokenRefresh((newTok)=>{api.token=newTok;setToken(newTok);});
     try{
       const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+tok}});
       if(r.ok){
@@ -3719,7 +3734,7 @@ function App(){
   return(
     <div style={{display:'flex',height:'100vh',overflow:'hidden',background:'#f7f3ee',fontFamily:'Rubik,sans-serif',direction:'rtl'}}>
       <Sidebar view={view} setView={setView} user={user} loading={loading} counts={counts}
-        onLogout={()=>{api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);}}/>
+        onLogout={()=>{_stopTokenRefresh();api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);}}/>
       <div style={{flex:1,overflowY:'auto',overflowX:'hidden',marginRight:232,height:'100vh'}}>
         {error&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{error}</div>}
         {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}} messages={messages} onlineUsers={onlineUsers} onPostMessage={postMessage} onMarkRead={markRead} onDeleteMessage={deleteMessage}/>}
