@@ -315,11 +315,22 @@ try {
   const wsStyled = wb.addWorksheet('עסקאות נדל"ן', { views: [{ rightToLeft: true }] });
   wsStyled.columns = OUTPUT_COLS.map(col => ({ header: col, key: col, width: Math.max(col.length + 4, 14) }));
 
+  // ── המרת תאריך טקסט (dd/mm/yyyy) ל-Date אמיתי עבור Excel ──
+  const parseDateToObj = s => {
+    if (!s) return '';
+    const [d, m, y] = String(s).split('/');
+    if (!y || !m || !d) return s;
+    return new Date(+y, +m - 1, +d);
+  };
+
+  const COL_DATE = OUTPUT_COLS.indexOf('תאריך עסקה') + 1;
+
   // הוסף שורות עם נוסחאות לעמודות מחיר למ"ר
   const styledRows = [];
   transformed.forEach(tRow => {
     const values = OUTPUT_COLS.map(col => {
       if (col === 'מחיר למ"ר ברוטו' || col === 'מחיר למ"ר נטו') return null;
+      if (col === 'תאריך עסקה') return parseDateToObj(tRow[col]);
       return tRow[col] ?? '';
     });
     styledRows.push(wsStyled.addRow(values));
@@ -345,10 +356,11 @@ try {
     });
   });
 
-  // פורמט מטבע — שווי מכירה + מחיר למ"ר ברוטו + מחיר למ"ר נטו
+  // פורמט תאריך ומטבע
   const priceColNums = [COL_SHOVI, COL_LMR_B, COL_LMR_N];
   wsStyled.eachRow((row, rn) => {
     if (rn === 1) return;
+    row.getCell(COL_DATE).numFmt = 'dd/mm/yyyy';
     priceColNums.forEach(c => { row.getCell(c).numFmt = '"₪ "#,##0'; });
   });
 
