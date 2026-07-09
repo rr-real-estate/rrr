@@ -320,7 +320,7 @@ try {
     if (!s) return '';
     const [d, m, y] = String(s).split('/');
     if (!y || !m || !d) return s;
-    return new Date(+y, +m - 1, +d);
+    return new Date(Date.UTC(+y, +m - 1, +d));
   };
 
   const COL_DATE = OUTPUT_COLS.indexOf('תאריך עסקה') + 1;
