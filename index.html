@@ -296,6 +296,7 @@ const DATE_RE=/^\d{1,2}\/\d{1,2}\/\d{4}$/;
 // ═══════════════ TOKEN REFRESH ════════════════════════════════════
 let _tokenClient=null;
 let _tokenRefreshTimer=null;
+let _goToManaged=null; // פונקציה גלובלית לניווט לכלל התיקים עם חיפוש
 function _startTokenRefresh(onNewToken){
   if(_tokenRefreshTimer)clearInterval(_tokenRefreshTimer);
   _tokenRefreshTimer=setInterval(()=>{
@@ -866,7 +867,7 @@ function ProjectCard({project,onClick,hideDate,folderLink}){
       {/* Title */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10,gap:6}}>
         <div style={{flex:1,minWidth:0}}>
-          {caseNum&&<span style={{fontSize:12,fontWeight:500,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 9px',display:'inline-flex',alignItems:'center',gap:4,marginBottom:5,userSelect:'none'}}><span style={{width:6,height:6,borderRadius:'50%',background:'#d9af34',flexShrink:0}}/>{caseNum}</span>}
+          {caseNum&&<span onClick={e=>{e.stopPropagation();_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={{fontSize:12,fontWeight:500,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 9px',display:'inline-flex',alignItems:'center',gap:4,marginBottom:5,userSelect:'none',cursor:'pointer'}}><span style={{width:6,height:6,borderRadius:'50%',background:'#d9af34',flexShrink:0}}/>{caseNum}</span>}
           <div style={{fontSize:15,fontWeight:500,color:'#0d0d0d',lineHeight:1.4}}>
             <span style={{color:GOLD}}>{city}</span>
             {parts[1]&&<span style={{color:'#4a3e30'}}>{' — '}{parts.slice(1).join(' — ')}</span>}
@@ -1060,7 +1061,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
         <div style={{background:`linear-gradient(135deg, #0f0f0f 0%, #1a1410 100%)`,padding:'20px 26px',flexShrink:0,borderBottom:`3px solid ${dot}`}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
             <div style={{flex:1,minWidth:0}}>
-              {caseNum&&<span style={{fontSize:11,fontWeight:500,color:GOLD,background:`${GOLD}18`,border:`1px solid ${GOLD}55`,borderRadius:20,padding:'3px 10px',display:'inline-block',marginBottom:7,letterSpacing:'0.05em'}}>תיק #{caseNum}</span>}
+              {caseNum&&<span onClick={()=>{_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={{fontSize:11,fontWeight:500,color:GOLD,background:`${GOLD}18`,border:`1px solid ${GOLD}55`,borderRadius:20,padding:'3px 10px',display:'inline-block',marginBottom:7,letterSpacing:'0.05em',cursor:'pointer'}}>תיק #{caseNum}</span>}
               <div style={{fontSize:16,fontWeight:500,color:'#fff',lineHeight:1.4,marginBottom:9,letterSpacing:'-0.01em'}}>{project.name}</div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                 <Badge status={form.status}/>
@@ -2231,9 +2232,12 @@ function AddCaseModal({onClose,onAdd,cases}){
 }
 
 // ═══════════════ MANAGED CASES VIEW ══════════════════════════════
-function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteCase,onDeleteProject}){
+function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteCase,onDeleteProject,initialSearch,onSearchConsumed}){
   const [search,setSearch]=useState('');
   const [filters,setFilters]=useState({status:'',bank:'',city:'',purpose:'',propType:'',advisor:''});
+  useEffect(()=>{
+    if(initialSearch){setSearch(initialSearch);if(onSearchConsumed)onSearchConsumed();}
+  },[initialSearch]);
   const [page,setPage]=useState(0);
   const [selected,setSelected]=useState(null);
   const [adding,setAdding]=useState(false);
@@ -3607,7 +3611,9 @@ function App(){
   const [token,setToken]=useState(null);
   const [user,setUser]=useState(null);
   const [view,setView]=useState('home');
+  const [managedSearch,setManagedSearch]=useState('');
   const [openProjectRow,setOpenProjectRow]=useState(null);
+  React.useEffect(()=>{_goToManaged=(caseNum)=>{setManagedSearch(caseNum||'');setView('managed');};},[]);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
   const [projects,setProjects]=useState([]);
@@ -3745,7 +3751,7 @@ function App(){
         {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}} messages={messages} onlineUsers={onlineUsers} onPostMessage={postMessage} onMarkRead={markRead} onDeleteMessage={deleteMessage}/>}
         {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)}/>}
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject}/>}
-        {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject}/>}
+        {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject} initialSearch={managedSearch} onSearchConsumed={()=>setManagedSearch('')}/>}
         {view==='nadlan'&&<NadlanSearchView/>}
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
         {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user} managed={managed} onUpdateFolderLinks={handleUpdateFolderLinks}/>}
