@@ -884,16 +884,21 @@ function ProjectCard({project,onClick,hideDate,folderLink}){
       {/* Active projects: show dates + tasks only (ראשי) */}
       {!hideDate&&(
         <>
-          {(project.dueDate||project.expected||project.visitDate)&&(
-            <div style={{display:'flex',gap:10,marginBottom:10,flexWrap:'wrap'}}>
-              {project.dueDate&&<span style={{fontSize:13,color:'#6b5e50'}}>⏰ {project.dueDate}</span>}
-              {project.expected&&(
-                <span style={{fontSize:13,fontWeight:600,color:overdue?'#dc2626':soon?'#d97706':'#6b5e50'}}>
-                  {overdue?'⚠️':'📅'} {project.expected}
-                  {diff!==null&&<span style={{marginRight:4,fontSize:12}}>({Math.abs(diff)} ימים {overdue?'איחור':'נותרו'})</span>}
+          {(project.dueDate||project.expected)&&(
+            <div style={{display:'flex',gap:10,marginBottom:10,flexWrap:'wrap',alignItems:'center'}}>
+              {project.dueDate&&(
+                <span style={{display:'flex',alignItems:'center',gap:4,fontSize:14,fontWeight:700,
+                  color:'#fff',background:'#7b5c3a',borderRadius:8,padding:'3px 10px',letterSpacing:0.2}}>
+                  ⏰ <span style={{fontSize:11,opacity:0.85,marginLeft:2}}>תאריך לביצוע</span> {project.dueDate}
                 </span>
               )}
-              {project.visitDate&&<span style={{fontSize:13,color:'#6b5e50'}}>🏠 {project.visitDate}</span>}
+              {project.expected&&(
+                <span style={{display:'flex',alignItems:'center',gap:4,fontSize:12,fontWeight:400,
+                  color:overdue?'#dc2626':soon?'#d97706':'#9a8e84'}}>
+                  <span style={{fontSize:10,opacity:0.75}}>צפי לסיום</span> {project.expected}
+                  {diff!==null&&<span style={{fontSize:11}}>({Math.abs(diff)} ימים {overdue?'איחור':'נותרו'})</span>}
+                </span>
+              )}
             </div>
           )}
           {tasks.length>0&&(
