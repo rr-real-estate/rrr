@@ -761,7 +761,12 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
             <div><FLabel>שעות</FLabel>{inp('visitHours')}</div>
             <div><FLabel>נייד</FLabel>{inp('visitPhone')}</div>
             <div><FLabel>שם לתאום</FLabel>{inp('visitName')}</div>
-            <div style={{gridColumn:'1/-1'}}><FLabel>שיוך/לנכס</FLabel>{selField('visitRole',VISIT_ROLE_OPTS)}</div>
+            <div style={{gridColumn:'1/-1'}}><FLabel>שיוך/לנכס</FLabel>
+              <AutocompleteInput value={form.visitRole||''} onChange={v=>{set('visitRole',v);schedSave();}}
+                options={VISIT_ROLE_OPTS.filter(Boolean)}
+                style={{width:'100%',padding:'7px 10px',borderRadius:7,border:'1px solid #ddd0bb',fontSize:13,background:'#fffdf8',outline:'none',fontFamily:'inherit',color:'#1a1510'}}
+                placeholder="הקלד שיוך לנכס..."/>
+            </div>
           </div>
           <FLabel>הערות לביקור</FLabel>{inp('visitNotes',true)}
         </div>
@@ -1247,7 +1252,12 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 <div><FLabel>שעות</FLabel>{inp('visitHours')}</div>
                 <div><FLabel>נייד לתיאום</FLabel>{inp('visitPhone')}</div>
                 <div><FLabel>שם לתיאום</FLabel>{inp('visitName')}</div>
-                <div style={{gridColumn:'1/-1'}}><FLabel>שיוך לנכס</FLabel>{selF('visitRole',VISIT_ROLE_OPTS)}</div>
+                <div style={{gridColumn:'1/-1'}}><FLabel>שיוך לנכס</FLabel>
+                  <AutocompleteInput value={form.visitRole||''} onChange={v=>{set('visitRole',v);autoSave();}}
+                    options={VISIT_ROLE_OPTS.filter(Boolean)}
+                    style={{width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'}}
+                    placeholder="הקלד שיוך לנכס..."/>
+                </div>
               </div>
               <FLabel>הערות לביקור</FLabel>{inp('visitNotes',true)}
             </div>
