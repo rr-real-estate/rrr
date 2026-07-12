@@ -438,6 +438,19 @@ function nowHe(){
 function Spinner({size=18,color=GOLD}){
   return<div style={{width:size,height:size,border:`2px solid ${color}33`,borderTopColor:color,borderRadius:'50%',animation:'spin 0.7s linear infinite',flexShrink:0}}/>;
 }
+function DriveIcon({size=16}){
+  const h=Math.round(size*78/87.3);
+  return(
+    <svg width={size} height={h} viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg" style={{display:'block',flexShrink:0}}>
+      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/>
+      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+      <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+      <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+    </svg>
+  );
+}
 function Badge({status,size='md'}){
   const m=STATUS_META[status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
   return<span style={{background:m.bg,color:m.fg,padding:size==='sm'?'3px 10px':'5px 14px',borderRadius:20,fontSize:size==='sm'?11:12,fontWeight:600,whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:6,letterSpacing:'0.01em',border:`1px solid ${m.dot}33`}}>
@@ -847,7 +860,7 @@ function openCaseFolder(folderName,e){
   e.stopPropagation();e.preventDefault();
   window.location.href='openrr:'+getCaseBase()+'/'+folderName;
 }
-function ProjectCard({project,onClick,hideDate,folderLink}){
+function ProjectCard({project,onClick,hideDate,folderLink,driveLink}){
   const [copied,setCopied]=React.useState(false);
   const m=STATUS_META[project.status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
   // תיקייה — folderLink מ-prop, או בנייה מ-basePath מה-localStorage
@@ -901,6 +914,13 @@ function ProjectCard({project,onClick,hideDate,folderLink}){
             style={{background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontSize:15,lineHeight:1,color:'#7a6a58',borderRadius:6,transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
             onMouseLeave={e=>e.currentTarget.style.background='none'}>📁</button>}
+          {driveLink&&<a href={driveLink} target="_blank" rel="noopener noreferrer" title="פתח תיקייה בגוגל דרייב"
+            onClick={e=>e.stopPropagation()}
+            style={{display:'inline-flex',alignItems:'center',justifyContent:'center',background:'none',border:'none',cursor:'pointer',padding:'3px 4px',borderRadius:6,textDecoration:'none',transition:'background 0.15s'}}
+            onMouseEnter={e=>e.currentTarget.style.background='#e8f0fe'}
+            onMouseLeave={e=>e.currentTarget.style.background='none'}>
+            <DriveIcon size={16}/>
+          </a>}
           <Badge status={project.status} size="sm"/>
         </div>
       </div>
@@ -1166,8 +1186,8 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                   📂 <span style={{fontSize:11}}>פתח תיקייה</span>
                 </button>}
                 {_driveLink&&<a href={_driveLink} target="_blank" rel="noopener noreferrer"
-                  style={{background:'rgba(66,133,244,0.15)',border:'1px solid rgba(66,133,244,0.35)',borderRadius:8,padding:'4px 10px',color:'rgba(147,197,253,0.9)',cursor:'pointer',fontSize:13,display:'flex',alignItems:'center',gap:5,textDecoration:'none'}}>
-                  🌐 <span style={{fontSize:11}}>פתח בדרייב</span>
+                  style={{background:'rgba(66,133,244,0.12)',border:'1px solid rgba(66,133,244,0.3)',borderRadius:8,padding:'4px 10px',cursor:'pointer',display:'flex',alignItems:'center',gap:6,textDecoration:'none'}}>
+                  <DriveIcon size={14}/><span style={{fontSize:11,color:'rgba(147,197,253,0.9)'}}>פתח בדרייב</span>
                 </a>}
                 {saving&&<span style={{fontSize:12,color:'rgba(255,255,255,0.45)',display:'flex',alignItems:'center',gap:5}}><Spinner size={11} color='rgba(255,255,255,0.45)'/>שומר...</span>}
                 {saved&&!saving&&<span style={{fontSize:12,color:'#4ade80',fontWeight:500}}>✓ נשמר</span>}
@@ -1633,7 +1653,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
               </div>
               {isOpen&&(
                 <div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch',gridAutoRows:isMobile?'auto':'190px'}}>
-                  {items.map(p=><ProjectCard key={p._row} project={p} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}}/>)}
+                  {items.map(p=>{const _mc=(managed||[]).find(c=>c.folder&&c.folder.trim()===p.name.trim());return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}}/>);})}
                 </div>
               )}
             </div>
@@ -1844,7 +1864,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
                 <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
               </div>
               {isOpen&&<div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch',gridAutoRows:isMobile?'auto':'190px'}}>
-                {items.map(p=><ProjectCard key={p._row} project={p} onClick={()=>setPanelProject(p)} hideDate/>)}
+                {items.map(p=>{const _mc=(managed||[]).find(c=>c.folder&&c.folder.trim()===p.name.trim());return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} onClick={()=>setPanelProject(p)} hideDate/>);})}
               </div>}
             </div>
           );
@@ -2010,10 +2030,10 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
               <div style={{fontSize:14,fontWeight:500,color:'#fff',lineHeight:1.5,wordBreak:'break-word'}}>{cas.folder}</div>
               {cas.driveFolderLink&&<a href={cas.driveFolderLink} target="_blank" rel="noopener noreferrer"
                 style={{display:'inline-flex',alignItems:'center',gap:5,marginTop:6,
-                  background:'rgba(66,133,244,0.2)',border:'1px solid rgba(66,133,244,0.4)',
-                  borderRadius:8,padding:'4px 10px',color:'#93c5fd',fontSize:12,
-                  textDecoration:'none',fontWeight:500}}>
-                🌐 <span>פתח תיקייה בדרייב</span>
+                  background:'rgba(66,133,244,0.12)',border:'1px solid rgba(66,133,244,0.3)',
+                  borderRadius:8,padding:'4px 10px',fontSize:12,
+                  textDecoration:'none',fontWeight:500,display:'flex',alignItems:'center',gap:6}}>
+                <DriveIcon size={14}/><span style={{color:'#93c5fd'}}>פתח תיקייה בדרייב</span>
               </a>}
             </div>
             <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:5,flexShrink:0}}>
@@ -2060,8 +2080,8 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
                 {_drive&&<a href={_drive} target="_blank" rel="noopener noreferrer"
                   onClick={e=>e.stopPropagation()}
                   title="פתח בגוגל דרייב"
-                  style={{padding:'9px 13px',borderRadius:9,border:'1px solid #c2d4ee',background:'#f0f6ff',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',textDecoration:'none'}}>
-                  🌐
+                  style={{padding:'8px 12px',borderRadius:9,border:'1px solid #c2d4ee',background:'#f0f6ff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',textDecoration:'none'}}>
+                  <DriveIcon size={18}/>
                 </a>}
               </div>
             );
@@ -2561,8 +2581,8 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
                               📂
                             </button>}
                             {_drive&&<a href={_drive} target="_blank" rel="noopener noreferrer" title="פתח בגוגל דרייב"
-                              style={{background:'#f0f6ff',border:'1px solid #c2d4ee',borderRadius:6,padding:'3px 7px',fontSize:14,textDecoration:'none',display:'inline-flex',alignItems:'center'}}>
-                              🌐
+                              style={{background:'#f0f6ff',border:'1px solid #c2d4ee',borderRadius:6,padding:'4px 7px',textDecoration:'none',display:'inline-flex',alignItems:'center',justifyContent:'center'}}>
+                              <DriveIcon size={15}/>
                             </a>}
                           </div>
                         );
@@ -3499,6 +3519,17 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
   const [linksDone,setLinksDone]=React.useState(false);
   const [checking,setChecking]=React.useState(false);
   const [checkResult,setCheckResult]=React.useState(null); // {onlyInDrive, onlyInSheet, matched}
+  const [fillingDrive,setFillingDrive]=React.useState(false);
+  const [fillDriveResult,setFillDriveResult]=React.useState(null); // {updated, notFound, alreadySet} | {error}
+  const handleFillDriveLinks=async()=>{
+    setFillingDrive(true);setFillDriveResult(null);
+    try{
+      const resp=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify({type:'fillDriveLinks'}),headers:{'Content-Type':'application/json'}});
+      const d=await resp.json();
+      setFillDriveResult(d);
+    }catch(e){setFillDriveResult({error:e.message});}
+    finally{setFillingDrive(false);}
+  };
   const handleCheckFolders=async()=>{
     setChecking(true);setCheckResult(null);
     try{
@@ -3680,6 +3711,48 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
               <div style={{fontSize:13,color:'#166534',background:'#f0fdf4',borderRadius:8,padding:'10px 14px'}}>✅ כל התיקיות תואמות בדיוק ונמצאות במקום הנכון!</div>
             )}
           </div>
+        )}
+      </div>
+
+      {/* ── מילוי קישורי Drive ── */}
+      <div style={sec}>
+        {secTitle('🌐','מילוי קישורי דרייב אוטומטי')}
+        <div style={{fontSize:12,color:'#9a8e84',marginBottom:14,lineHeight:1.7}}>
+          סורק את תיקיות Drive ומאכלס את עמודה Y בגיליון ניהול תיקים עבור כל תיק שעדיין אין לו קישור.<br/>
+          <span style={{color:'#a07010',fontWeight:500}}>תיקים שכבר יש להם קישור לא ישתנו.</span>
+        </div>
+        <button onClick={handleFillDriveLinks} disabled={fillingDrive}
+          style={{padding:'8px 18px',borderRadius:9,border:'none',
+            background:fillingDrive?'#555':BLACK,
+            color:GOLD,cursor:fillingDrive?'not-allowed':'pointer',
+            fontSize:13,fontWeight:500,fontFamily:'inherit',
+            display:'flex',alignItems:'center',gap:7,
+            opacity:fillingDrive?0.7:1,marginBottom:fillDriveResult?14:0}}>
+          {fillingDrive?<><Spinner size={12} color={GOLD}/>סורק Drive...</>:<><DriveIcon size={16}/>מלא קישורי דרייב</>}
+        </button>
+        {fillDriveResult&&(fillDriveResult.error
+          ?<div style={{fontSize:12,color:'#dc2626',background:'#fee2e2',borderRadius:8,padding:'10px 14px'}}>שגיאה: {fillDriveResult.error}</div>
+          :fillDriveResult.success
+            ?<div>
+              <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                <div style={{flex:1,minWidth:80,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
+                  <div style={{fontSize:22,fontWeight:500,color:'#166534'}}>{fillDriveResult.updated}</div>
+                  <div style={{fontSize:11,color:'#9a8e84',marginTop:2}}>עודכנו</div>
+                </div>
+                <div style={{flex:1,minWidth:80,background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
+                  <div style={{fontSize:22,fontWeight:500,color:'#9ca3af'}}>{fillDriveResult.alreadySet}</div>
+                  <div style={{fontSize:11,color:'#9a8e84',marginTop:2}}>כבר הוגדרו</div>
+                </div>
+                <div style={{flex:1,minWidth:80,background:fillDriveResult.notFound?'#fef2f2':'#f9fafb',border:`1px solid ${fillDriveResult.notFound?'#fecaca':'#e5e7eb'}`,borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
+                  <div style={{fontSize:22,fontWeight:500,color:fillDriveResult.notFound?'#dc2626':'#9ca3af'}}>{fillDriveResult.notFound}</div>
+                  <div style={{fontSize:11,color:'#9a8e84',marginTop:2}}>לא נמצאו</div>
+                </div>
+              </div>
+              {fillDriveResult.updated>0&&<div style={{fontSize:12,color:'#166534',marginTop:10,padding:'8px 12px',background:'#f0fdf4',borderRadius:8}}>
+                ✅ {fillDriveResult.updated} קישורים נכתבו לגיליון. טען מחדש את הנתונים לראות אותם.
+              </div>}
+            </div>
+            :<div style={{fontSize:12,color:'#dc2626',background:'#fee2e2',borderRadius:8,padding:'10px 14px'}}>שגיאה לא ידועה</div>
         )}
       </div>
 
