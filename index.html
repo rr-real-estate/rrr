@@ -944,6 +944,11 @@ function ProjectCard({project,onClick,hideDate,folderLink}){
               ⚠️ {project.missingDocs}
             </div>
           )}
+          {(()=>{const{text}=parseNoteStamp(project.notes||'');return text?(
+            <div style={{marginTop:6,fontSize:12,color:'#6b5e50',background:'#fafaf7',border:'1px solid #e8e2d8',borderRadius:7,padding:'5px 9px',overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>
+              💬 {renderBold(text)}
+            </div>
+          ):null;})()}
         </>
       )}
     </div>
@@ -970,7 +975,14 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const origStatusRef=useRef(project.status);
   const origMissingRef=useRef(project.missingDocs||'');
   const isFeiga=(USER_BY_EMAIL[(user?.email||'').toLowerCase()]==='פייגי');
+  const isYossi=(USER_BY_EMAIL[(user?.email||'').toLowerCase()]==='יוסי');
   const matchedCase=(managed||[]).find(c=>c.folder&&c.folder.trim()===project.name.trim());
+  const [feeReminder,setFeeReminder]=useState(false);
+  useEffect(()=>{
+    if(isYossi&&project.status==='בבדיקה'&&!matchedCase?.fee){
+      setFeeReminder(true);
+    }
+  },[]);
   const workStatus=matchedCase?.status||'בביצוע';
   const _bp=localStorage.getItem('folderBasePath')||'';
   const _fp=matchedCase?.folderLink||(matchedCase?.folder&&_bp?buildFolderPath(_bp,matchedCase.folder,matchedCase.status):'');
@@ -1051,7 +1063,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   };
   const handleWorkStatusChange=async(newStatus)=>{
     if(closingWork||newStatus===workStatus)return;
-    if(newStatus==='הסתיים'){setFolderReminderStatus(newStatus);return;}
+    if(newStatus==='הסתיים'||newStatus==='בוטל'){setFolderReminderStatus(newStatus);return;}
     await applyWorkStatusChange(newStatus);
   };
   const numMatch=project.name.match(/\b(5\d{4})\b/);
@@ -1061,6 +1073,30 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const panelTabs=[{id:'main',label:'📋 ראשי'},{id:'docs',label:'📁 מסמכים'},{id:'visit',label:'🏠 ביקור'},{id:'fee',label:'💰 שכ"ט'}];
   return(
     <div style={{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(8px)'}} onClick={handleClose}>
+      {/* דיאלוג תזכורת שכ"ט ליוסי */}
+      {feeReminder&&(
+        <div style={{position:'absolute',inset:0,zIndex:700,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
+          <div style={{background:'#fff',borderRadius:16,padding:'28px 32px',maxWidth:380,width:'90%',boxShadow:'0 24px 60px rgba(0,0,0,0.35)',textAlign:'center',direction:'rtl'}}>
+            <div style={{fontSize:36,marginBottom:12}}>💰</div>
+            <div style={{fontSize:17,fontWeight:700,color:'#1a1510',marginBottom:10}}>שכ"ט לא הוזן</div>
+            <div style={{fontSize:14,color:'#4b3400',lineHeight:1.7,marginBottom:24}}>
+              התיק <strong>"{project.name}"</strong><br/>
+              נמצא בסטטוס בבדיקה ללא שכר טרחה.<br/>
+              <span style={{fontSize:12,color:'#9a8e84'}}>יש להזין שכ"ט לתיק</span>
+            </div>
+            <div style={{display:'flex',gap:10,justifyContent:'center'}}>
+              <button onClick={()=>setFeeReminder(false)}
+                style={{padding:'10px 22px',borderRadius:10,border:'1px solid #ddd0bb',background:'#f5f0ea',color:'#4b3400',fontSize:14,cursor:'pointer',fontFamily:'inherit'}}>
+                סגור
+              </button>
+              <button onClick={()=>{setFeeReminder(false);setTab('fee');}}
+                style={{padding:'10px 22px',borderRadius:10,border:'none',background:'#1a1510',color:GOLD,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                💰 עבור לשכ"ט
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* דיאלוג תזכורת העברת תיקייה */}
       {folderReminderStatus&&(
         <div style={{position:'absolute',inset:0,zIndex:700,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
@@ -1070,7 +1106,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             <div style={{fontSize:14,color:'#4b3400',lineHeight:1.7,marginBottom:24}}>
               יש להעביר את התיקייה<br/>
               <strong>"{matchedCase?.folder||project.name}"</strong><br/>
-              לתיקיית <strong>פרויקטים שהושלמו</strong><br/>
+              לתיקיית <strong>{folderReminderStatus==='בוטל'?'בוטל':'פרויקטים שהושלמו'}</strong><br/>
               <span style={{fontSize:12,color:'#9a8e84'}}>לאחר ביצוע ההעברה יש לאשר</span>
             </div>
             <div style={{display:'flex',gap:10,justifyContent:'center'}}>
@@ -3653,11 +3689,17 @@ function App(){
   React.useEffect(()=>{_goToManaged=(caseNum)=>{setManagedSearch(caseNum||'');setView('managed');};},[]);
   React.useEffect(()=>{
     _goToProject=(caseNum)=>{
-      if(!caseNum)return;
-      const match=projects.find(p=>{const m=p.name&&p.name.match(/\b(5\d{4})\b/);return m&&m[1]===String(caseNum);});
+      const cn=String(caseNum||'').trim();
+      if(!cn)return;
+      // מצא את התיקייה דרך managed.caseNum → managed.folder → project.name
+      const mc=managed.find(c=>String(c.caseNum||'').trim()===cn);
+      const folderName=mc?.folder||'';
+      let match=folderName?projects.find(p=>p.name&&p.name.trim()===folderName.trim()):null;
+      // fallback: חיפוש לפי מספר תיק בשם
+      if(!match)match=projects.find(p=>p.name&&p.name.split(' - ').some(s=>s.trim()===cn));
       if(match){setOpenProjectRow(match._row);setView('projects');}
     };
-  },[projects]);
+  },[projects,managed]);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
   const [projects,setProjects]=useState([]);
