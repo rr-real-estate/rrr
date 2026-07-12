@@ -1322,7 +1322,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
 }
 
 // ═══════════════ PROJECTS VIEW (kanban groups) ═══════════════════
-function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDelete,autoOpenRow,onAutoOpenConsumed}){
+function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDelete,autoOpenRow,onAutoOpenConsumed,autoOpenSearch,onAutoOpenSearchConsumed}){
   const [search,setSearch]=useState('');
   const [personFilter,setPersonFilter]=useState('');
   const [daysFilter,setDaysFilter]=useState('all');
@@ -1334,7 +1334,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
   const [editCell,setEditCell]=useState(null); // {rowNum,field}
   const [editVal,setEditVal]=useState('');
   const initFilterRef=useRef(false);
-  // פתיחה אוטומטית מדף הבית
+  // פתיחה אוטומטית מדף הבית / מכלל התיקים
   useEffect(()=>{
     if(autoOpenRow){
       const p=projects.find(pr=>pr._row===autoOpenRow);
@@ -1342,6 +1342,12 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
       if(onAutoOpenConsumed)onAutoOpenConsumed();
     }
   },[autoOpenRow]);
+  useEffect(()=>{
+    if(autoOpenSearch){
+      setSearch(autoOpenSearch);
+      if(onAutoOpenSearchConsumed)onAutoOpenSearchConsumed();
+    }
+  },[autoOpenSearch]);
   useEffect(()=>{
     if(!initFilterRef.current){
       initFilterRef.current=true;
@@ -3696,6 +3702,7 @@ function App(){
   const [view,setView]=useState('home');
   const [managedSearch,setManagedSearch]=useState('');
   const [openProjectRow,setOpenProjectRow]=useState(null);
+  const [projectSearch,setProjectSearch]=useState('');
   React.useEffect(()=>{_goToManaged=(caseNum)=>{setManagedSearch(caseNum||'');setView('managed');};},[]);
   React.useEffect(()=>{
     _goToProject=(caseNum)=>{
@@ -3703,11 +3710,24 @@ function App(){
       if(!cn)return;
       // מצא את התיקייה דרך managed.caseNum → managed.folder → project.name
       const mc=managed.find(c=>String(c.caseNum||'').trim()===cn);
-      const folderName=mc?.folder||'';
-      let match=folderName?projects.find(p=>p.name&&p.name.trim()===folderName.trim()):null;
-      // fallback: חיפוש לפי מספר תיק בשם
-      if(!match)match=projects.find(p=>p.name&&p.name.split(' - ').some(s=>s.trim()===cn));
-      if(match){setOpenProjectRow(match._row);setView('projects');}
+      const folderName=(mc?.folder||'').trim();
+      let match=null;
+      if(folderName){
+        match=projects.find(p=>p.name&&p.name.trim()===folderName);
+        if(!match)match=projects.find(p=>p.name&&(p.name.trim().includes(folderName)||folderName.includes(p.name.trim())));
+      }
+      if(!match)match=projects.find(p=>p.name&&p.name.split(/\s*[-–]\s*/).some(s=>s.trim()===cn));
+      if(!match)match=projects.find(p=>p.name&&p.name.includes(cn));
+      if(match){
+        setOpenProjectRow(match._row);
+        setProjectSearch('');
+        setView('projects');
+      } else {
+        // fallback: נווט לפרויקטים עם חיפוש לפי שם תיקייה או מספר תיק
+        setOpenProjectRow(null);
+        setProjectSearch(folderName||cn);
+        setView('projects');
+      }
     };
   },[projects,managed]);
   const [loading,setLoading]=useState(false);
@@ -3845,7 +3865,7 @@ function App(){
       <div style={{flex:1,overflowY:'auto',overflowX:'hidden',marginRight:232,height:'100vh'}}>
         {error&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{error}</div>}
         {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}} messages={messages} onlineUsers={onlineUsers} onPostMessage={postMessage} onMarkRead={markRead} onDeleteMessage={deleteMessage}/>}
-        {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)}/>}
+        {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)} autoOpenSearch={projectSearch} onAutoOpenSearchConsumed={()=>setProjectSearch('')}/>}
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject}/>}
         {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject} initialSearch={managedSearch} onSearchConsumed={()=>setManagedSearch('')}/>}
         {view==='nadlan'&&<NadlanSearchView/>}
