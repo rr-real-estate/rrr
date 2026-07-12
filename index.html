@@ -90,7 +90,7 @@ const P={name:0,yossi:1,michael:2,feigi:3,notes:4,dueDate:5,status:6,
 const M={openDate:0,closeDate:1,fee:2,caseNum:3,status:4,folder:5,
   client:6,phone:7,email:8,advisor:9,advisorPhone:10,advisorEmail:11,
   purpose:12,propType:13,city:14,street:15,houseNum:16,
-  aptNum:17,block:18,parcel:19,subParcel:20,bank:21,michael:22,folderLink:23};
+  aptNum:17,block:18,parcel:19,subParcel:20,bank:21,michael:22,folderLink:23,driveFolderLink:24};
 
 // ═══════════════ TASK EMAIL + NOTES DATE ════════════════════════
 // מיפוי מייל → שם (זהה ל-Apps Script)
@@ -418,6 +418,7 @@ function parseManagedCase(row,ri){
     houseNum:g(row,M.houseNum),aptNum:g(row,M.aptNum),block:g(row,M.block),
     parcel:g(row,M.parcel),subParcel:g(row,M.subParcel),bank:g(row,M.bank),michael:g(row,M.michael),
     folderLink:g(row,M.folderLink),
+    driveFolderLink:g(row,M.driveFolderLink),
   };
 }
 
@@ -1007,6 +1008,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const workStatus=matchedCase?.status||'בביצוע';
   const _bp=localStorage.getItem('folderBasePath')||'';
   const _fp=matchedCase?.folderLink||(matchedCase?.folder&&_bp?buildFolderPath(_bp,matchedCase.folder,matchedCase.status):'');
+  const _driveLink=matchedCase?.driveFolderLink||'';
   const set=(k,v)=>{
     dirtyRef.current=true;
     setForm(f=>{
@@ -1163,6 +1165,10 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                   style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:13,display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}}>
                   📂 <span style={{fontSize:11}}>פתח תיקייה</span>
                 </button>}
+                {_driveLink&&<a href={_driveLink} target="_blank" rel="noopener noreferrer"
+                  style={{background:'rgba(66,133,244,0.15)',border:'1px solid rgba(66,133,244,0.35)',borderRadius:8,padding:'4px 10px',color:'rgba(147,197,253,0.9)',cursor:'pointer',fontSize:13,display:'flex',alignItems:'center',gap:5,textDecoration:'none'}}>
+                  🌐 <span style={{fontSize:11}}>פתח בדרייב</span>
+                </a>}
                 {saving&&<span style={{fontSize:12,color:'rgba(255,255,255,0.45)',display:'flex',alignItems:'center',gap:5}}><Spinner size={11} color='rgba(255,255,255,0.45)'/>שומר...</span>}
                 {saved&&!saving&&<span style={{fontSize:12,color:'#4ade80',fontWeight:500}}>✓ נשמר</span>}
               </div>
@@ -2002,6 +2008,13 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
                 תיק #{cas.caseNum}
               </div>
               <div style={{fontSize:14,fontWeight:500,color:'#fff',lineHeight:1.5,wordBreak:'break-word'}}>{cas.folder}</div>
+              {cas.driveFolderLink&&<a href={cas.driveFolderLink} target="_blank" rel="noopener noreferrer"
+                style={{display:'inline-flex',alignItems:'center',gap:5,marginTop:6,
+                  background:'rgba(66,133,244,0.2)',border:'1px solid rgba(66,133,244,0.4)',
+                  borderRadius:8,padding:'4px 10px',color:'#93c5fd',fontSize:12,
+                  textDecoration:'none',fontWeight:500}}>
+                🌐 <span>פתח תיקייה בדרייב</span>
+              </a>}
             </div>
             <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:5,flexShrink:0}}>
               <button onClick={onClose} style={{background:'rgba(255,255,255,0.1)',border:'none',borderRadius:8,width:32,height:32,color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
@@ -2037,12 +2050,21 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
           {(()=>{
             const _bp=localStorage.getItem('folderBasePath')||'';
             const _fp=cas.folderLink||(cas.folder&&_bp?buildFolderPath(_bp,cas.folder,cas.status):'');
-            return _fp?(
-              <button onClick={()=>openFolder(_fp)} title={_fp}
-                style={{padding:'9px 13px',borderRadius:9,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                📂
-              </button>
-            ):null;
+            const _drive=cas.driveFolderLink;
+            return(
+              <div style={{display:'flex',gap:6}}>
+                {_fp&&<button onClick={()=>openFolder(_fp)} title={_fp}
+                  style={{padding:'9px 13px',borderRadius:9,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  📂
+                </button>}
+                {_drive&&<a href={_drive} target="_blank" rel="noopener noreferrer"
+                  onClick={e=>e.stopPropagation()}
+                  title="פתח בגוגל דרייב"
+                  style={{padding:'9px 13px',borderRadius:9,border:'1px solid #c2d4ee',background:'#f0f6ff',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',textDecoration:'none'}}>
+                  🌐
+                </a>}
+              </div>
+            );
           })()}
         </div>
         {extInstalled&&cas.block&&(
