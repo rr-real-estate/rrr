@@ -296,7 +296,8 @@ const DATE_RE=/^\d{1,2}\/\d{1,2}\/\d{4}$/;
 // ═══════════════ TOKEN REFRESH ════════════════════════════════════
 let _tokenClient=null;
 let _tokenRefreshTimer=null;
-let _goToManaged=null; // פונקציה גלובלית לניווט לכלל התיקים עם חיפוש
+let _goToManaged=null;  // פונקציה גלובלית לניווט לכלל התיקים עם חיפוש
+let _goToProject=null;  // פונקציה גלובלית לניווט לפרויקט לפי מספר תיק
 function _startTokenRefresh(onNewToken){
   if(_tokenRefreshTimer)clearInterval(_tokenRefreshTimer);
   _tokenRefreshTimer=setInterval(()=>{
@@ -957,6 +958,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const [err,setErr]=useState('');
   const [tab,setTab]=useState('main');
   const [closingWork,setClosingWork]=useState(false);
+  const [folderReminderStatus,setFolderReminderStatus]=useState(null); // סטטוס ממתין לאישור
   const [dueDateErr,setDueDateErr]=useState(false);
   const [visitDateErr,setVisitDateErr]=useState(false);
   const [confirmKtiva,setConfirmKtiva]=useState(false);
@@ -1025,14 +1027,12 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
       </select>
     </div>
   );
-  const handleWorkStatusChange=async(newStatus)=>{
-    if(closingWork||newStatus===workStatus)return;
+  const applyWorkStatusChange=async(newStatus)=>{
     try{
       setClosingWork(true);
       if(dirtyRef.current)await autoSave();
       if(matchedCase){
         const writes=[api.put(`'ניהול תיקים'!E${matchedCase._row}`,[[newStatus]])];
-        // בעת סגירה — כתיבת תאריך סגירה לעמודה B
         if(newStatus==='הסתיים'){
           const d=new Date();
           const ds=`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
@@ -1049,6 +1049,11 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
     }catch(e){setErr(e.message);}
     finally{setClosingWork(false);}
   };
+  const handleWorkStatusChange=async(newStatus)=>{
+    if(closingWork||newStatus===workStatus)return;
+    if(newStatus==='הסתיים'){setFolderReminderStatus(newStatus);return;}
+    await applyWorkStatusChange(newStatus);
+  };
   const numMatch=project.name.match(/\b(5\d{4})\b/);
   const caseNum=numMatch?numMatch[1]:'';
   const dot=STATUS_META[form.status]?.dot||GOLD;
@@ -1056,6 +1061,31 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const panelTabs=[{id:'main',label:'📋 ראשי'},{id:'docs',label:'📁 מסמכים'},{id:'visit',label:'🏠 ביקור'},{id:'fee',label:'💰 שכ"ט'}];
   return(
     <div style={{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(8px)'}} onClick={handleClose}>
+      {/* דיאלוג תזכורת העברת תיקייה */}
+      {folderReminderStatus&&(
+        <div style={{position:'absolute',inset:0,zIndex:700,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
+          <div style={{background:'#fff',borderRadius:16,padding:'28px 32px',maxWidth:400,width:'90%',boxShadow:'0 24px 60px rgba(0,0,0,0.35)',textAlign:'center',direction:'rtl'}}>
+            <div style={{fontSize:36,marginBottom:12}}>📁</div>
+            <div style={{fontSize:17,fontWeight:700,color:'#1a1510',marginBottom:10}}>לפני שינוי הסטטוס</div>
+            <div style={{fontSize:14,color:'#4b3400',lineHeight:1.7,marginBottom:24}}>
+              יש להעביר את התיקייה<br/>
+              <strong>"{matchedCase?.folder||project.name}"</strong><br/>
+              לתיקיית <strong>פרויקטים שהושלמו</strong><br/>
+              <span style={{fontSize:12,color:'#9a8e84'}}>לאחר ביצוע ההעברה יש לאשר</span>
+            </div>
+            <div style={{display:'flex',gap:10,justifyContent:'center'}}>
+              <button onClick={()=>setFolderReminderStatus(null)}
+                style={{padding:'10px 22px',borderRadius:10,border:'1px solid #ddd0bb',background:'#f5f0ea',color:'#4b3400',fontSize:14,cursor:'pointer',fontFamily:'inherit'}}>
+                ביטול
+              </button>
+              <button onClick={async()=>{const s=folderReminderStatus;setFolderReminderStatus(null);await applyWorkStatusChange(s);}}
+                style={{padding:'10px 22px',borderRadius:10,border:'none',background:'#1a1510',color:GOLD,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                הועברה — אשר שינוי סטטוס
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{background:'#f0ede8',width:'min(940px,96vw)',height:'94vh',margin:'auto',borderRadius:20,overflow:'hidden',boxShadow:'0 32px 100px rgba(0,0,0,0.45)',animation:'zoomIn 0.2s cubic-bezier(0.4,0,0.2,1)',display:'flex',flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
         {/* Header */}
         <div style={{background:`linear-gradient(135deg, #0f0f0f 0%, #1a1410 100%)`,padding:'20px 26px',flexShrink:0,borderBottom:`3px solid ${dot}`}}>
@@ -1887,7 +1917,10 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
         <div style={{background:BLACK,padding:'18px 22px',flexShrink:0}}>
           <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:11,color:GOLD,fontWeight:500,letterSpacing:'1px',marginBottom:4}}>תיק #{cas.caseNum}</div>
+              <div onClick={()=>{if(_goToProject){onClose();_goToProject(cas.caseNum);}}} title="עבור לפרויקטים בביצוע"
+                style={{fontSize:11,color:GOLD,fontWeight:500,letterSpacing:'1px',marginBottom:4,cursor:'pointer',display:'inline-block',textDecoration:'underline',textUnderlineOffset:3}}>
+                תיק #{cas.caseNum}
+              </div>
               <div style={{fontSize:14,fontWeight:500,color:'#fff',lineHeight:1.5,wordBreak:'break-word'}}>{cas.folder}</div>
             </div>
             <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:5,flexShrink:0}}>
@@ -2385,7 +2418,11 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
                     onMouseEnter={e=>e.currentTarget.style.background='#fdf8ee'}
                     onMouseLeave={e=>e.currentTarget.style.background=i%2===0?'#fff':'#fdf9f5'}
                   >
-                    <td style={{padding:'10px 12px',fontWeight:500,color:GOLD,whiteSpace:'nowrap'}}>{c.caseNum}</td>
+                    <td style={{padding:'10px 12px',fontWeight:500,color:GOLD,whiteSpace:'nowrap'}}
+                      onClick={e=>{e.stopPropagation();_goToProject&&_goToProject(c.caseNum);}}
+                      title="עבור לפרויקטים בביצוע">
+                      <span style={{cursor:'pointer',textDecoration:'underline',textUnderlineOffset:3}}>{c.caseNum}</span>
+                    </td>
                     <td style={{padding:'10px 12px',maxWidth:240,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:500}} title={c.folder}>{c.folder||c.client}</td>
                     <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{c.client}</td>
                     <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{c.city}</td>
@@ -3614,6 +3651,13 @@ function App(){
   const [managedSearch,setManagedSearch]=useState('');
   const [openProjectRow,setOpenProjectRow]=useState(null);
   React.useEffect(()=>{_goToManaged=(caseNum)=>{setManagedSearch(caseNum||'');setView('managed');};},[]);
+  React.useEffect(()=>{
+    _goToProject=(caseNum)=>{
+      if(!caseNum)return;
+      const match=projects.find(p=>{const m=p.name&&p.name.match(/\b(5\d{4})\b/);return m&&m[1]===String(caseNum);});
+      if(match){setOpenProjectRow(match._row);setView('projects');}
+    };
+  },[projects]);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
   const [projects,setProjects]=useState([]);
