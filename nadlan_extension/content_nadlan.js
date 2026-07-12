@@ -399,7 +399,7 @@ try {
 
 function showBanner(text) {
   const b = document.createElement('div');
-  b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999999;background:#e65c00;color:#fff;text-align:center;padding:13px 20px;font-size:15px;font-weight:bold;font-family:Arial;direction:rtl;box-shadow:0 3px 12px rgba(0,0,0,.5);letter-spacing:0.01em';
+  b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999999;background:#e8830a;color:#fff;text-align:center;padding:12px 20px;font-size:15px;font-weight:600;font-family:Arial;direction:rtl;box-shadow:0 2px 8px rgba(0,0,0,.3)';
   b.textContent = text;
   document.body.prepend(b);
 }
