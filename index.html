@@ -24,9 +24,14 @@ body{font-family:'Rubik',sans-serif;background:#f0ede8;direction:rtl;color:#1a15
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
 @keyframes zoomIn{from{transform:scale(0.94);opacity:0}to{transform:scale(1);opacity:1}}
 @keyframes expandDown{from{transform:scaleY(0);opacity:0}to{transform:scaleY(1);opacity:1}}
+@keyframes drawerSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
 input,select,textarea{font-family:'Rubik',sans-serif;font-size:14px}
 input:focus,select:focus,textarea:focus{outline:none;border-color:#d9af34 !important;box-shadow:0 0 0 3px rgba(217,175,52,0.15) !important}
 button{font-family:'Rubik',sans-serif}
+/* Mobile safe area */
+@supports(padding-bottom:env(safe-area-inset-bottom)){
+  .bottom-nav-bar{padding-bottom:env(safe-area-inset-bottom);}
+}
 </style>
 </head>
 <body>
@@ -48,6 +53,17 @@ const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'
 function loadSettings(){try{return{...DEFAULT_SETTINGS,...JSON.parse(localStorage.getItem('rrSettings')||'{}')};}catch{return DEFAULT_SETTINGS;}}
 function saveSettings(s){try{localStorage.setItem('rrSettings',JSON.stringify(s));}catch{}}
 const FONT_ZOOM={small:0.88,medium:1,large:1.14};
+
+// ═══════════════ MOBILE HOOK ══════════════════════════════════════
+function useIsMobile(){
+  const [v,setV]=useState(()=>typeof window!=='undefined'&&window.innerWidth<768);
+  useEffect(()=>{
+    const h=()=>setV(window.innerWidth<768);
+    window.addEventListener('resize',h,{passive:true});
+    return()=>window.removeEventListener('resize',h);
+  },[]);
+  return v;
+}
 
 // ═══════════════ STATUS — colors matching Google Sheets ══════════
 const CLIENT_STATUSES=['ממתין לקבלת מסמכים','נבדק - נשלח עדכון/טיוטה ללקוח','נשלח לבנק / לקוח','בהמתנה'];
@@ -1322,7 +1338,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
 }
 
 // ═══════════════ PROJECTS VIEW (kanban groups) ═══════════════════
-function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDelete,autoOpenRow,onAutoOpenConsumed,autoOpenSearch,onAutoOpenSearchConsumed}){
+function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDelete,autoOpenRow,onAutoOpenConsumed,autoOpenSearch,onAutoOpenSearchConsumed,isMobile}){
   const [search,setSearch]=useState('');
   const [personFilter,setPersonFilter]=useState('');
   const [daysFilter,setDaysFilter]=useState('all');
@@ -1427,13 +1443,13 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
   const inp={padding:'9px 14px',borderRadius:10,border:'1px solid #e0d5c5',fontSize:14,background:'#fff',outline:'none',fontFamily:'Rubik,sans-serif',transition:'border-color 0.15s,box-shadow 0.15s'};
 
   return(
-    <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+    <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:8}}>
         <div>
-          <h2 style={{fontSize:22,fontWeight:500,color:'#1a1510',letterSpacing:'-0.01em'}}>פרויקטים בביצוע</h2>
+          <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:'#1a1510',letterSpacing:'-0.01em'}}>פרויקטים בביצוע</h2>
           <div style={{fontSize:13,color:'#9a8e84',marginTop:3,fontWeight:400}}>{filtered.length} תיקים{search.trim()?' נמצאו':' פעילים'}</div>
         </div>
-        <div style={{display:'flex',gap:6}}>
+        {!isMobile&&<div style={{display:'flex',gap:6}}>
           {[{id:'cards',label:'🃏 כרטיסים'},{id:'table',label:'📋 טבלה'}].map(m=>(
             <button key={m.id} onClick={()=>{setViewMode(m.id);setSelectedRow(null);}} style={{
               padding:'8px 16px',borderRadius:9,border:`1.5px solid ${viewMode===m.id?GOLD:'#e0d5c5'}`,
@@ -1441,18 +1457,18 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
               fontWeight:viewMode===m.id?700:400,cursor:'pointer',fontSize:13,transition:'all 0.15s',fontFamily:'Rubik,sans-serif'
             }}>{m.label}</button>
           ))}
-        </div>
+        </div>}
       </div>
 
       {/* Filters */}
-      <div style={{display:'flex',gap:10,marginBottom:24,flexWrap:'wrap',background:'#fff',padding:'14px 16px',borderRadius:14,border:'1px solid #e8e0d4',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 חיפוש — שם, עיר, לקוח, הערות..."
-          style={{...inp,flex:1,minWidth:220}}/>
-        <select value={personFilter} onChange={e=>setPersonFilter(e.target.value)} style={inp}>
+      <div style={{display:'flex',gap:10,marginBottom:isMobile?16:24,flexWrap:'wrap',background:'#fff',padding:isMobile?'10px 12px':'14px 16px',borderRadius:14,border:'1px solid #e8e0d4',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 חיפוש..."
+          style={{...inp,flex:1,minWidth:isMobile?0:220}}/>
+        {!isMobile&&<select value={personFilter} onChange={e=>setPersonFilter(e.target.value)} style={inp}>
           <option value="">כל הנציגים</option>
           {['יוסי','מיכאל','פייגי'].map(p=><option key={p} value={p}>{p}</option>)}
-        </select>
-        <div style={{display:'flex',gap:4,background:'#f5f0e8',borderRadius:8,padding:3}}>
+        </select>}
+        {!isMobile&&<div style={{display:'flex',gap:4,background:'#f5f0e8',borderRadius:8,padding:3}}>
           {[['all','הכל'],['today','היום'],['2days','יומיים'],['week','שבוע']].map(([val,label])=>(
             <button key={val} onClick={()=>setDaysFilter(val)} style={{
               padding:'4px 11px',borderRadius:6,border:'none',cursor:'pointer',fontFamily:'Rubik,sans-serif',
@@ -1463,7 +1479,19 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
               transition:'all 0.15s'
             }}>{label}</button>
           ))}
-        </div>
+        </div>}
+        {/* במובייל — פילטר תאריך מקוצר */}
+        {isMobile&&<div style={{display:'flex',gap:4,background:'#f5f0e8',borderRadius:8,padding:3}}>
+          {[['all','הכל'],['today','היום'],['week','שבוע']].map(([val,label])=>(
+            <button key={val} onClick={()=>setDaysFilter(val)} style={{
+              padding:'5px 10px',borderRadius:6,border:'none',cursor:'pointer',fontFamily:'Rubik,sans-serif',
+              fontSize:12,fontWeight:daysFilter===val?600:400,
+              background:daysFilter===val?'#fff':'transparent',
+              color:daysFilter===val?GOLD3:'#6b5e50',
+              boxShadow:daysFilter===val?'0 1px 3px rgba(0,0,0,0.1)':'none',
+            }}>{label}</button>
+          ))}
+        </div>}
         {(search||personFilter||daysFilter!=='all')&&<button onClick={()=>{setSearch('');setPersonFilter('');setDaysFilter('all');}}
           style={{...inp,background:'#f5f0e8',color:'#4b3400',border:'1px solid #d9c5a0',cursor:'pointer',fontWeight:500}}>נקה ×</button>}
       </div>
@@ -1598,7 +1626,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
                 <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
               </div>
               {isOpen&&(
-                <div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch',gridAutoRows:'190px'}}>
+                <div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch',gridAutoRows:isMobile?'auto':'190px'}}>
                   {items.map(p=><ProjectCard key={p._row} project={p} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}}/>)}
                 </div>
               )}
@@ -1612,7 +1640,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
 }
 
 // ═══════════════ CLIENT VIEW ══════════════════════════════════════
-function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDelete}){
+function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDelete,isMobile}){
   const [search,setSearch]=useState('');
   const [statusFilter,setStatusFilter]=useState('');
   const [panelProject,setPanelProject]=useState(null);
@@ -1657,10 +1685,10 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
   const inp={padding:'9px 14px',borderRadius:10,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none'};
 
   return(
-    <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
+    <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18,flexWrap:'wrap',gap:8}}>
         <div>
-          <h2 style={{fontSize:22,fontWeight:500,color:GOLD3}}>ממתין ללקוח</h2>
+          <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:GOLD3}}>ממתין ללקוח</h2>
           <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{filtered.length} תיקים ממתינים לפעולה חיצונית</div>
         </div>
         <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
@@ -1809,7 +1837,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
                 </div>
                 <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
               </div>
-              {isOpen&&<div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch',gridAutoRows:'190px'}}>
+              {isOpen&&<div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch',gridAutoRows:isMobile?'auto':'190px'}}>
                 {items.map(p=><ProjectCard key={p._row} project={p} onClick={()=>setPanelProject(p)} hideDate/>)}
               </div>}
             </div>
@@ -2317,7 +2345,7 @@ function AddCaseModal({onClose,onAdd,cases}){
 }
 
 // ═══════════════ MANAGED CASES VIEW ══════════════════════════════
-function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteCase,onDeleteProject,initialSearch,onSearchConsumed}){
+function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteCase,onDeleteProject,initialSearch,onSearchConsumed,isMobile}){
   const [search,setSearch]=useState('');
   const [filters,setFilters]=useState({status:'',bank:'',city:'',purpose:'',propType:'',advisor:''});
   useEffect(()=>{
@@ -2379,7 +2407,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
   ];
 
   return(
-    <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease'}}>
+    <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease'}}>
       {adding&&<AddCaseModal cases={cases} onClose={()=>setAdding(false)} onAdd={async(form)=>{
         // נוסחת שם תיקייה זהה ל-Apps Script: O - P Q - G - D
         const folder=`${form.city||''} - ${[form.street,form.houseNum].filter(Boolean).join(' ')} - ${form.client||''} - ${form.caseNum||''}`;
@@ -2526,8 +2554,58 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
   );
 }
 
+// ═══════════════ BOTTOM NAV (mobile only) ════════════════════════
+function BottomNav({view,setView,counts,onOpenDrawer,loading}){
+  const items=[
+    {id:'home',   icon:'🏠',label:'בית'},
+    {id:'projects',icon:'📁',label:'בביצוע',count:counts.active},
+    {id:'clients', icon:'⏳',label:'ממתין', count:counts.client},
+    {id:'managed', icon:'🗂',label:'תיקים'},
+    {id:'__more',  icon:'☰', label:'עוד'},
+  ];
+  return(
+    <div className="bottom-nav-bar" style={{
+      position:'fixed',bottom:0,left:0,right:0,
+      background:`linear-gradient(180deg,#111008 0%,#0d0c06 100%)`,
+      borderTop:`1px solid ${GOLD}33`,
+      display:'flex',zIndex:300,height:60,
+    }}>
+      {items.map(item=>{
+        const active=view===item.id;
+        const isMre=item.id==='__more';
+        return(
+          <button key={item.id}
+            onClick={()=>isMre?onOpenDrawer():setView(item.id)}
+            style={{
+              flex:1,display:'flex',flexDirection:'column',alignItems:'center',
+              justifyContent:'center',border:'none',
+              background:active?`${GOLD}18`:'transparent',
+              color:active?GOLD:'rgba(255,255,255,0.5)',
+              cursor:'pointer',gap:2,fontSize:10,padding:'4px 0',
+              position:'relative',fontFamily:'Rubik,sans-serif',
+              borderTop:`2px solid ${active&&!isMre?GOLD:'transparent'}`,
+              transition:'all 0.15s',
+            }}>
+            <span style={{fontSize:19,lineHeight:1}}>{item.icon}</span>
+            <span style={{letterSpacing:'0.01em'}}>{item.label}</span>
+            {(item.count||0)>0&&(
+              <span style={{
+                position:'absolute',top:3,right:'calc(50% - 14px)',
+                background:GOLD,color:BLACK,borderRadius:10,
+                padding:'0 5px',fontSize:9,fontWeight:700,
+                minWidth:16,textAlign:'center',lineHeight:'16px',height:16,
+              }}>{item.count}</span>
+            )}
+            {loading&&active&&<Spinner size={10} color={GOLD} style={{position:'absolute',bottom:2,right:'calc(50% - 5px)'}}/>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ═══════════════ SIDEBAR ══════════════════════════════════════════
-function Sidebar({view,setView,user,onLogout,loading,counts}){
+function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,onDrawerClose}){
   const [logoSrc,setLogoSrc]=useState(CONFIG.LOGO_URL);
   const [logoErr,setLogoErr]=useState(false);
   const handleLogoErr=()=>{
@@ -2543,14 +2621,17 @@ function Sidebar({view,setView,user,onLogout,loading,counts}){
     {id:'reports',icon:'📊',label:'דוחות'},
     {id:'settings',icon:'⚙️',label:'הגדרות'},
   ];
-  return(
-    <div style={{width:232,background:`linear-gradient(180deg, #111008 0%, #0d0c06 100%)`,color:'#e8dfc9',display:'flex',flexDirection:'column',height:'100vh',position:'fixed',right:0,top:0,zIndex:200,borderLeft:`1px solid ${GOLD}1a`,boxShadow:'-4px 0 20px rgba(0,0,0,0.25)'}}>
+  const handleNav=(id)=>{setView(id);if(isMobile&&onDrawerClose)onDrawerClose();};
+
+  // תוכן פנימי — משותף לדסקטופ ומובייל
+  const inner=(
+    <>
       {/* Logo */}
       <div style={{padding:'14px 12px 12px',borderBottom:`1px solid ${GOLD}33`,display:'flex',flexDirection:'column',alignItems:'center'}}>
+        {isMobile&&<button onClick={onDrawerClose} style={{alignSelf:'flex-start',background:'transparent',border:'none',color:'rgba(255,255,255,0.4)',fontSize:22,cursor:'pointer',marginBottom:6,lineHeight:1}}>×</button>}
         {!logoErr?(
           <div style={{background:'#fff',borderRadius:10,padding:'8px 10px',width:'100%',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 2px 10px rgba(0,0,0,0.3)`}}>
-            <img src={logoSrc} alt="לוגו" onError={handleLogoErr}
-              style={{width:'100%',maxWidth:170,height:54,objectFit:'contain'}}/>
+            <img src={logoSrc} alt="לוגו" onError={handleLogoErr} style={{width:'100%',maxWidth:170,height:54,objectFit:'contain'}}/>
           </div>
         ):(
           <div style={{background:'#fff',borderRadius:10,padding:'10px 14px',width:'100%',textAlign:'right'}}>
@@ -2559,19 +2640,18 @@ function Sidebar({view,setView,user,onLogout,loading,counts}){
           </div>
         )}
       </div>
-
       {/* Nav */}
       <nav style={{flex:1,padding:'12px 10px',overflowY:'auto'}}>
         {nav.map(item=>{
           const active=view===item.id;
           return(
-            <button key={item.id} onClick={()=>setView(item.id)} style={{
+            <button key={item.id} onClick={()=>handleNav(item.id)} style={{
               display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',
               borderRadius:10,border:'none',cursor:'pointer',marginBottom:2,fontSize:14,
               background:active?`linear-gradient(90deg,${GOLD}28 0%,${GOLD}10 100%)`:'transparent',
               color:active?GOLD:'rgba(255,255,255,0.6)',fontWeight:active?700:400,
               borderRight:`3px solid ${active?GOLD:'transparent'}`,transition:'all 0.15s',textAlign:'right',
-              letterSpacing: active?'0.01em':'0',
+              letterSpacing:active?'0.01em':'0',
             }}
             onMouseEnter={e=>{if(!active){e.currentTarget.style.background='rgba(255,255,255,0.05)';e.currentTarget.style.color='rgba(255,255,255,0.88)';}}}
             onMouseLeave={e=>{if(!active){e.currentTarget.style.background='transparent';e.currentTarget.style.color='rgba(255,255,255,0.6)';}}}
@@ -2584,7 +2664,6 @@ function Sidebar({view,setView,user,onLogout,loading,counts}){
           );
         })}
       </nav>
-
       {/* User */}
       <div style={{padding:14,borderTop:`1px solid ${GOLD}22`}}>
         {user&&<div style={{display:'flex',alignItems:'center',gap:9,marginBottom:10}}>
@@ -2601,6 +2680,33 @@ function Sidebar({view,setView,user,onLogout,loading,counts}){
           התנתקות
         </button>
       </div>
+    </>
+  );
+
+  // במובייל — Drawer overlay
+  if(isMobile){
+    return(
+      <>
+        {drawerOpen&&<div onClick={onDrawerClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:298}}/>}
+        <div style={{
+          width:260,background:`linear-gradient(180deg,#111008 0%,#0d0c06 100%)`,color:'#e8dfc9',
+          display:'flex',flexDirection:'column',height:'100vh',
+          position:'fixed',right:0,top:0,zIndex:299,
+          borderLeft:`1px solid ${GOLD}1a`,boxShadow:'-6px 0 30px rgba(0,0,0,0.5)',
+          transform:drawerOpen?'translateX(0)':'translateX(110%)',
+          transition:'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
+          pointerEvents:drawerOpen?'auto':'none',
+        }}>
+          {inner}
+        </div>
+      </>
+    );
+  }
+
+  // דסקטופ — סיידבר קבוע
+  return(
+    <div style={{width:232,background:`linear-gradient(180deg,#111008 0%,#0d0c06 100%)`,color:'#e8dfc9',display:'flex',flexDirection:'column',height:'100vh',position:'fixed',right:0,top:0,zIndex:200,borderLeft:`1px solid ${GOLD}1a`,boxShadow:'-4px 0 20px rgba(0,0,0,0.25)'}}>
+      {inner}
     </div>
   );
 }
@@ -3697,12 +3803,16 @@ function NadlanSearchView(){
 }
 
 function App(){
+  const isMobile=useIsMobile();
+  const [drawerOpen,setDrawerOpen]=useState(false);
   const [token,setToken]=useState(null);
   const [user,setUser]=useState(null);
   const [view,setView]=useState('home');
   const [managedSearch,setManagedSearch]=useState('');
   const [openProjectRow,setOpenProjectRow]=useState(null);
   const [projectSearch,setProjectSearch]=useState('');
+  // סגור drawer אוטומטית כשעוברים ל-landscape
+  useEffect(()=>{if(!isMobile)setDrawerOpen(false);},[isMobile]);
   React.useEffect(()=>{_goToManaged=(caseNum)=>{setManagedSearch(caseNum||'');setView('managed');};},[]);
   React.useEffect(()=>{
     _goToProject=(caseNum)=>{
@@ -3858,16 +3968,23 @@ function App(){
     managed:managed.length,
   }),[projects,managed]);
   if(!token){return <LoginScreen onLogin={handleLogin}/>;}
+  const onLogout=()=>{_stopTokenRefresh();api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);};
   return(
     <div style={{display:'flex',height:'100vh',overflow:'hidden',background:'#f7f3ee',fontFamily:'Rubik,sans-serif',direction:'rtl'}}>
       <Sidebar view={view} setView={setView} user={user} loading={loading} counts={counts}
-        onLogout={()=>{_stopTokenRefresh();api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);}}/>
-      <div style={{flex:1,overflowY:'auto',overflowX:'hidden',marginRight:232,height:'100vh'}}>
+        onLogout={onLogout} isMobile={isMobile} drawerOpen={drawerOpen} onDrawerClose={()=>setDrawerOpen(false)}/>
+      {isMobile&&<BottomNav view={view} setView={setView} counts={counts} onOpenDrawer={()=>setDrawerOpen(true)} loading={loading}/>}
+      <div style={{
+        flex:1,overflowY:'auto',overflowX:'hidden',
+        marginRight:isMobile?0:232,
+        height:'100vh',
+        paddingBottom:isMobile?68:0,
+      }}>
         {error&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{error}</div>}
         {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}} messages={messages} onlineUsers={onlineUsers} onPostMessage={postMessage} onMarkRead={markRead} onDeleteMessage={deleteMessage}/>}
-        {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)} autoOpenSearch={projectSearch} onAutoOpenSearchConsumed={()=>setProjectSearch('')}/>}
-        {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject}/>}
-        {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject} initialSearch={managedSearch} onSearchConsumed={()=>setManagedSearch('')}/>}
+        {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)} autoOpenSearch={projectSearch} onAutoOpenSearchConsumed={()=>setProjectSearch('')} isMobile={isMobile}/>}
+        {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject} isMobile={isMobile}/>}
+        {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject} initialSearch={managedSearch} onSearchConsumed={()=>setManagedSearch('')} isMobile={isMobile}/>}
         {view==='nadlan'&&<NadlanSearchView/>}
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
         {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user} managed={managed} onUpdateFolderLinks={handleUpdateFolderLinks}/>}
