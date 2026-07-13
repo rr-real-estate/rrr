@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ניהול תיקים | רובינשטיין רוזנטל שמאות</title>
 <link rel="icon" type="image/png" href="Logo_smol.png">
+<link rel="apple-touch-icon" href="Logo_smol.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0d0d0d">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -1117,7 +1122,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const sec={background:'#fff',borderRadius:14,padding:18,marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
   const panelTabs=[{id:'main',label:'📋 ראשי'},{id:'docs',label:'📁 מסמכים'},{id:'visit',label:'🏠 ביקור'},{id:'fee',label:'💰 שכ"ט'}];
   return(
-    <div style={{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(8px)'}} onClick={handleClose}>
+    <div style={{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:isMobile?'flex-end':'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(8px)'}} onClick={handleClose}>
       {/* דיאלוג תזכורת שכ"ט ליוסי */}
       {feeReminder&&(
         <div style={{position:'absolute',inset:0,zIndex:700,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
@@ -1167,9 +1172,9 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
           </div>
         </div>
       )}
-      <div style={{background:'#f0ede8',width:'min(940px,96vw)',height:'94vh',margin:'auto',borderRadius:20,overflow:'hidden',boxShadow:'0 32px 100px rgba(0,0,0,0.45)',animation:'zoomIn 0.2s cubic-bezier(0.4,0,0.2,1)',display:'flex',flexDirection:'column'}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:'#f0ede8',width:isMobile?'100vw':'min(940px,96vw)',height:isMobile?'96vh':'94vh',margin:isMobile?'0':'auto',borderRadius:isMobile?'16px 16px 0 0':20,overflow:'hidden',boxShadow:'0 32px 100px rgba(0,0,0,0.45)',animation:isMobile?'slideUp 0.25s ease':'zoomIn 0.2s cubic-bezier(0.4,0,0.2,1)',display:'flex',flexDirection:'column',maxWidth:'100vw',boxSizing:'border-box'}} onClick={e=>e.stopPropagation()}>
         {/* Header */}
-        <div style={{background:`linear-gradient(135deg, #0f0f0f 0%, #1a1410 100%)`,padding:'20px 26px',flexShrink:0,borderBottom:`3px solid ${dot}`}}>
+        <div style={{background:`linear-gradient(135deg, #0f0f0f 0%, #1a1410 100%)`,padding:isMobile?'14px 16px':'20px 26px',flexShrink:0,borderBottom:`3px solid ${dot}`}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
             <div style={{flex:1,minWidth:0}}>
               {caseNum&&<span onClick={()=>{_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={{fontSize:11,fontWeight:500,color:GOLD,background:`${GOLD}18`,border:`1px solid ${GOLD}55`,borderRadius:20,padding:'3px 10px',display:'inline-block',marginBottom:7,letterSpacing:'0.05em',cursor:'pointer'}}>תיק #{caseNum}</span>}
@@ -1213,7 +1218,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
         </div>
         {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 26px',fontSize:13,borderBottom:'1px solid #fca5a5'}}>{err}</div>}
         {/* Content */}
-        <div style={{padding:'20px 26px',flex:1,overflowY:'auto',minHeight:0}}>
+        <div style={{padding:isMobile?'14px 14px':'20px 26px',flex:1,overflowY:'auto',overflowX:'hidden',minHeight:0}}>
           {tab==='main'&&<div>
             <div style={sec}>
               <SectionTitle icon="⚙️">סטטוס ותאריכים</SectionTitle>
@@ -1732,7 +1737,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
       <div style={{display:'flex',gap:10,marginBottom:22,alignItems:'center'}}>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 חיפוש..." style={{...inp,flex:1}}/>
         {search&&<button onClick={()=>setSearch('')} style={{...inp,background:'#ede8e0',color:'#4b3400',border:'1px solid #ddd0bb',cursor:'pointer'}}>נקה ×</button>}
-        {[{id:'cards',label:'🃏 כרטיסים'},{id:'table',label:'📋 טבלה'}].map(m=>(
+        {!isMobile&&[{id:'cards',label:'🃏 כרטיסים'},{id:'table',label:'📋 טבלה'}].map(m=>(
           <button key={m.id} onClick={()=>setViewMode(m.id)} style={{
             padding:'8px 16px',borderRadius:9,border:`1.5px solid ${viewMode===m.id?GOLD:'#e0d5c5'}`,
             background:viewMode===m.id?`${GOLD}15`:'#fff',color:viewMode===m.id?GOLD3:'#6b5e50',
@@ -1741,7 +1746,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
         ))}
       </div>
 
-      {viewMode==='table'&&(()=>{
+      {!isMobile&&viewMode==='table'&&(()=>{
         const today2=new Date();today2.setHours(0,0,0,0);
         const handleInlineSave=async(proj,field,val)=>{
           const upd={...proj,[field]:val};
@@ -1847,11 +1852,11 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
         );
       })()}
 
-      {viewMode==='cards'&&Object.keys(groups).length===0?(
+      {(isMobile||viewMode==='cards')&&Object.keys(groups).length===0?(
         <div style={{padding:60,textAlign:'center',color:'#9a8e84'}}>
           <div style={{fontSize:48,marginBottom:12}}>✅</div><div>אין תיקים ממתינים ללקוח</div>
         </div>
-      ):viewMode==='cards'&&(
+      ):(isMobile||viewMode==='cards')&&(
         Object.entries(groups).map(([status,items])=>{
           const m=STATUS_META[status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
           const isOpen=!collapsed[status];
@@ -2835,6 +2840,7 @@ function LoginScreen({onLogin}){
 
 // ═══════════════ DASHBOARD VIEW ══════════════════════════════════
 function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,onlineUsers,onPostMessage,onMarkRead,onDeleteMessage}){
+  const isMobile=useIsMobile();
   const today=new Date();today.setHours(0,0,0,0);
   const in7=new Date(today);in7.setDate(in7.getDate()+7);
   const in14=new Date(today);in14.setDate(in14.getDate()+14);
@@ -2926,7 +2932,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
   },[activeProjs]);
 
   return(
-    <div style={{padding:'28px 32px',animation:'fadeIn 0.3s ease'}}>
+    <div style={{padding:isMobile?'16px 14px':'28px 32px',animation:'fadeIn 0.3s ease'}}>
       {/* שורת ברכה + מחוברים */}
       <div style={{marginBottom:26,display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
         <div>
@@ -2953,7 +2959,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
           onClick={()=>onSetView('managed')}/>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'3fr 2fr',gap:16,marginBottom:16,alignItems:'start'}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'3fr 2fr',gap:16,marginBottom:16,alignItems:'start'}}>
 
         {/* ── ימין: תיבת מייל — משימות אישיות ── */}
         {(()=>{
@@ -2974,7 +2980,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
               return rankA-rankB;
             });
           return(
-            <div style={{...sec,padding:0,overflow:'hidden',height:480,display:'flex',flexDirection:'column'}}>
+            <div style={{...sec,padding:0,overflow:'hidden',height:isMobile?360:480,display:'flex',flexDirection:'column'}}>
               <div style={{padding:'14px 20px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:10,background:'#fdfaf5',flexShrink:0}}>
                 <span style={{fontSize:15}}>📬</span>
                 <span style={{fontSize:13,fontWeight:600,color:'#3a2a00'}}>המשימות שלי — {userName}</span>
@@ -3030,7 +3036,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
           const numRows=cells.length/7;
           const selectedTasks=calSelectedDay?(tasksByDay[calSelectedDay]||[]):[];
           return(
-            <div style={{...sec,padding:0,overflow:'hidden',height:480,display:'flex',flexDirection:'column'}}>
+            <div style={{...sec,padding:0,overflow:'hidden',height:isMobile?360:480,display:'flex',flexDirection:'column'}}>
               {/* כותרת + ניווט */}
               <div style={{padding:'10px 16px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:8,background:'#fdfaf5',flexShrink:0}}>
                 <span style={{fontSize:15}}>📅</span>
