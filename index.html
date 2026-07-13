@@ -862,6 +862,7 @@ function openCaseFolder(folderName,e){
 }
 function ProjectCard({project,onClick,hideDate,folderLink,driveLink}){
   const [copied,setCopied]=React.useState(false);
+  const isMobile=useIsMobile();
   const m=STATUS_META[project.status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
   // תיקייה — folderLink מ-prop, או בנייה מ-basePath מה-localStorage
   const _basePath=React.useMemo(()=>localStorage.getItem('folderBasePath')||'','');
@@ -910,7 +911,7 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink}){
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
-          {_folderPath&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_folderPath);}}
+          {_folderPath&&!isMobile&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_folderPath);}}
             style={{background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontSize:15,lineHeight:1,color:'#7a6a58',borderRadius:6,transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
             onMouseLeave={e=>e.currentTarget.style.background='none'}>📁</button>}
@@ -999,6 +1000,7 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink}){
 
 // ═══════════════ PROJECT DETAIL PANEL ════════════════════════════
 function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDeleteProject,user}){
+  const isMobile=useIsMobile();
   const [form,setForm]=useState({...project});
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
@@ -1181,7 +1183,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                   <option value="הסתיים">הסתיים</option>
                   <option value="בוטל">בוטל</option>
                 </select>}
-                {_fp&&<button onClick={()=>openFolder(_fp)} title={_fp}
+                {_fp&&!isMobile&&<button onClick={()=>openFolder(_fp)} title={_fp}
                   style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:13,display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}}>
                   📂 <span style={{fontSize:11}}>פתח תיקייה</span>
                 </button>}
@@ -1881,6 +1883,7 @@ const PURPOSE_OPTIONS=['שומה אחרת להיטל השבחה','תשלומי �
 const PROP_TYPE_OPTIONS=['קרקע לבניה','דירת מגורים','צמוד קרקע','צמוד קרקע - דו משפחתי','קרקע חקלאית','מחסן','בניין מגורים','דירות מגורים וחניות'];
 
 function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addProject,projects}){
+  const isMobile=useIsMobile();
   const [form,setForm]=useState({...cas});
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
@@ -2068,7 +2071,7 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
             const _drive=cas.driveFolderLink;
             return(
               <div style={{display:'flex',gap:6}}>
-                {_fp&&<button onClick={()=>openFolder(_fp)} title={_fp}
+                {_fp&&!isMobile&&<button onClick={()=>openFolder(_fp)} title={_fp}
                   style={{padding:'9px 13px',borderRadius:9,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>
                   📂
                 </button>}
@@ -2571,7 +2574,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
                         const _drive=c.driveFolderLink;
                         return(
                           <div style={{display:'flex',gap:4}}>
-                            {_fp&&<button onClick={()=>openFolder(_fp)} title={_fp}
+                            {_fp&&!isMobile&&<button onClick={()=>openFolder(_fp)} title={_fp}
                               style={{background:'none',border:'1px solid #e0d8cc',borderRadius:6,padding:'3px 7px',cursor:'pointer',fontSize:14}}>
                               📂
                             </button>}
@@ -2674,7 +2677,7 @@ function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,
     {id:'projects',icon:'📁',label:'פרויקטים בביצוע',count:counts.active},
     {id:'clients',icon:'⏳',label:'ממתין ללקוח',count:counts.client},
     {id:'managed',icon:'🗂️',label:'כלל התיקים',count:counts.managed},
-    {id:'nadlan',icon:'🏡',label:'עסקאות נדל"ן'},
+    ...(!isMobile?[{id:'nadlan',icon:'🏡',label:'עסקאות נדל"ן'}]:[]),
     {id:'reports',icon:'📊',label:'דוחות'},
     {id:'settings',icon:'⚙️',label:'הגדרות'},
   ];
@@ -3499,6 +3502,7 @@ function ReportsView({managed,projects}){
 
 // ══════════════ SETTINGS VIEW ════════════════════════════════════
 function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
+  const isMobile=useIsMobile();
   const sec={background:'#fff',borderRadius:14,padding:'20px 22px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
   const secTitle=(icon,t)=><div style={{fontSize:14,fontWeight:500,color:GOLD3,marginBottom:14,display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:17}}>{icon}</span>{t}</div>;
   const row={display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10};
@@ -3616,7 +3620,7 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
         </div>
       </div>
 
-      <div style={sec}>
+      {!isMobile&&<div style={sec}>
         {secTitle('🗂️','חיבור לתיקיות במחשב')}
         <div style={{fontSize:12,color:'#9a8e84',marginBottom:14,lineHeight:1.7}}>
           מאפשר פתיחת תיקיית תיק ישירות מהאתר. צריך להגדיר פעם אחת על כל מחשב:
@@ -3646,7 +3650,7 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
             {updatingLinks?<><Spinner size={12} color={GOLD}/>מעדכן...</>:linksDone?'✓ עודכן!':'🔗 עדכן קישורים'}
           </button>
         </div>
-      </div>
+      </div>}
 
       <div style={sec}>
         {secTitle('🔍','בדיקת עקביות תיקיות Drive')}
@@ -3753,7 +3757,7 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
       </div>
 
       {/* ── אינטגרציה עסקאות נדל"ן ── */}
-      <div style={sec}>
+      {!isMobile&&<div style={sec}>
         {secTitle('📊','אינטגרציה עסקאות נדל"ן')}
         {(()=>{
           const installed=document.documentElement.getAttribute('data-rrr-ext')==='1';
@@ -3831,7 +3835,7 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
             </>
           );
         })()}
-      </div>
+      </div>}
 
     </div>
   );
