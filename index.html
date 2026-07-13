@@ -1021,7 +1021,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const matchedCase=(managed||[]).find(c=>c.folder&&c.folder.trim()===project.name.trim());
   const [feeReminder,setFeeReminder]=useState(false);
   useEffect(()=>{
-    if(isYossi&&project.status==='בבדיקה'&&!matchedCase?.fee){
+    if(isYossi&&project.status==='בבדיקה'&&!project.fee){
       setFeeReminder(true);
     }
   },[]);
@@ -3520,7 +3520,8 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
     setFillingDrive(true);setFillDriveResult(null);
     try{
       const resp=await fetch(APPS_SCRIPT_URL+'?type=fillDriveLinks');
-      const d=await resp.json();
+      const text=await resp.text();
+      let d;try{d=JSON.parse(text);}catch(_){d={error:text};}
       setFillDriveResult(d);
     }catch(e){setFillDriveResult({error:e.message});}
     finally{setFillingDrive(false);}
