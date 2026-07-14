@@ -2891,17 +2891,24 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
     const d=p._dueD||p._expD;
     const dStr=p.dueDate||p.expected||'';
     const daysLeft=d?Math.round((d-today)/86400000):null;
+    const isToday=daysLeft===0;
     const person=p.yossi?'יוסי':p.michael?'מיכאל':p.feigi?'פייגי':'';
     const m=STATUS_META[p.status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
+    const rowBg=isOverdue?'#fee2e2':isToday?'#ffedd5':'#eff6ff';
+    const badgeLabel=isOverdue?`⚠️ ${Math.abs(daysLeft)} ימים`:isToday?'היום':`${daysLeft} ימים`;
+    const badgeBg=isOverdue?'#fef2f2':isToday?'#fff7ed':'#eff6ff';
+    const badgeFg=isOverdue?'#dc2626':isToday?'#d97706':'#1d4ed8';
+    const badgeBdr=isOverdue?'#fca5a5':isToday?'#fcd34d':'#bfdbfe';
     return(
-      <div style={{display:'flex',alignItems:'center',gap:10,padding:'9px 14px',borderBottom:'1px solid #f5f3ef',fontSize:13,flexWrap:'wrap'}}>
-        <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:500,whiteSpace:'nowrap',
-          background:isOverdue?'#fef2f2':'#fff7ed',color:isOverdue?'#dc2626':'#d97706',
-          border:`1px solid ${isOverdue?'#fca5a5':'#fcd34d'}`}}>
-          {isOverdue?`⚠️ ${Math.abs(daysLeft)} ימים`:daysLeft===0?'🔴 היום':`📅 ${daysLeft} ימים`}
-        </span>
+      <div style={{display:'flex',alignItems:'center',gap:10,padding:'9px 14px',borderBottom:'1px solid #f5f3ef',fontSize:13,flexWrap:'wrap',background:rowBg}}>
+        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:2,flexShrink:0}}>
+          <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:500,whiteSpace:'nowrap',
+            background:badgeBg,color:badgeFg,border:`1px solid ${badgeBdr}`}}>
+            {badgeLabel}
+          </span>
+          {dStr&&<span style={{fontSize:10,color:badgeFg,opacity:0.75,paddingRight:2}}>{dStr}</span>}
+        </div>
         <span style={{flex:1,fontWeight:600,color:'#1a1510',minWidth:120}}>{p.name}</span>
-        <span style={{color:'#9a8e84',fontSize:12}}>{dStr}</span>
         {person&&<span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:500,background:'#fef3c7',color:'#4b3400',border:'1px solid #d9af34'}}>{person}</span>}
         <span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:600,background:m.bg,color:m.fg,border:`1px solid ${m.dot}44`}}>{p.status}</span>
       </div>
@@ -2916,11 +2923,9 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
     </div>
   );
 
-  // ── לוח שנה חודשי ──
-  const [calMonthOffset,setCalMonthOffset]=React.useState(0);
-  const [calSelectedDay,setCalSelectedDay]=React.useState(null);
-  const MONTHS_HE=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-  const DAY_SHORT=['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
+  // ── לוח שנה שבועי ──
+  const [calWeekOffset,setCalWeekOffset]=React.useState(0);
+  const DAY_NAMES=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
   const tasksByDay=React.useMemo(()=>{
     const map={};
     activeProjs.forEach(p=>{
@@ -2961,7 +2966,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
           onClick={()=>onSetView('managed')}/>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'3fr 2fr',gap:16,marginBottom:16,alignItems:'start'}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16,marginBottom:16,alignItems:'start'}}>
 
         {/* ── ימין: תיבת מייל — משימות אישיות ── */}
         {(()=>{
@@ -2999,18 +3004,21 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
                     const borderColor=isOverdue?'#dc2626':isToday?'#f97316':isSoon?'#d97706':'#d4cabb';
                     const dateBg=isOverdue?'#fef2f2':isToday?'#fff7ed':isSoon?'#fffbeb':'#f5f3ef';
                     const dateFg=isOverdue?'#dc2626':isToday?'#ea580c':isSoon?'#d97706':'#9a8e84';
-                    const dateLabel=p._daysLeft===null?'ללא תאריך':isOverdue?`⚠️ ${Math.abs(p._daysLeft)} ימים`:isToday?'🔴 היום':isSoon?`📅 ${p._daysLeft} ימים`:`📅 ${p._dStr}`;
+                    const badgeLabel=p._daysLeft===null?'ללא תאריך':isOverdue?`⚠️ ${Math.abs(p._daysLeft)} ימים`:isToday?'היום':`${p._daysLeft} ימים`;
+                    const rowBg=isOverdue?'#fee2e2':isToday?'#ffedd5':p._daysLeft!==null?'#eff6ff':'#fff';
+                    const rowBgHover=isOverdue?'#fecaca':isToday?'#fed7aa':p._daysLeft!==null?'#dbeafe':'#f5f1e8';
                     return(
                       <div key={p._row} onClick={()=>onOpenProject&&onOpenProject(p._row)}
                         style={{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 20px',
                           borderBottom:i<myTasks.length-1?'1px solid #f0ebe2':'none',
                           borderRight:`3px solid ${borderColor}`,
-                          background:isOverdue?'#fffcfc':isToday?'#fffdf8':'#fff',
+                          background:rowBg,
                           transition:'background 0.15s',cursor:'pointer'}}
-                        onMouseEnter={e=>e.currentTarget.style.background=isOverdue?'#fff0f0':'#f5f1e8'}
-                        onMouseLeave={e=>e.currentTarget.style.background=isOverdue?'#fffcfc':isToday?'#fffdf8':'#fff'}>
-                        <div style={{flexShrink:0,minWidth:100,paddingTop:2}}>
-                          <span style={{display:'inline-block',background:dateBg,color:dateFg,borderRadius:20,padding:'2px 9px',fontSize:11,fontWeight:600,border:`1px solid ${dateFg}33`,whiteSpace:'nowrap'}}>{dateLabel}</span>
+                        onMouseEnter={e=>e.currentTarget.style.background=rowBgHover}
+                        onMouseLeave={e=>e.currentTarget.style.background=rowBg}>
+                        <div style={{flexShrink:0,minWidth:90,paddingTop:2,display:'flex',flexDirection:'column',alignItems:'flex-start',gap:3}}>
+                          <span style={{display:'inline-block',background:dateBg,color:dateFg,borderRadius:20,padding:'2px 9px',fontSize:11,fontWeight:600,border:`1px solid ${dateFg}33`,whiteSpace:'nowrap'}}>{badgeLabel}</span>
+                          {p._dStr&&<span style={{fontSize:10,color:dateFg,opacity:0.8,paddingRight:2}}>{p._dStr}</span>}
                         </div>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:13,fontWeight:700,color:'#1a1510',marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</div>
@@ -3025,93 +3033,85 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
           );
         })()}
 
-        {/* ── שמאל: לוח שנה חודשי ── */}
+        {/* ── שמאל: לוח שנה שבועי ── */}
         {(()=>{
           const todayD=new Date();todayD.setHours(0,0,0,0);
           const todayKey=todayD.toISOString().split('T')[0];
-          const baseDate=new Date(todayD.getFullYear(),todayD.getMonth()+calMonthOffset,1);
-          const monthLabel=`${MONTHS_HE[baseDate.getMonth()]} ${baseDate.getFullYear()}`;
-          const daysInMonth=new Date(baseDate.getFullYear(),baseDate.getMonth()+1,0).getDate();
-          const startDow=baseDate.getDay();
-          const cells=[...Array(startDow).fill(null),...Array.from({length:daysInMonth},(_,i)=>new Date(baseDate.getFullYear(),baseDate.getMonth(),i+1))];
-          while(cells.length%7!==0)cells.push(null);
-          const numRows=cells.length/7;
-          const selectedTasks=calSelectedDay?(tasksByDay[calSelectedDay]||[]):[];
+          // חשב תחילת השבוע (ראשון) עם offset שבועות
+          const weekStart=new Date(todayD);
+          weekStart.setDate(todayD.getDate()-todayD.getDay()+calWeekOffset*7);
+          const weekDays=Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);return d;});
+          const fmtDay=d=>`${d.getDate()}/${d.getMonth()+1}`;
+          const weekLabel=`${fmtDay(weekDays[0])} – ${fmtDay(weekDays[6])}/${weekDays[6].getFullYear()}`;
           return(
             <div style={{...sec,padding:0,overflow:'hidden',height:isMobile?360:480,display:'flex',flexDirection:'column'}}>
               {/* כותרת + ניווט */}
               <div style={{padding:'10px 16px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:8,background:'#fdfaf5',flexShrink:0}}>
                 <span style={{fontSize:15}}>📅</span>
-                <span style={{fontSize:13,fontWeight:600,color:'#3a2a00',flex:1}}>{monthLabel}</span>
-                <button onClick={()=>setCalMonthOffset(o=>o-1)}
+                <span style={{fontSize:13,fontWeight:600,color:'#3a2a00',flex:1}}>{weekLabel}</span>
+                <button onClick={()=>setCalWeekOffset(o=>o-1)}
                   style={{width:26,height:26,borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',color:'#6b5e50'}}>‹</button>
-                {calMonthOffset!==0&&<button onClick={()=>{setCalMonthOffset(0);setCalSelectedDay(null);}}
-                  style={{fontSize:11,padding:'3px 9px',borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',color:'#6b5e50',fontFamily:'inherit'}}>היום</button>}
-                <button onClick={()=>setCalMonthOffset(o=>o+1)}
+                {calWeekOffset!==0&&<button onClick={()=>setCalWeekOffset(0)}
+                  style={{fontSize:11,padding:'3px 9px',borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',color:'#6b5e50',fontFamily:'inherit'}}>השבוע</button>}
+                <button onClick={()=>setCalWeekOffset(o=>o+1)}
                   style={{width:26,height:26,borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',color:'#6b5e50'}}>›</button>
               </div>
-              {/* שמות ימים */}
-              <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',background:'#f5f1e8',borderBottom:'1px solid #ede8e0',flexShrink:0}}>
-                {DAY_SHORT.map(d=>(
-                  <div key={d} style={{textAlign:'center',fontSize:10,fontWeight:600,color:'#9a8e84',padding:'5px 0'}}>{d}</div>
-                ))}
-              </div>
-              {/* גריד ימים */}
-              <div style={{flex:1,display:'grid',gridTemplateColumns:'repeat(7,1fr)',gridTemplateRows:`repeat(${numRows},1fr)`,minHeight:0}}>
-                {cells.map((day,i)=>{
-                  if(!day)return <div key={`e${i}`} style={{background:'#fafaf7',borderBottom:'1px solid #f0ebe2',borderLeft:'1px solid #f0ebe2'}}/>;
+              {/* גריד 7 עמודות */}
+              <div style={{flex:1,display:'grid',gridTemplateColumns:'repeat(7,1fr)',minHeight:0,overflow:'hidden'}}>
+                {weekDays.map((day,di)=>{
                   const key=day.toISOString().split('T')[0];
-                  const count=(tasksByDay[key]||[]).length;
+                  const dayTasks=tasksByDay[key]||[];
                   const isToday=key===todayKey;
                   const isPast=day<todayD;
-                  const isSelected=calSelectedDay===key;
-                  const hasOverdue=isPast&&count>0;
+                  const hasOverdue=isPast&&dayTasks.length>0;
                   return(
-                    <div key={key} onClick={()=>count>0&&setCalSelectedDay(isSelected?null:key)}
-                      style={{
-                        borderBottom:'1px solid #f0ebe2',borderLeft:'1px solid #f0ebe2',
-                        display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:2,
-                        cursor:count>0?'pointer':'default',
-                        background:isSelected?'#fef9e0':isToday?'#fffbf0':isPast?'#fafaf7':'#fff',
-                        transition:'background 0.1s',
-                      }}
-                      onMouseEnter={e=>{if(count>0)e.currentTarget.style.background=isSelected?'#fef3c7':'#f0ebe2';}}
-                      onMouseLeave={e=>{e.currentTarget.style.background=isSelected?'#fef9e0':isToday?'#fffbf0':isPast?'#fafaf7':'#fff';}}>
-                      <div style={{width:24,height:24,borderRadius:'50%',background:isToday?GOLD:'transparent',
-                        display:'flex',alignItems:'center',justifyContent:'center'}}>
-                        <span style={{fontSize:12,fontWeight:isToday?700:400,color:isToday?'#fff':isPast?'#b8a898':'#2d2520'}}>{day.getDate()}</span>
+                    <div key={key} style={{
+                      borderLeft:di<6?'1px solid #f0ebe2':'none',
+                      display:'flex',flexDirection:'column',
+                      background:isToday?'#fffbf0':isPast?'#fafaf7':'#fff',
+                      minHeight:0,overflow:'hidden',
+                    }}>
+                      {/* כותרת עמודה */}
+                      <div style={{
+                        padding:'5px 3px',textAlign:'center',flexShrink:0,
+                        borderBottom:'1px solid #ede8e0',
+                        background:isToday?`${GOLD}18`:isPast?'#f5f2ee':'#f5f1e8',
+                      }}>
+                        <div style={{fontSize:9,fontWeight:600,color:isToday?GOLD3:'#9a8e84',letterSpacing:'0.02em'}}>{DAY_NAMES[di]}</div>
+                        <div style={{
+                          width:20,height:20,borderRadius:'50%',
+                          background:isToday?GOLD:'transparent',
+                          display:'flex',alignItems:'center',justifyContent:'center',
+                          margin:'2px auto 0',
+                        }}>
+                          <span style={{fontSize:11,fontWeight:isToday?700:400,color:isToday?'#fff':isPast?'#b8a898':'#2d2520'}}>{day.getDate()}</span>
+                        </div>
                       </div>
-                      {count>0&&(
-                        <span style={{fontSize:10,fontWeight:700,lineHeight:1,padding:'1px 5px',borderRadius:8,
-                          background:hasOverdue?'#fee2e2':isToday?`${GOLD}33`:'#e8e0d0',
-                          color:hasOverdue?'#dc2626':isToday?GOLD3:'#6b5e50',
-                          border:`1px solid ${hasOverdue?'#fca5a5':isToday?`${GOLD}55`:'#d4cabb'}`}}>{count}</span>
-                      )}
+                      {/* משימות היום */}
+                      <div style={{flex:1,overflowY:'auto',padding:'3px 2px',display:'flex',flexDirection:'column',gap:2}}>
+                        {dayTasks.map(p=>{
+                          const isPastTask=p._dueD&&p._dueD<todayD;
+                          const isTodayTask=p._dueD&&p._dueD.toISOString().split('T')[0]===todayKey;
+                          const taskBg=isPastTask?'#fde8e8':isTodayTask?'#fff0e0':'#e8f0fe';
+                          const taskFg=isPastTask?'#b91c1c':isTodayTask?'#c2410c':'#1e40af';
+                          const taskBorder=isPastTask?'#fca5a5':isTodayTask?'#fdba74':'#bfdbfe';
+                          return(
+                            <div key={p._row} onClick={()=>onOpenProject&&onOpenProject(p._row)}
+                              title={p.name}
+                              style={{fontSize:9,lineHeight:1.3,padding:'2px 3px',borderRadius:4,
+                                background:taskBg,color:taskFg,border:`1px solid ${taskBorder}`,
+                                cursor:'pointer',wordBreak:'break-word',flexShrink:0,
+                                transition:'opacity 0.1s'}}
+                              onMouseEnter={e=>e.currentTarget.style.opacity='0.75'}
+                              onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
+                              {p.name}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}
-              </div>
-              {/* פרטי יום נבחר */}
-              <div style={{height:88,borderTop:'1px solid #ede8e0',background:'#fdfaf5',overflowY:'auto',flexShrink:0}}>
-                {calSelectedDay?(
-                  selectedTasks.length>0?(
-                    <div style={{padding:'6px 12px',display:'flex',flexDirection:'column',gap:3}}>
-                      {selectedTasks.map(p=>(
-                        <div key={p._row} onClick={()=>onOpenProject&&onOpenProject(p._row)}
-                          style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'4px 8px',borderRadius:7,background:'#f0ebe2',transition:'background 0.12s'}}
-                          onMouseEnter={e=>e.currentTarget.style.background='#e8e0d0'}
-                          onMouseLeave={e=>e.currentTarget.style.background='#f0ebe2'}>
-                          <span style={{fontSize:12,fontWeight:600,color:'#1a1510',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</span>
-                          <span style={{fontSize:11,color:'#9a8e84',flexShrink:0}}>{p.dueDate||p.expected||''}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ):(
-                    <div style={{height:'100%',display:'flex',alignItems:'center',justifyContent:'center',color:'#b8a898',fontSize:12}}>אין תיקים ביום זה</div>
-                  )
-                ):(
-                  <div style={{height:'100%',display:'flex',alignItems:'center',justifyContent:'center',color:'#c4b9aa',fontSize:12}}>לחץ על יום עם תיקים לפרטים</div>
-                )}
               </div>
             </div>
           );
