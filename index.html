@@ -2460,7 +2460,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
         // נוסחת שם תיקייה זהה ל-Apps Script: O - P Q - G - D
         const folder=`${form.city||''} - ${[form.street,form.houseNum].filter(Boolean).join(' ')} - ${form.client||''} - ${form.caseNum||''}`;
         const row=new Array(24).fill('');
-        row[M.caseNum]=form.caseNum;row[M.client]=form.client;row[M.openDate]=form.openDate;
+        row[M.caseNum]=form.caseNum;row[M.client]=form.client;row[M.openDate]=fmt(form.openDate)||form.openDate;
         row[M.status]=form.status;row[M.city]=form.city;row[M.street]=form.street;
         row[M.houseNum]=form.houseNum;row[M.aptNum]=form.aptNum;row[M.purpose]=form.purpose;
         row[M.propType]=form.propType;row[M.bank]=form.bank;row[M.advisor]=form.advisor;
@@ -2474,6 +2474,8 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
         onAddCase({...form,_row:cases.length+2,_raw:row,folder,closeDate:'',michael:''});
         // יצירת תיקייה ב-Drive
         if(folder)fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'newFolder',folderName:folder})}).catch(()=>{});
+        // תיקון תאריכים + מילוי קישור Drive בעמודה Y
+        if(folder)setTimeout(()=>fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'afterNewCase',folderName:folder})}).catch(()=>{}),3000);
         // הוסף שורה לפרויקטים בביצוע אם סטטוס = בביצוע
         if(form.status==='בביצוע'&&folder){
           try{
