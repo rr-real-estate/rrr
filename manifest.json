@@ -1,0 +1,28 @@
+{
+  "name": "ניהול תיקים — רובינשטיין רוזנטל",
+  "short_name": "ר.ר שמאות",
+  "description": "מערכת ניהול תיקים שמאות מקרקעין",
+  "start_url": "/rrr/",
+  "scope": "/rrr/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0d0d0d",
+  "background_color": "#f0ede8",
+  "lang": "he",
+  "dir": "rtl",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "Logo_smol.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "Logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
