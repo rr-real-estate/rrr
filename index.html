@@ -3932,6 +3932,8 @@ function App(){
   const [drawerOpen,setDrawerOpen]=useState(false);
   const [token,setToken]=useState(null);
   const [user,setUser]=useState(null);
+  const [autoLogging,setAutoLogging]=useState(!!localStorage.getItem('rrUserHint'));
+  const handleLoginRef=React.useRef(null);
   const [view,setView]=useState('home');
   const [managedSearch,setManagedSearch]=useState('');
   const [openProjectRow,setOpenProjectRow]=useState(null);
@@ -4053,17 +4055,19 @@ function App(){
     await loadMsgsPresence();
   },[loadMsgsPresence]);
   const handleLogin=useCallback(async(tok)=>{
-    api.token=tok;setToken(tok);
+    api.token=tok;setToken(tok);setAutoLogging(false);
     _startTokenRefresh((newTok)=>{api.token=newTok;setToken(newTok);});
     try{
       const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+tok}});
       if(r.ok){
         const u=await r.json();setUser(u);
         _currentUserName=USER_BY_EMAIL[(u.email||'').toLowerCase()]||u.name||'';
+        if(u.email)localStorage.setItem('rrUserHint',u.email);
       }
     }catch{}
     loadAll();
   },[loadAll]);
+  handleLoginRef.current=handleLogin;
   const updateProject=useCallback((rowNum,upd)=>{
     setProjects(ps=>ps.map(p=>p._row===rowNum?{...p,...upd}:p));
   },[]);
@@ -4092,8 +4096,40 @@ function App(){
     client:projects.filter(p=>CLIENT_STATUSES.includes(p.status)).length,
     managed:managed.length,
   }),[projects,managed]);
+  // ── כניסה שקטה אוטומטית בפתיחת האפליקציה ──
+  React.useEffect(()=>{
+    const hint=localStorage.getItem('rrUserHint');
+    if(!hint){setAutoLogging(false);return;}
+    let done=false;
+    const finish=()=>{if(!done){done=true;setAutoLogging(false);}};
+    const tryAuto=()=>{
+      try{
+        const tc=google.accounts.oauth2.initTokenClient({
+          client_id:CONFIG.CLIENT_ID,scope:CONFIG.SCOPES,hint,
+          callback:(r)=>{if(r.access_token&&handleLoginRef.current)handleLoginRef.current(r.access_token);finish();},
+          error_callback:finish,
+        });
+        if(!_tokenClient)_tokenClient=tc;
+        tc.requestAccessToken({prompt:''});
+      }catch(e){finish();}
+    };
+    let n=0;
+    const poll=()=>window.google?.accounts?.oauth2?tryAuto():(n++<40?setTimeout(poll,200):finish());
+    poll();
+    const t=setTimeout(finish,9000);
+    return()=>{done=true;clearTimeout(t);};
+  },[]);// eslint-disable-line
+
+  if(autoLogging){return(
+    <div style={{display:'flex',height:'100vh',alignItems:'center',justifyContent:'center',background:'#f0ede8',fontFamily:'Rubik,sans-serif',direction:'rtl'}}>
+      <div style={{textAlign:'center'}}>
+        <div style={{fontSize:26,fontWeight:700,color:GOLD3,letterSpacing:'0.05em',marginBottom:10}}>ר.ר שמאות</div>
+        <div style={{fontSize:13,color:'#9a8e84'}}>מתחבר...</div>
+      </div>
+    </div>
+  );}
   if(!token){return <LoginScreen onLogin={handleLogin}/>;}
-  const onLogout=()=>{_stopTokenRefresh();api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);};
+  const onLogout=()=>{_stopTokenRefresh();api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);localStorage.removeItem('rrUserHint');};
   return(
     <div style={{display:'flex',height:'100vh',overflow:'hidden',background:'#f7f3ee',fontFamily:'Rubik,sans-serif',direction:'rtl'}}>
       <Sidebar view={view} setView={setView} user={user} loading={loading} counts={counts}
@@ -4124,7 +4160,7 @@ root.render(<App/>);
 // ─── רישום Service Worker (PWA) ───────────────────────────
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js')
+    navigator.serviceWorker.register('./sw.js')
       .then(reg=>console.log('[SW] רשום בהצלחה:',reg.scope))
       .catch(err=>console.warn('[SW] שגיאה ברישום:',err));
   });
