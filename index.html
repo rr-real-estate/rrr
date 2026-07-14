@@ -3092,16 +3092,11 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
                       {/* משימות היום */}
                       <div style={{flex:1,overflowY:'auto',padding:'3px 2px',display:'flex',flexDirection:'column',gap:2}}>
                         {dayTasks.map(p=>{
-                          const isPastTask=p._dueD&&p._dueD<todayD;
-                          const isTodayTask=p._dueD&&p._dueD.toISOString().split('T')[0]===todayKey;
-                          const taskBg=isPastTask?'#fde8e8':isTodayTask?'#fff0e0':'#e8f0fe';
-                          const taskFg=isPastTask?'#b91c1c':isTodayTask?'#c2410c':'#1e40af';
-                          const taskBorder=isPastTask?'#fca5a5':isTodayTask?'#fdba74':'#bfdbfe';
                           return(
                             <div key={p._row} onClick={()=>onOpenProject&&onOpenProject(p._row)}
                               title={p.name}
                               style={{fontSize:9,lineHeight:1.3,padding:'2px 3px',borderRadius:4,
-                                background:taskBg,color:taskFg,border:`1px solid ${taskBorder}`,
+                                background:'#f5f1e8',color:'#3a2a00',border:'1px solid #ddd0bb',
                                 cursor:'pointer',wordBreak:'break-word',flexShrink:0,
                                 transition:'opacity 0.1s'}}
                               onMouseEnter={e=>e.currentTarget.style.opacity='0.75'}
