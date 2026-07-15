@@ -2931,7 +2931,10 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
   const DAY_NAMES=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
   const tasksByDay=React.useMemo(()=>{
     const map={};
+    const userFieldMap={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'};
+    const userField=userFieldMap[userName];
     activeProjs.forEach(p=>{
+      if(userField&&!p[userField])return;
       const d=p._dueD||p._expD;
       if(!d)return;
       const key=d.toISOString().split('T')[0];
@@ -2939,7 +2942,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
       map[key].push(p);
     });
     return map;
-  },[activeProjs]);
+  },[activeProjs,userName]);
 
   return(
     <div style={{padding:isMobile?'16px 14px':'28px 32px',animation:'fadeIn 0.3s ease'}}>
