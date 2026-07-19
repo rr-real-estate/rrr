@@ -983,14 +983,17 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf}){
 
   const numMatch=project.name.match(/\b(5\d{4})\b/);
   const caseNum=numMatch?numMatch[1]:'';
+  const isGeneral=!caseNum;  // משימה כללית — ללא מספר תיק
   const parts=project.name.replace(/\s*-\s*\d{5}\s*$/,'').split(' - ');
   const city=parts[0]||'';
 
+  // רק המשימות של המשתמש הנוכחי (אם זוהה); אחרת — הכל
+  const _myKey={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'}[_currentUserName];
   const tasks=[
-    {n:'יוסי',v:parseTaskStamp(project.yossi).text,c:'#607060'},
-    {n:'מיכאל',v:parseTaskStamp(project.michael).text,c:GOLD},
-    {n:'פייגי',v:parseTaskStamp(project.feigi).text,c:'#8c6239'},
-  ].filter(t=>t.v);
+    {n:'יוסי',v:parseTaskStamp(project.yossi).text,c:'#607060',k:'yossi'},
+    {n:'מיכאל',v:parseTaskStamp(project.michael).text,c:GOLD,k:'michael'},
+    {n:'פייגי',v:parseTaskStamp(project.feigi).text,c:'#8c6239',k:'feigi'},
+  ].filter(t=>t.v&&(!_myKey||t.k===_myKey));
 
   const checks=[
     {l:'מקדמה',v:project.advance},{l:'מסמכים',v:project.docs},{l:'דף ביקור',v:project.visitSheet},
@@ -1018,7 +1021,7 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf}){
             {parts[1]&&<span style={{color:'#4a3e30'}}>{' — '}{parts.slice(1).join(' — ')}</span>}
           </div>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+        {!isGeneral&&<div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
           {_folderPath&&!isMobile&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_folderPath);}}
             style={{background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontSize:15,lineHeight:1,color:'#7a6a58',borderRadius:6,transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
@@ -1035,7 +1038,7 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf}){
             <DriveIcon size={16}/>
           </a>}
           <Badge status={project.status} size="sm"/>
-        </div>
+        </div>}
       </div>
 
       {/* Active projects: show dates + tasks only (ראשי) */}
@@ -1228,7 +1231,20 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const caseNum=numMatch?numMatch[1]:'';
   const dot=STATUS_META[form.status]?.dot||GOLD;
   const sec={background:'#fff',borderRadius:14,padding:18,marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
-  const panelTabs=[{id:'main',label:'📋 ראשי'},{id:'docs',label:'📁 מסמכים'},{id:'visit',label:'🏠 ביקור'},{id:'fee',label:'💰 שכ"ט'}];
+  const isGeneralTask=!/\b5\d{4}\b/.test(project.name||'');  // משימה כללית — ללא מספר תיק
+  const panelTabs=isGeneralTask
+    ?[{id:'main',label:'📋 ראשי'}]
+    :[{id:'main',label:'📋 ראשי'},{id:'docs',label:'📁 מסמכים'},{id:'visit',label:'🏠 ביקור'},{id:'fee',label:'💰 שכ"ט'}];
+  // מחיקת משימה — מותרת רק למשימות ללא שיוך לתיק
+  const handleDeleteTask=async()=>{
+    if(!isGeneralTask)return;
+    if(!window.confirm('למחוק את המשימה? הפעולה אינה הפיכה.'))return;
+    try{
+      await api.deleteSheetRow('פרויקטים בביצוע',project._row);
+      if(onDeleteProject)onDeleteProject(project._row);
+      onClose();
+    }catch(e){setErr(e.message);}
+  };
   return(
     <div style={{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:isMobile?'flex-end':'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(8px)'}} onClick={handleClose}>
       {/* דיאלוג תזכורת שכ"ט ליוסי */}
@@ -1308,7 +1324,11 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 {saved&&!saving&&<span style={{fontSize:12,color:'#4ade80',fontWeight:500}}>✓ נשמר</span>}
               </div>
             </div>
-            <div style={{flexShrink:0}}>
+            <div style={{flexShrink:0,display:'flex',gap:8}}>
+              {isGeneralTask&&<button onClick={handleDeleteTask} title="מחק משימה"
+                style={{background:'rgba(220,38,38,0.15)',border:'1px solid rgba(220,38,38,0.4)',borderRadius:10,width:36,height:36,color:'#fca5a5',cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}
+                onMouseEnter={e=>{e.currentTarget.style.background='rgba(220,38,38,0.3)';e.currentTarget.style.color='#fff';}}
+                onMouseLeave={e=>{e.currentTarget.style.background='rgba(220,38,38,0.15)';e.currentTarget.style.color='#fca5a5';}}>🗑</button>}
               <button onClick={handleClose} style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:10,width:36,height:36,color:'rgba(255,255,255,0.7)',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}
                 onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.2)';e.currentTarget.style.color='#fff';}}
                 onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.1)';e.currentTarget.style.color='rgba(255,255,255,0.7)';}}>×</button>
@@ -1331,7 +1351,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             <div style={sec}>
               <SectionTitle icon="⚙️">סטטוס ותאריכים</SectionTitle>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-                <div style={{gridColumn:'1/-1'}}><FLabel>סטטוס</FLabel>
+                {!isGeneralTask&&<div style={{gridColumn:'1/-1'}}><FLabel>סטטוס</FLabel>
                   <select value={form.status||''} onChange={e=>{
                     const ns=e.target.value;
                     if(ns==='בכתיבה'&&(formRef.current.missingDocs||'').trim()){
@@ -1345,13 +1365,13 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                     <option value="">— בחר —</option>
                     {STATUS_ORDER.map(s=><option key={s} value={s}>{s}</option>)}
                   </select>
-                </div>
+                </div>}
                 <div>
                   <FLabel>תאריך לביצוע{STATUS_REQUIRE_DUE.includes(form.status)?' *':''}</FLabel>
                   {dateInp('dueDate',dueDateErr)}
                   {dueDateErr&&<div style={{fontSize:11,color:'#dc2626',marginTop:3,fontWeight:500}}>שדה חובה — נדרש עבור סטטוס זה</div>}
                 </div>
-                <div><FLabel>צפי לסיום 🔒</FLabel><div style={{...iS,background:'#f0ede8',color:'#8a7a6a',cursor:'default',userSelect:'none',display:'flex',alignItems:'center'}}>{form.expected||'—'}</div></div>
+                {!isGeneralTask&&<div><FLabel>צפי לסיום 🔒</FLabel><div style={{...iS,background:'#f0ede8',color:'#8a7a6a',cursor:'default',userSelect:'none',display:'flex',alignItems:'center'}}>{form.expected||'—'}</div></div>}
               </div>
             </div>
             <div style={sec}>
@@ -4054,11 +4074,12 @@ function NadlanSearchView(){
 }
 
 // ═══════════════ TASKS VIEW (משימות) ════════════════════════════
-function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,isMobile}){
+function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTask,isMobile}){
   const me=USER_BY_EMAIL[(user?.email||'').toLowerCase()]||_currentUserName||'';
   const USERS=['יוסי','מיכאל','פייגי'];
   const UF={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'};
   const [showAll,setShowAll]=React.useState(false);
+  const [showForm,setShowForm]=React.useState(false);
   const [assignee,setAssignee]=React.useState(USERS.includes(me)?me:'מיכאל');
   const [mode,setMode]=React.useState('case'); // 'case' | 'general'
   const [caseName,setCaseName]=React.useState('');
@@ -4120,6 +4141,13 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,isMobile})
     finally{setBusy(false);}
   };
 
+  // מחיקה — רק משימות ללא שיוך לתיק
+  const del=async(e)=>{
+    if(!e.isGeneral||!onDeleteTask)return;
+    if(!window.confirm('למחוק את המשימה? הפעולה אינה הפיכה.'))return;
+    try{await onDeleteTask(e.row);}catch(ex){setErr(ex.message);}
+  };
+
   const iS={width:'100%',padding:'9px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:14,background:'#fffdf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
   const card={background:'#fff',borderRadius:16,padding:isMobile?'16px 14px':'22px 24px',marginBottom:16,boxShadow:'0 2px 10px rgba(0,0,0,0.06)',border:'1px solid #e8e0d4'};
 
@@ -4130,14 +4158,19 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,isMobile})
           <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:'#1a1510'}}>✅ משימות</h2>
           <div style={{fontSize:13,color:'#9a8e84',marginTop:4}}>{showAll?'כל הצוות':'המשימות שלי'} · {sorted.length} משימות</div>
         </div>
-        <div style={{display:'flex',gap:6,background:'#f0ebe2',borderRadius:10,padding:3}}>
-          <button onClick={()=>setShowAll(false)} style={{border:'none',borderRadius:8,padding:'7px 14px',cursor:'pointer',fontSize:13,fontFamily:'inherit',fontWeight:500,background:!showAll?'#fff':'transparent',color:!showAll?GOLD3:'#7a6a58',boxShadow:!showAll?'0 1px 3px rgba(0,0,0,0.1)':'none'}}>שלי</button>
-          <button onClick={()=>setShowAll(true)} style={{border:'none',borderRadius:8,padding:'7px 14px',cursor:'pointer',fontSize:13,fontFamily:'inherit',fontWeight:500,background:showAll?'#fff':'transparent',color:showAll?GOLD3:'#7a6a58',boxShadow:showAll?'0 1px 3px rgba(0,0,0,0.1)':'none'}}>כל הצוות</button>
+        <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+          <button onClick={()=>setShowForm(s=>!s)}
+            style={{background:showForm?'#fff':GOLD,color:showForm?GOLD3:'#fff',border:`1px solid ${GOLD}`,borderRadius:10,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>
+            {showForm?'✕ סגור':'➕ פתיחת משימה חדשה'}</button>
+          <div style={{display:'flex',gap:6,background:'#f0ebe2',borderRadius:10,padding:3}}>
+            <button onClick={()=>setShowAll(false)} style={{border:'none',borderRadius:8,padding:'7px 14px',cursor:'pointer',fontSize:13,fontFamily:'inherit',fontWeight:500,background:!showAll?'#fff':'transparent',color:!showAll?GOLD3:'#7a6a58',boxShadow:!showAll?'0 1px 3px rgba(0,0,0,0.1)':'none'}}>שלי</button>
+            <button onClick={()=>setShowAll(true)} style={{border:'none',borderRadius:8,padding:'7px 14px',cursor:'pointer',fontSize:13,fontFamily:'inherit',fontWeight:500,background:showAll?'#fff':'transparent',color:showAll?GOLD3:'#7a6a58',boxShadow:showAll?'0 1px 3px rgba(0,0,0,0.1)':'none'}}>כל הצוות</button>
+          </div>
         </div>
       </div>
 
-      {/* טופס פתיחת משימה */}
-      <div style={card}>
+      {/* טופס פתיחת משימה — מוסתר עד לחיצה על הכפתור */}
+      {showForm&&<div style={card}>
         <div style={{fontSize:14,fontWeight:600,color:'#3a2a00',marginBottom:14}}>➕ פתיחת משימה חדשה</div>
         <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:12,marginBottom:12}}>
           <div>
@@ -4174,7 +4207,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,isMobile})
           {msg&&<span style={{fontSize:13,color:'#16a34a',fontWeight:500}}>{msg}</span>}
           {err&&<span style={{fontSize:13,color:'#dc2626',fontWeight:500}}>{err}</span>}
         </div>
-      </div>
+      </div>}
 
       {/* רשימת משימות */}
       <div style={{...card,padding:0,overflow:'hidden'}}>
@@ -4186,9 +4219,12 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,isMobile})
               const overdue=e._dueD&&e._dueD<today;
               return(
                 <div key={i} style={{padding:'12px 16px',borderBottom:i<sorted.length-1?'1px solid #f0ebe2':'none'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,marginBottom:4}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
                     <span style={{fontSize:12,color:e.isGeneral?'#7a6a58':'#7a5f30',background:e.isGeneral?'#f0ebe2':'#fef3c7',border:`1px solid ${e.isGeneral?'#ddd0bb':'#d9af34'}`,borderRadius:20,padding:'2px 9px',fontWeight:500}}>{e.isGeneral?'כללי':e.caseNum||e.caseName}</span>
-                    {e.due&&<span style={{fontSize:12,fontWeight:600,color:overdue?'#dc2626':'#b45309'}}>🎯 {e.due}</span>}
+                    <div style={{marginInlineStart:'auto',display:'flex',alignItems:'center',gap:8}}>
+                      {e.due&&<span style={{fontSize:12,fontWeight:600,color:overdue?'#dc2626':'#b45309'}}>🎯 {e.due}</span>}
+                      {e.isGeneral&&<button onClick={()=>del(e)} title="מחק משימה" style={{background:'none',border:'none',cursor:'pointer',fontSize:15,color:'#dc2626',padding:'2px 4px',lineHeight:1}}>🗑</button>}
+                    </div>
                   </div>
                   <div style={{fontSize:14,color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{renderBold(e.text)}</div>
                   <div style={{fontSize:11,color:'#9a8e84',marginTop:4}}>
@@ -4209,6 +4245,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,isMobile})
                 <th style={{padding:'11px 14px',textAlign:'right',fontWeight:600,color:'#7a6a58'}}>משימה</th>
                 <th style={{padding:'11px 14px',textAlign:'right',fontWeight:600,color:'#7a6a58',width:90}}>משויך ל</th>
                 <th style={{padding:'11px 14px',textAlign:'right',fontWeight:600,color:'#7a6a58',width:110}}>נרשם ע"י</th>
+                <th style={{width:44}}/>
               </tr>
             </thead>
             <tbody>
@@ -4223,6 +4260,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,isMobile})
                     <td style={{padding:'10px 14px',color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{renderBold(e.text)}</td>
                     <td style={{padding:'10px 14px',whiteSpace:'nowrap'}}><span style={{color:uColor[e.assignee]||'#7a6a58',fontWeight:600}}>{e.assignee}</span></td>
                     <td style={{padding:'10px 14px',whiteSpace:'nowrap',color:'#7a6a58'}}>{e.author||'—'}</td>
+                    <td style={{padding:'10px 6px',textAlign:'center'}}>{e.isGeneral&&<button onClick={()=>del(e)} title="מחק משימה" style={{background:'none',border:'none',cursor:'pointer',fontSize:15,color:'#dc2626',padding:'2px 4px',borderRadius:6}} onMouseEnter={ev=>ev.currentTarget.style.background='#fee2e2'} onMouseLeave={ev=>ev.currentTarget.style.background='none'}>🗑</button>}</td>
                   </tr>
                 );
               })}
@@ -4407,6 +4445,11 @@ function App(){
   const addCase=useCallback((c)=>{setManaged(ms=>[...ms,c]);},[]);
   const addProject=useCallback((p)=>{setProjects(ps=>[...ps,p]);},[]);
   const deleteProject=useCallback((rowNum)=>{setProjects(ps=>ps.filter(p=>p._row!==rowNum));},[]);
+  // מחיקת משימה כללית — מוחקת את השורה מהגיליון (רק משימות ללא שיוך)
+  const deleteGeneralTask=useCallback(async(rowNum)=>{
+    await api.deleteSheetRow('פרויקטים בביצוע',rowNum);
+    setProjects(ps=>ps.filter(p=>p._row!==rowNum));
+  },[]);
   const deleteCase=useCallback((rowNum)=>{setManaged(ms=>ms.filter(m=>m._row!==rowNum));},[]);
   const handleUpdateFolderLinks=useCallback(async(basePath)=>{
     if(!managed.length)return;
@@ -4468,7 +4511,7 @@ function App(){
         {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)} autoOpenSearch={projectSearch} onAutoOpenSearchConsumed={()=>setProjectSearch('')} isMobile={isMobile}/>}
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject} isMobile={isMobile}/>}
         {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject} initialSearch={managedSearch} onSearchConsumed={()=>setManagedSearch('')} isMobile={isMobile}/>}
-        {view==='tasks'&&<TasksView projects={projects} user={user} onAddTaskToProject={addTaskToProject} onAddGeneralTask={addGeneralTask} isMobile={isMobile}/>}
+        {view==='tasks'&&<TasksView projects={projects} user={user} onAddTaskToProject={addTaskToProject} onAddGeneralTask={addGeneralTask} onDeleteTask={deleteGeneralTask} isMobile={isMobile}/>}
         {view==='nadlan'&&<NadlanSearchView/>}
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
         {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user} managed={managed} onUpdateFolderLinks={handleUpdateFolderLinks}/>}
