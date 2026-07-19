@@ -155,18 +155,27 @@ function withNoteDate(notes){
   return stampNote(notes,_currentUserName);
 }
 
-// ── חותמת משימה: כמו הערה אך כוללת שעה — "טקסט (DD/MM/YYYY HH:MM | שם)" ──
+// ── חותמת משימה: "טקסט (DD/MM/YYYY HH:MM | שם | 🎯DD/MM/YYYY)" — שעה + יעד אופציונלי ──
 function parseTaskStamp(v){
-  const m=(v||'').match(/^([\s\S]*?)\s*\((\d{1,2}\/\d{1,2}(?:\/\d{4})?(?:\s+\d{1,2}:\d{2})?)\s*(?:\|\s*([^)]*?))?\)\s*$/);
-  if(m)return{text:m[1].trim(),stamp:m[2].trim(),user:(m[3]||'').trim()};
-  return{text:(v||'').trim(),stamp:'',user:''};
+  const m=(v||'').match(/^([\s\S]*?)\s*\(([^()]*)\)\s*$/);
+  if(!m)return{text:(v||'').trim(),stamp:'',user:'',due:''};
+  const parts=m[2].split('|').map(s=>s.trim());
+  if(!/^\d{1,2}\/\d{1,2}/.test(parts[0]||''))return{text:(v||'').trim(),stamp:'',user:'',due:''};
+  let user='',due='';
+  for(let i=1;i<parts.length;i++){
+    if(/^🎯/.test(parts[i]))due=parts[i].replace(/^🎯\s*/,'').trim();
+    else if(parts[i])user=parts[i];
+  }
+  return{text:(m[1]||'').trim(),stamp:parts[0].trim(),user,due};
 }
-function stampTask(text,userName){
+function stampTask(text,userName,due){
   if(!text||!text.trim())return'';
   const d=new Date();
   const p2=n=>String(n).padStart(2,'0');
-  const stamp=`${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
-  return text.trim()+' ('+stamp+(userName?' | '+userName:'')+')';
+  let inner=`${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  if(userName)inner+=' | '+userName;
+  if(due)inner+=' | 🎯'+due;
+  return text.trim()+' ('+inner+')';
 }
 
 // ═══════════════ תיקיות במחשב ═══════════════════════════════════
@@ -681,14 +690,14 @@ function NotesWidget({value,onChange,onBlur,style}){
 // ═══════════════ TASK WIDGET ════════════════════════════════════
 // עורך משימה — מציג טקסט נקי + שורת מטא (תאריך/שעה + מי רשם), מחתים בשמירה
 function TaskWidget({value,onChange,onBlur,style}){
-  const {text,stamp,user}=parseTaskStamp(value);
+  const {text,stamp,user,due}=parseTaskStamp(value);
   const [localText,setLocalText]=React.useState(text);
   const [focused,setFocused]=React.useState(false);
   React.useEffect(()=>{if(!focused)setLocalText(text);},[text,focused]);
   const handleBlur=()=>{
     setFocused(false);
     const nt=localText.trim();
-    if(nt!==text){onChange(nt?stampTask(nt,_currentUserName):'');}  // מחתים רק אם השתנה
+    if(nt!==text){onChange(nt?stampTask(nt,_currentUserName,due):'');}  // מחתים רק אם השתנה, שומר יעד
     if(onBlur)onBlur();
   };
   return(
@@ -698,9 +707,10 @@ function TaskWidget({value,onChange,onBlur,style}){
         onFocus={()=>setFocused(true)}
         onBlur={handleBlur}
         style={style}/>
-      {stamp&&(
-        <div style={{display:'flex',gap:8,alignItems:'center',marginTop:4,fontSize:11,color:'#9a8e84'}}>
-          <span>🕒 {stamp}</span>
+      {(stamp||due)&&(
+        <div style={{display:'flex',gap:8,alignItems:'center',marginTop:4,fontSize:11,color:'#9a8e84',flexWrap:'wrap'}}>
+          {due&&<span style={{color:'#b45309',fontWeight:600}}>🎯 יעד {due}</span>}
+          {stamp&&<span>🕒 {stamp}</span>}
           {user&&<span style={{color:'#7a6a58'}}>· נרשם ע"י {user}</span>}
         </div>
       )}
@@ -2802,6 +2812,7 @@ function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,
     {id:'projects',icon:'📁',label:'פרויקטים בביצוע',count:counts.active},
     {id:'clients',icon:'⏳',label:'ממתין ללקוח',count:counts.client},
     {id:'managed',icon:'🗂️',label:'כלל התיקים',count:counts.managed},
+    {id:'tasks',icon:'✅',label:'משימות'},
     ...(!isMobile?[{id:'nadlan',icon:'🏡',label:'עסקאות נדל"ן'}]:[]),
     {id:'reports',icon:'📊',label:'דוחות'},
     {id:'settings',icon:'⚙️',label:'הגדרות'},
@@ -4042,6 +4053,187 @@ function NadlanSearchView(){
   );
 }
 
+// ═══════════════ TASKS VIEW (משימות) ════════════════════════════
+function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,isMobile}){
+  const me=USER_BY_EMAIL[(user?.email||'').toLowerCase()]||_currentUserName||'';
+  const USERS=['יוסי','מיכאל','פייגי'];
+  const UF={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'};
+  const [showAll,setShowAll]=React.useState(false);
+  const [assignee,setAssignee]=React.useState(USERS.includes(me)?me:'מיכאל');
+  const [mode,setMode]=React.useState('case'); // 'case' | 'general'
+  const [caseName,setCaseName]=React.useState('');
+  const [taskText,setTaskText]=React.useState('');
+  const [due,setDue]=React.useState('');
+  const [busy,setBusy]=React.useState(false);
+  const [msg,setMsg]=React.useState('');
+  const [err,setErr]=React.useState('');
+
+  const toISO=v=>{const m=(v||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:'';};
+  const fromISO=v=>{const m=(v||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:'';};
+  const today=new Date();today.setHours(0,0,0,0);
+
+  const entries=React.useMemo(()=>{
+    const out=[];
+    (projects||[]).forEach(p=>{
+      if(p.status==='הסתיים'||p.status==='בוטל')return;
+      USERS.forEach(u=>{
+        const raw=p[UF[u]];
+        if(!raw||!String(raw).trim())return;
+        const ps=parseTaskStamp(raw);
+        const numMatch=(p.name||'').match(/\b(5\d{4})\b/);
+        const dueStr=ps.due||p.dueDate||'';
+        out.push({row:p._row,assignee:u,author:ps.user,text:ps.text||raw,created:ps.stamp,
+          due:dueStr,caseNum:numMatch?numMatch[1]:'',caseName:p.name||'',isGeneral:!numMatch,
+          _dueD:parseDate(dueStr)});
+      });
+    });
+    return out;
+  },[projects]);
+
+  const shown=entries.filter(e=>showAll||e.assignee===me);
+  const sorted=[...shown].sort((a,b)=>{
+    const da=a._dueD?a._dueD.getTime():Infinity,db=b._dueD?b._dueD.getTime():Infinity;
+    if(da!==db)return da-db;
+    if(a.caseName!==b.caseName)return String(a.caseName).localeCompare(String(b.caseName),'he');
+    return String(a.text).localeCompare(String(b.text),'he');
+  });
+
+  const activeNames=[...new Set((projects||[]).filter(p=>p.status!=='הסתיים'&&p.status!=='בוטל'&&p.name).map(p=>p.name))];
+  const uColor={'יוסי':'#607060','מיכאל':GOLD3,'פייגי':'#8c6239'};
+
+  const submit=async()=>{
+    setErr('');setMsg('');
+    if(!taskText.trim()){setErr('יש להזין טקסט משימה');return;}
+    if(mode==='case'&&!caseName.trim()){setErr('יש לבחור תיק או לעבור למשימה כללית');return;}
+    setBusy(true);
+    try{
+      if(mode==='case'){
+        const p=(projects||[]).find(x=>x.name&&x.name.trim()===caseName.trim());
+        if(!p)throw new Error('התיק לא נמצא ברשימת פרויקטים בביצוע');
+        await onAddTaskToProject(p._row,UF[assignee],taskText.trim(),due);
+      }else{
+        await onAddGeneralTask(UF[assignee],taskText.trim(),due);
+      }
+      setMsg('המשימה נוספה ✓');setTaskText('');setDue('');setCaseName('');
+      setTimeout(()=>setMsg(''),2600);
+    }catch(e){setErr(e.message);}
+    finally{setBusy(false);}
+  };
+
+  const iS={width:'100%',padding:'9px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:14,background:'#fffdf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
+  const card={background:'#fff',borderRadius:16,padding:isMobile?'16px 14px':'22px 24px',marginBottom:16,boxShadow:'0 2px 10px rgba(0,0,0,0.06)',border:'1px solid #e8e0d4'};
+
+  return(
+    <div style={{padding:isMobile?'16px 14px':'28px 32px',animation:'fadeIn 0.3s ease'}}>
+      <div style={{marginBottom:20,display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
+        <div>
+          <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:'#1a1510'}}>✅ משימות</h2>
+          <div style={{fontSize:13,color:'#9a8e84',marginTop:4}}>{showAll?'כל הצוות':'המשימות שלי'} · {sorted.length} משימות</div>
+        </div>
+        <div style={{display:'flex',gap:6,background:'#f0ebe2',borderRadius:10,padding:3}}>
+          <button onClick={()=>setShowAll(false)} style={{border:'none',borderRadius:8,padding:'7px 14px',cursor:'pointer',fontSize:13,fontFamily:'inherit',fontWeight:500,background:!showAll?'#fff':'transparent',color:!showAll?GOLD3:'#7a6a58',boxShadow:!showAll?'0 1px 3px rgba(0,0,0,0.1)':'none'}}>שלי</button>
+          <button onClick={()=>setShowAll(true)} style={{border:'none',borderRadius:8,padding:'7px 14px',cursor:'pointer',fontSize:13,fontFamily:'inherit',fontWeight:500,background:showAll?'#fff':'transparent',color:showAll?GOLD3:'#7a6a58',boxShadow:showAll?'0 1px 3px rgba(0,0,0,0.1)':'none'}}>כל הצוות</button>
+        </div>
+      </div>
+
+      {/* טופס פתיחת משימה */}
+      <div style={card}>
+        <div style={{fontSize:14,fontWeight:600,color:'#3a2a00',marginBottom:14}}>➕ פתיחת משימה חדשה</div>
+        <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:12,marginBottom:12}}>
+          <div>
+            <div style={{fontSize:12,color:'#7a6a58',marginBottom:4,fontWeight:500}}>משויך ל</div>
+            <select value={assignee} onChange={e=>setAssignee(e.target.value)} style={{...iS,fontFamily:'inherit'}}>
+              {USERS.map(u=><option key={u} value={u}>{u}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:12,color:'#7a6a58',marginBottom:4,fontWeight:500}}>תאריך יעד</div>
+            <input type="date" value={toISO(due)} onChange={e=>setDue(fromISO(e.target.value))} style={{...iS,cursor:'pointer'}}/>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
+          <button onClick={()=>setMode('case')} style={{border:`1px solid ${mode==='case'?GOLD:'#ddd0bb'}`,background:mode==='case'?`${GOLD}18`:'#fff',color:mode==='case'?GOLD3:'#7a6a58',borderRadius:9,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>📁 משויך לתיק</button>
+          <button onClick={()=>setMode('general')} style={{border:`1px solid ${mode==='general'?GOLD:'#ddd0bb'}`,background:mode==='general'?`${GOLD}18`:'#fff',color:mode==='general'?GOLD3:'#7a6a58',borderRadius:9,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>📝 משימה כללית</button>
+        </div>
+        {mode==='case'&&(
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:12,color:'#7a6a58',marginBottom:4,fontWeight:500}}>בחר תיק</div>
+            <AutocompleteInput value={caseName} onChange={setCaseName} options={activeNames}
+              style={iS} placeholder="הקלד שם/מספר תיק..."/>
+          </div>
+        )}
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:12,color:'#7a6a58',marginBottom:4,fontWeight:500}}>תוכן המשימה</div>
+          <textarea value={taskText} onChange={e=>setTaskText(e.target.value)} rows={2}
+            style={{...iS,resize:'vertical',lineHeight:1.5}} placeholder="מה צריך לעשות..."/>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          <button onClick={submit} disabled={busy}
+            style={{background:busy?'#c8bfb5':GOLD,color:'#fff',border:'none',borderRadius:10,padding:'10px 24px',cursor:busy?'default':'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit'}}>
+            {busy?'שומר…':'הוסף משימה'}</button>
+          {msg&&<span style={{fontSize:13,color:'#16a34a',fontWeight:500}}>{msg}</span>}
+          {err&&<span style={{fontSize:13,color:'#dc2626',fontWeight:500}}>{err}</span>}
+        </div>
+      </div>
+
+      {/* רשימת משימות */}
+      <div style={{...card,padding:0,overflow:'hidden'}}>
+        {sorted.length===0?(
+          <div style={{padding:44,textAlign:'center',color:'#9a8e84',fontSize:14}}>אין משימות פתוחות 🎉</div>
+        ):isMobile?(
+          <div>
+            {sorted.map((e,i)=>{
+              const overdue=e._dueD&&e._dueD<today;
+              return(
+                <div key={i} style={{padding:'12px 16px',borderBottom:i<sorted.length-1?'1px solid #f0ebe2':'none'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,marginBottom:4}}>
+                    <span style={{fontSize:12,color:e.isGeneral?'#7a6a58':'#7a5f30',background:e.isGeneral?'#f0ebe2':'#fef3c7',border:`1px solid ${e.isGeneral?'#ddd0bb':'#d9af34'}`,borderRadius:20,padding:'2px 9px',fontWeight:500}}>{e.isGeneral?'כללי':e.caseNum||e.caseName}</span>
+                    {e.due&&<span style={{fontSize:12,fontWeight:600,color:overdue?'#dc2626':'#b45309'}}>🎯 {e.due}</span>}
+                  </div>
+                  <div style={{fontSize:14,color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{renderBold(e.text)}</div>
+                  <div style={{fontSize:11,color:'#9a8e84',marginTop:4}}>
+                    <span style={{color:uColor[e.assignee]||'#7a6a58',fontWeight:600}}>{e.assignee}</span>
+                    {e.author&&<span> · נרשם ע"י {e.author}</span>}
+                    {e.created&&<span> · {e.created}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ):(
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+            <thead>
+              <tr style={{background:'#faf7f2',borderBottom:'2px solid #ede8e0'}}>
+                <th style={{padding:'11px 14px',textAlign:'right',fontWeight:600,color:'#7a6a58',width:120}}>תאריך יעד</th>
+                <th style={{padding:'11px 14px',textAlign:'right',fontWeight:600,color:'#7a6a58',width:150}}>תיק</th>
+                <th style={{padding:'11px 14px',textAlign:'right',fontWeight:600,color:'#7a6a58'}}>משימה</th>
+                <th style={{padding:'11px 14px',textAlign:'right',fontWeight:600,color:'#7a6a58',width:90}}>משויך ל</th>
+                <th style={{padding:'11px 14px',textAlign:'right',fontWeight:600,color:'#7a6a58',width:110}}>נרשם ע"י</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((e,i)=>{
+                const overdue=e._dueD&&e._dueD<today;
+                return(
+                  <tr key={i} style={{borderBottom:'1px solid #f0ebe2'}}>
+                    <td style={{padding:'10px 14px',whiteSpace:'nowrap',fontWeight:e.due?600:400,color:overdue?'#dc2626':e.due?'#b45309':'#c8bfb5'}}>{e.due?('🎯 '+e.due):'—'}</td>
+                    <td style={{padding:'10px 14px'}}>
+                      <span style={{fontSize:12,color:e.isGeneral?'#7a6a58':'#7a5f30',background:e.isGeneral?'#f0ebe2':'#fef3c7',border:`1px solid ${e.isGeneral?'#ddd0bb':'#d9af34'}`,borderRadius:20,padding:'2px 9px',fontWeight:500,whiteSpace:'nowrap'}}>{e.isGeneral?'כללי':e.caseNum||e.caseName}</span>
+                    </td>
+                    <td style={{padding:'10px 14px',color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{renderBold(e.text)}</td>
+                    <td style={{padding:'10px 14px',whiteSpace:'nowrap'}}><span style={{color:uColor[e.assignee]||'#7a6a58',fontWeight:600}}>{e.assignee}</span></td>
+                    <td style={{padding:'10px 14px',whiteSpace:'nowrap',color:'#7a6a58'}}>{e.author||'—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function App(){
   const isMobile=useIsMobile();
   const [drawerOpen,setDrawerOpen]=useState(false);
@@ -4186,6 +4378,29 @@ function App(){
   const updateProject=useCallback((rowNum,upd)=>{
     setProjects(ps=>ps.map(p=>p._row===rowNum?{...p,...upd}:p));
   },[]);
+  // הוספת משימה לתיק קיים — מוסיפה שורה בשדה המשתמש (לא מוחקת קיים)
+  const addTaskToProject=useCallback(async(rowNum,field,text,due)=>{
+    const p=projects.find(x=>x._row===rowNum);
+    if(!p)throw new Error('התיק לא נמצא');
+    const stamped=stampTask(text,_currentUserName,due);
+    const existing=(p[field]||'').trim();
+    const upd={...p,[field]:existing?existing+'\n'+stamped:stamped};
+    const row=buildProjectRow(upd);
+    await api.put(`'פרויקטים בביצוע'!A${p._row}:${colLetter(row.length)}${p._row}`,[row]);
+    updateProject(p._row,{...upd,_raw:row});
+  },[projects,updateProject]);
+  // משימה כללית — שורה חדשה בגיליון פרויקטים בביצוע (שם = טקסט, ללא סטטוס מיוחד)
+  const addGeneralTask=useCallback(async(field,text,due)=>{
+    const projRow=new Array(25).fill('');
+    projRow[P.name]=text;
+    projRow[P[field]]=stampTask(text,_currentUserName,due);
+    if(due)projRow[P.dueDate]=due;
+    const res=await api.append("'פרויקטים בביצוע'",[projRow]);
+    const rng=res?.updates?.updatedRange||'';
+    const rm=rng.match(/(\d+)(?::[A-Z]+\d+)?$/);
+    const newRow=rm?parseInt(rm[1]):null;
+    if(newRow)addProject(parseProject(projRow,newRow-2));
+  },[addProject]);
   const updateCase=useCallback((rowNum,upd)=>{
     setManaged(ms=>ms.map(m=>m._row===rowNum?{...m,...upd}:m));
   },[]);
@@ -4253,6 +4468,7 @@ function App(){
         {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)} autoOpenSearch={projectSearch} onAutoOpenSearchConsumed={()=>setProjectSearch('')} isMobile={isMobile}/>}
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject} isMobile={isMobile}/>}
         {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject} initialSearch={managedSearch} onSearchConsumed={()=>setManagedSearch('')} isMobile={isMobile}/>}
+        {view==='tasks'&&<TasksView projects={projects} user={user} onAddTaskToProject={addTaskToProject} onAddGeneralTask={addGeneralTask} isMobile={isMobile}/>}
         {view==='nadlan'&&<NadlanSearchView/>}
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
         {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user} managed={managed} onUpdateFolderLinks={handleUpdateFolderLinks}/>}
