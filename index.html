@@ -1328,6 +1328,35 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
     set(field,existing?existing+'\n'+stamped:stamped);
     autoSave();
   };
+  const doDeleteHistory=(line)=>{
+    if(!window.confirm('למחוק רשומה זו מההיסטוריה? הפעולה אינה הפיכה.'))return;
+    dirtyRef.current=true;
+    setForm(f=>{
+      const remaining=String(f.taskHistory||'').split('\n').map(l=>l.trim()).filter(Boolean).filter(l=>l!==String(line).trim());
+      const next={...f,taskHistory:remaining.join('\n')};formRef.current=next;return next;
+    });
+    autoSave();
+  };
+  // ביטול סימון "בוצע" — מחזיר את המשימה לשדה הפעיל, משחזר את הרישום המקורי
+  const doRestoreTask=(line)=>{
+    const h=parseHistoryLine(line);
+    const fieldByName={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'};
+    const field=fieldByName[h.assignee];
+    if(!field){setErr('לא ניתן לשחזר — לא זוהה משתמש');return;}
+    const sm=(h.registered||'').match(/\d{1,2}\/\d{1,2}\/\d{4}(?:\s+\d{1,2}:\d{2})?/);
+    const regStamp=sm?sm[0]:'';
+    const regUser=(h.registered||'').replace(regStamp,'').trim();
+    let activeLine=h.text;
+    if(regStamp){let inner=regStamp;if(regUser&&regUser!=='—')inner+=' | '+regUser;activeLine=h.text+' ('+inner+')';}
+    dirtyRef.current=true;
+    setForm(f=>{
+      const remaining=String(f.taskHistory||'').split('\n').map(l=>l.trim()).filter(Boolean).filter(l=>l!==String(line).trim());
+      const existing=(f[field]||'').trim();
+      const next={...f,[field]:existing?existing+'\n'+activeLine:activeLine,taskHistory:remaining.join('\n')};
+      formRef.current=next;return next;
+    });
+    autoSave();
+  };
   return(
     <div style={{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:isMobile?'flex-end':'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(8px)'}} onClick={handleClose}>
       {/* דיאלוג תזכורת שכ"ט ליוסי */}
@@ -1491,13 +1520,17 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 {String(form.taskHistory).split('\n').map(l=>l.trim()).filter(Boolean).map((line,i)=>{
                   const h=parseHistoryLine(line);
                   return(
-                    <div key={i} style={{padding:'8px 0',borderBottom:'1px solid #f0ebe2'}}>
-                      <div style={{fontSize:13,color:'#3a3228',lineHeight:1.5,textDecoration:'line-through',textDecorationColor:'#c8bfb5'}}>✅ {renderBold(h.text)}</div>
-                      <div style={{fontSize:11,color:'#9a8e84',marginTop:2,display:'flex',gap:8,flexWrap:'wrap'}}>
-                        {h.assignee&&<span>{h.assignee}</span>}
-                        {h.registered&&<span>· נרשם: {h.registered}</span>}
-                        {h.done&&<span style={{color:'#16a34a',fontWeight:600}}>· בוצע: {h.done}</span>}
+                    <div key={i} style={{padding:'8px 0',borderBottom:'1px solid #f0ebe2',display:'flex',gap:10,alignItems:'flex-start'}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,color:'#3a3228',lineHeight:1.5,textDecoration:'line-through',textDecorationColor:'#c8bfb5'}}>✅ {renderBold(h.text)}</div>
+                        <div style={{fontSize:11,color:'#9a8e84',marginTop:2,display:'flex',gap:8,flexWrap:'wrap'}}>
+                          {h.assignee&&<span>{h.assignee}</span>}
+                          {h.registered&&<span>· נרשם: {h.registered}</span>}
+                          {h.done&&<span style={{color:'#16a34a',fontWeight:600}}>· בוצע: {h.done}</span>}
+                        </div>
                       </div>
+                      <button onClick={()=>doRestoreTask(line)} title="בטל בוצע — החזר לפעילות" style={{flexShrink:0,background:'none',border:'none',cursor:'pointer',fontSize:15,color:'#2563eb',padding:'2px 4px',borderRadius:6,lineHeight:1}} onMouseEnter={e=>e.currentTarget.style.background='#dbeafe'} onMouseLeave={e=>e.currentTarget.style.background='none'}>↩</button>
+                      <button onClick={()=>doDeleteHistory(line)} title="מחק מההיסטוריה" style={{flexShrink:0,background:'none',border:'none',cursor:'pointer',fontSize:14,color:'#c0392b',padding:'2px 4px',borderRadius:6,lineHeight:1}} onMouseEnter={e=>e.currentTarget.style.background='#fee2e2'} onMouseLeave={e=>e.currentTarget.style.background='none'}>🗑</button>
                     </div>
                   );
                 })}
@@ -4185,7 +4218,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
   const UF={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'};
   const [showAll,setShowAll]=React.useState(false);
   const [showForm,setShowForm]=React.useState(false);
-  const [assignee,setAssignee]=React.useState(USERS.includes(me)?me:'מיכאל');
+  const [assignee,setAssignee]=React.useState('');
   const [mode,setMode]=React.useState('case'); // 'case' | 'general'
   const [caseName,setCaseName]=React.useState('');
   const [taskText,setTaskText]=React.useState('');
@@ -4230,6 +4263,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
 
   const submit=async()=>{
     setErr('');setMsg('');
+    if(!assignee){setErr('יש לבחור למי לשייך את המשימה');return;}
     if(!taskText.trim()){setErr('יש להזין טקסט משימה');return;}
     if(mode==='case'&&!caseName.trim()){setErr('יש לבחור תיק או לעבור למשימה כללית');return;}
     setBusy(true);
@@ -4241,7 +4275,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
       }else{
         await onAddGeneralTask(UF[assignee],taskText.trim(),due);
       }
-      setMsg('המשימה נוספה ✓');setTaskText('');setDue('');setCaseName('');
+      setMsg('המשימה נוספה ✓');setTaskText('');setDue('');setCaseName('');setAssignee('');
       setTimeout(()=>setMsg(''),2600);
     }catch(e){setErr(e.message);}
     finally{setBusy(false);}
@@ -4286,7 +4320,8 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
         <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:12,marginBottom:12}}>
           <div>
             <div style={{fontSize:12,color:'#7a6a58',marginBottom:4,fontWeight:500}}>משויך ל</div>
-            <select value={assignee} onChange={e=>setAssignee(e.target.value)} style={{...iS,fontFamily:'inherit'}}>
+            <select value={assignee} onChange={e=>setAssignee(e.target.value)} style={{...iS,fontFamily:'inherit',color:assignee?'#1a1510':'#9a8e84'}}>
+              <option value="">— בחר —</option>
               {USERS.map(u=><option key={u} value={u}>{u}</option>)}
             </select>
           </div>
@@ -4331,7 +4366,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
               return(
                 <div key={i} style={{padding:'12px 16px',borderBottom:i<sorted.length-1?'1px solid #f0ebe2':'none'}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
-                    <span style={{fontSize:12,color:e.isGeneral?'#7a6a58':'#7a5f30',background:e.isGeneral?'#f0ebe2':'#fef3c7',border:`1px solid ${e.isGeneral?'#ddd0bb':'#d9af34'}`,borderRadius:20,padding:'2px 9px',fontWeight:500}}>{e.isGeneral?'כללי':e.caseNum||e.caseName}</span>
+                    <span style={{fontSize:12.5,color:e.isGeneral?'#7a6a58':'#3a2a00',background:e.isGeneral?'#f0ebe2':'transparent',border:e.isGeneral?'1px solid #ddd0bb':'none',borderRadius:20,padding:e.isGeneral?'2px 9px':0,fontWeight:500}}>{e.isGeneral?'כללי':e.caseName}</span>
                     <div style={{marginInlineStart:'auto',display:'flex',alignItems:'center',gap:8}}>
                       {e.due&&<span style={{fontSize:12,fontWeight:600,color:overdue?'#dc2626':'#b45309'}}>🎯 {e.due}</span>}
                       {!e.isGeneral&&<button onClick={()=>complete(e)} title="סמן כבוצע" style={{background:'#fff',border:'2px solid #bdb3a5',borderRadius:6,width:24,height:24,cursor:'pointer',fontSize:13,color:'#16a34a',fontWeight:700,lineHeight:1,display:'flex',alignItems:'center',justifyContent:'center'}}>✓</button>}
@@ -4353,7 +4388,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
             <thead>
               <tr style={{background:'#faf7f2',borderBottom:'2px solid #ede8e0'}}>
                 <th style={{padding:'11px 14px',textAlign:'right',fontWeight:600,color:'#7a6a58',width:120}}>תאריך יעד</th>
-                <th style={{padding:'11px 14px',textAlign:'right',fontWeight:600,color:'#7a6a58',width:150}}>תיק</th>
+                <th style={{padding:'11px 14px',textAlign:'right',fontWeight:600,color:'#7a6a58',width:250}}>תיק</th>
                 <th style={{padding:'11px 14px',textAlign:'right',fontWeight:600,color:'#7a6a58'}}>משימה</th>
                 <th style={{padding:'11px 14px',textAlign:'right',fontWeight:600,color:'#7a6a58',width:90}}>משויך ל</th>
                 <th style={{padding:'11px 14px',textAlign:'right',fontWeight:600,color:'#7a6a58',width:110}}>נרשם ע"י</th>
@@ -4367,7 +4402,9 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
                   <tr key={i} style={{borderBottom:'1px solid #f0ebe2'}}>
                     <td style={{padding:'10px 14px',whiteSpace:'nowrap',fontWeight:e.due?600:400,color:overdue?'#dc2626':e.due?'#b45309':'#c8bfb5'}}>{e.due?('🎯 '+e.due):'—'}</td>
                     <td style={{padding:'10px 14px'}}>
-                      <span style={{fontSize:12,color:e.isGeneral?'#7a6a58':'#7a5f30',background:e.isGeneral?'#f0ebe2':'#fef3c7',border:`1px solid ${e.isGeneral?'#ddd0bb':'#d9af34'}`,borderRadius:20,padding:'2px 9px',fontWeight:500,whiteSpace:'nowrap'}}>{e.isGeneral?'כללי':e.caseNum||e.caseName}</span>
+                      {e.isGeneral
+                        ? <span style={{fontSize:12,color:'#7a6a58',background:'#f0ebe2',border:'1px solid #ddd0bb',borderRadius:20,padding:'2px 9px',fontWeight:500,whiteSpace:'nowrap'}}>כללי</span>
+                        : <span style={{fontSize:12.5,color:'#3a2a00',fontWeight:500,lineHeight:1.4}}>{e.caseName}</span>}
                     </td>
                     <td style={{padding:'10px 14px',color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{renderBold(e.text)}</td>
                     <td style={{padding:'10px 14px',whiteSpace:'nowrap'}}><span style={{color:uColor[e.assignee]||'#7a6a58',fontWeight:600}}>{e.assignee}</span></td>
