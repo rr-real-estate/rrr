@@ -755,12 +755,9 @@ function TaskWidget({value,onChange,onBlur,style}){
 // ═══════════════ TASK CHECKLIST (משימות תיק עם ✓) ════════════════
 function TaskChecklist({value,onComplete,onAdd,style}){
   const [nt,setNt]=React.useState('');
-  const [nd,setNd]=React.useState('');
   const items=splitTasks(value);
-  const toISO=v=>{const m=(v||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:'';};
-  const fromISO=v=>{const m=(v||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:'';};
   const today=new Date();today.setHours(0,0,0,0);
-  const add=()=>{if(nt.trim()){onAdd(nt.trim(),nd);setNt('');setNd('');}};
+  const add=()=>{if(nt.trim()){onAdd(nt.trim(),'');setNt('');}};
   return(
     <div>
       {items.length===0&&<div style={{fontSize:12,color:'#9a8e84',marginBottom:6}}>אין משימות פתוחות 🎉</div>}
@@ -783,11 +780,9 @@ function TaskChecklist({value,onComplete,onAdd,style}){
           </div>
         );
       })}
-      <div style={{display:'flex',gap:6,marginTop:8,flexWrap:'wrap',alignItems:'center'}}>
-        <input value={nt} onChange={e=>setNt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')add();}} placeholder="הוסף משימה..." style={{...(style||{}),flex:1,minWidth:120}}/>
-        <input type="date" value={toISO(nd)} onChange={e=>setNd(fromISO(e.target.value))} title="תאריך יעד" style={{...(style||{}),width:'auto',cursor:'pointer'}}/>
-        <button onClick={add} title="הוסף משימה" style={{background:GOLD,color:'#fff',border:'none',borderRadius:8,width:34,height:34,cursor:'pointer',fontSize:18,fontWeight:600,flexShrink:0,fontFamily:'inherit'}}>＋</button>
-      </div>
+      <input value={nt} onChange={e=>setNt(e.target.value)}
+        onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.currentTarget.blur();}}}
+        onBlur={add} placeholder="הוסף משימה..." style={{...(style||{}),marginTop:8}}/>
     </div>
   );
 }
