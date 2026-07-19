@@ -155,6 +155,20 @@ function withNoteDate(notes){
   return stampNote(notes,_currentUserName);
 }
 
+// ── חותמת משימה: כמו הערה אך כוללת שעה — "טקסט (DD/MM/YYYY HH:MM | שם)" ──
+function parseTaskStamp(v){
+  const m=(v||'').match(/^([\s\S]*?)\s*\((\d{1,2}\/\d{1,2}(?:\/\d{4})?(?:\s+\d{1,2}:\d{2})?)\s*(?:\|\s*([^)]*?))?\)\s*$/);
+  if(m)return{text:m[1].trim(),stamp:m[2].trim(),user:(m[3]||'').trim()};
+  return{text:(v||'').trim(),stamp:'',user:''};
+}
+function stampTask(text,userName){
+  if(!text||!text.trim())return'';
+  const d=new Date();
+  const p2=n=>String(n).padStart(2,'0');
+  const stamp=`${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  return text.trim()+' ('+stamp+(userName?' | '+userName:'')+')';
+}
+
 // ═══════════════ תיקיות במחשב ═══════════════════════════════════
 // מיפוי סטטוס → תת-תיקייה
 const FOLDER_STATUS_MAP={'הסתיים':'פרויקטים שהושלמו','בוטל':'בוטל'};
@@ -272,7 +286,7 @@ async function sendTaskEmails(prev,next,editorEmail){
         +"<p>התווספה משימה חדשה בתיק: <b>"+next.name+"</b></p>"
         +"<p>נשלח על ידי: <b>"+editorName+"</b></p>"
         +"<div style='background:#f4f4f4;padding:15px;border-right:5px solid #1a73e8;margin-bottom:20px'>"
-        +"<b>תוכן המשימה:</b><br>"+next[field]+"</div>"
+        +"<b>תוכן המשימה:</b><br>"+parseTaskStamp(next[field]).text+"</div>"
         +"</div>";
       try{await api.sendEmail(recipient,'משימה מ'+editorName+': '+next.name,html);}
       catch(e){console.warn('שגיאת מייל:',e.message);alert('שגיאה בשליחת מייל ל'+ownerName+': '+e.message);}
@@ -664,9 +678,40 @@ function NotesWidget({value,onChange,onBlur,style}){
   );
 }
 
+// ═══════════════ TASK WIDGET ════════════════════════════════════
+// עורך משימה — מציג טקסט נקי + שורת מטא (תאריך/שעה + מי רשם), מחתים בשמירה
+function TaskWidget({value,onChange,onBlur,style}){
+  const {text,stamp,user}=parseTaskStamp(value);
+  const [localText,setLocalText]=React.useState(text);
+  const [focused,setFocused]=React.useState(false);
+  React.useEffect(()=>{if(!focused)setLocalText(text);},[text,focused]);
+  const handleBlur=()=>{
+    setFocused(false);
+    const nt=localText.trim();
+    if(nt!==text){onChange(nt?stampTask(nt,_currentUserName):'');}  // מחתים רק אם השתנה
+    if(onBlur)onBlur();
+  };
+  return(
+    <div>
+      <RichEditor value={localText}
+        onChange={v=>setLocalText(v)}
+        onFocus={()=>setFocused(true)}
+        onBlur={handleBlur}
+        style={style}/>
+      {stamp&&(
+        <div style={{display:'flex',gap:8,alignItems:'center',marginTop:4,fontSize:11,color:'#9a8e84'}}>
+          <span>🕒 {stamp}</span>
+          {user&&<span style={{color:'#7a6a58'}}>· נרשם ע"י {user}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════ PROJECT EXPANDED (inline accordion) ═════════════
 function ProjectExpanded({project,onSave,onCollapse,wide}){
   const [form,setForm]=useState({...project});
+  const [tasksExpanded,setTasksExpanded]=useState(false);
   const [saving,setSaving]=useState(false);
   const [flashSaved,setFlashSaved]=useState(false);
   const [err,setErr]=useState('');
@@ -789,13 +834,29 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
 
         {/* משימות */}
         <div style={box}>
-          <SectionTitle icon="📋">משימות</SectionTitle>
-          {[['יוסי','yossi','#607060'],['מיכאל','michael',GOLD],['פייגי','feigi','#8c6239']].map(([l,k,c])=>(
-            <div key={k} style={{marginBottom:7}}>
-              <FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
-              <RichEditor value={form[k]||''} onChange={v=>set(k,v)} onBlur={schedSave} style={iS}/>
-            </div>
-          ))}
+          {(()=>{
+            const _uf={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'};
+            const myKey=_uf[_currentUserName];
+            const meta=[['יוסי','yossi','#607060'],['מיכאל','michael',GOLD],['פייגי','feigi','#8c6239']];
+            return(<>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+                <SectionTitle icon="📋">{tasksExpanded?'משימות — כל הצוות':'המשימות שלי'}</SectionTitle>
+                <button onClick={()=>setTasksExpanded(x=>!x)}
+                  style={{background:'none',border:'1px solid #ddd0bb',borderRadius:7,cursor:'pointer',fontSize:11,padding:'3px 9px',color:'#7a6a58',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+                  {tasksExpanded?'▲ רק שלי':'▼ כל הצוות'}</button>
+              </div>
+              {!tasksExpanded
+                ? (myKey
+                    ? <TaskWidget value={form[myKey]||''} onChange={v=>set(myKey,v)} onBlur={schedSave} style={iS}/>
+                    : <div style={{fontSize:12,color:'#9a8e84'}}>לא זוהה משתמש מוכר — לחץ "כל הצוות"</div>)
+                : meta.map(([l,k,c])=>(
+                    <div key={k} style={{marginBottom:7}}>
+                      <FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
+                      <TaskWidget value={form[k]||''} onChange={v=>set(k,v)} onBlur={schedSave} style={iS}/>
+                    </div>
+                  ))}
+            </>);
+          })()}
         </div>
 
         {/* הערות */}
@@ -916,9 +977,9 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf}){
   const city=parts[0]||'';
 
   const tasks=[
-    {n:'יוסי',v:project.yossi,c:'#607060'},
-    {n:'מיכאל',v:project.michael,c:GOLD},
-    {n:'פייגי',v:project.feigi,c:'#8c6239'},
+    {n:'יוסי',v:parseTaskStamp(project.yossi).text,c:'#607060'},
+    {n:'מיכאל',v:parseTaskStamp(project.michael).text,c:GOLD},
+    {n:'פייגי',v:parseTaskStamp(project.feigi).text,c:'#8c6239'},
   ].filter(t=>t.v);
 
   const checks=[
@@ -1053,6 +1114,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const [visitDateErr,setVisitDateErr]=useState(false);
   const [confirmKtiva,setConfirmKtiva]=useState(false);
   const [feigaReminder,setFeigaReminder]=useState(false);
+  const [tasksExpanded,setTasksExpanded]=useState(false);
   const pendingStatusRef=useRef(null);
   const savingRef=useRef(false);
   const formRef=useRef({...project});
@@ -1283,12 +1345,28 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
               </div>
             </div>
             <div style={sec}>
-              <SectionTitle icon="📋">משימות</SectionTitle>
-              {[['יוסי','yossi','#607060'],['מיכאל','michael',GOLD],['פייגי','feigi','#8c6239']].map(([l,k,c])=>(
-                <div key={k} style={{marginBottom:10}}><FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
-                  <RichEditor value={form[k]||''} onChange={v=>set(k,v)} onBlur={autoSave} style={iS}/>
-                </div>
-              ))}
+              {(()=>{
+                const _uf={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'};
+                const myKey=_uf[_currentUserName];
+                const meta=[['יוסי','yossi','#607060'],['מיכאל','michael',GOLD],['פייגי','feigi','#8c6239']];
+                return(<>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+                    <SectionTitle icon="📋">{tasksExpanded?'משימות — כל הצוות':'המשימות שלי'}</SectionTitle>
+                    <button onClick={()=>setTasksExpanded(x=>!x)}
+                      style={{background:'none',border:'1px solid #ddd0bb',borderRadius:8,cursor:'pointer',fontSize:12,padding:'4px 11px',color:'#7a6a58',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+                      {tasksExpanded?'▲ הצג רק את שלי':'▼ הצג את כל הצוות'}</button>
+                  </div>
+                  {!tasksExpanded
+                    ? (myKey
+                        ? <TaskWidget value={form[myKey]||''} onChange={v=>set(myKey,v)} onBlur={autoSave} style={iS}/>
+                        : <div style={{fontSize:13,color:'#9a8e84'}}>לא זוהה משתמש מוכר — לחץ "הצג את כל הצוות"</div>)
+                    : meta.map(([l,k,c])=>(
+                        <div key={k} style={{marginBottom:10}}><FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
+                          <TaskWidget value={form[k]||''} onChange={v=>set(k,v)} onBlur={autoSave} style={iS}/>
+                        </div>
+                      ))}
+                </>);
+              })()}
             </div>
             <div style={sec}>
               <SectionTitle icon="💬">הערות</SectionTitle>
@@ -1569,7 +1647,8 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
       {viewMode==='table'&&(()=>{
         const today2=new Date();today2.setHours(0,0,0,0);
         const handleInlineSave=async(proj,field,val)=>{
-          const upd={...proj,[field]:val};
+          const finalVal=['yossi','michael','feigi'].includes(field)?(val&&val.trim()?stampTask(val,_currentUserName):''):val;
+          const upd={...proj,[field]:finalVal};
           const row=buildProjectRow(upd);
           await api.put(`'פרויקטים בביצוע'!A${upd._row}:${colLetter(row.length)}${upd._row}`,[row]);
           onUpdate(upd._row,{...upd,_raw:row});
@@ -1577,7 +1656,8 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
         const startEdit=(e,rowNum,field,curVal,initChar)=>{
           e.stopPropagation();
           setEditCell({rowNum,field});
-          setEditVal(initChar!=null?initChar:(curVal||''));
+          const clean=['yossi','michael','feigi'].includes(field)?parseTaskStamp(curVal||'').text:(curVal||'');
+          setEditVal(initChar!=null?initChar:clean);
         };
         const commitEdit=(proj,field)=>{handleInlineSave(proj,field,editVal).catch(()=>{});setEditCell(null);};
         // EC = editable cell. opts=null means free text. Single click to edit, or just start typing when focused.
@@ -1610,9 +1690,9 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
           {label:'📋 ראשי',cols:[
             {h:'שם תיק',w:NW,r:(p)=>{const d=p._dueD||p._expD;const ov=d&&d<today2;return<div style={{padding:'7px 11px',overflow:'hidden',cursor:'pointer',display:'flex',alignItems:'center',gap:5}} onClick={()=>setPanelProject(p)}>{ov&&<span style={{color:'#dc2626',flexShrink:0,fontSize:10}}>⚠️</span>}<span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:600,fontSize:13,color:GOLD3}}>{p.name}</span></div>;}},
             {h:'סטטוס',w:CW,r:(p)=><EC p={p} field='status' opts={STATUS_ORDER} displayNode={<span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:500,background:(STATUS_META[p.status]||{}).bg,color:(STATUS_META[p.status]||{}).fg,whiteSpace:'nowrap'}}>{p.status||'—'}</span>}/>},
-            {h:'יוסי',w:CW,r:(p)=><EC p={p} field='yossi' displayNode={<Chk v={p.yossi}/>}/>},
-            {h:'מיכאל',w:CW,r:(p)=><EC p={p} field='michael' displayNode={<Chk v={p.michael}/>}/>},
-            {h:'פייגי',w:CW,r:(p)=><EC p={p} field='feigi' displayNode={<Chk v={p.feigi}/>}/>},
+            {h:'יוסי',w:CW,r:(p)=><EC p={p} field='yossi' displayNode={<Chk v={parseTaskStamp(p.yossi).text}/>}/>},
+            {h:'מיכאל',w:CW,r:(p)=><EC p={p} field='michael' displayNode={<Chk v={parseTaskStamp(p.michael).text}/>}/>},
+            {h:'פייגי',w:CW,r:(p)=><EC p={p} field='feigi' displayNode={<Chk v={parseTaskStamp(p.feigi).text}/>}/>},
             {h:'יעד',w:CW,r:(p)=>{const d=p._dueD||p._expD;const ov=d&&d<today2;return<EC p={p} field='dueDate' displayNode={p.dueDate?<span style={{fontSize:12,color:ov?'#dc2626':'#6b5e50'}}>{p.dueDate}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>;}},
             {h:'הערות',w:FW,r:(p)=><EC p={p} field='notes' displayNode={p.notes?<span style={{fontSize:11,color:'#6b5e50',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}} title={p.notes}>{p.notes}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
           ]},
@@ -1785,7 +1865,8 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
       {!isMobile&&viewMode==='table'&&(()=>{
         const today2=new Date();today2.setHours(0,0,0,0);
         const handleInlineSave=async(proj,field,val)=>{
-          const upd={...proj,[field]:val};
+          const finalVal=['yossi','michael','feigi'].includes(field)?(val&&val.trim()?stampTask(val,_currentUserName):''):val;
+          const upd={...proj,[field]:finalVal};
           const row=buildProjectRow(upd);
           await api.put(`'פרויקטים בביצוע'!A${upd._row}:${colLetter(row.length)}${upd._row}`,[row]);
           onUpdate(upd._row,{...upd,_raw:row});
@@ -1793,7 +1874,8 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
         const startEdit=(e,rowNum,field,curVal,initChar)=>{
           e.stopPropagation();
           setEditCell({rowNum,field});
-          setEditVal(initChar!=null?initChar:(curVal||''));
+          const clean=['yossi','michael','feigi'].includes(field)?parseTaskStamp(curVal||'').text:(curVal||'');
+          setEditVal(initChar!=null?initChar:clean);
         };
         const commitEdit=(proj,field)=>{handleInlineSave(proj,field,editVal).catch(()=>{});setEditCell(null);};
         const EC=({p,field,displayNode,opts=null})=>{
@@ -1823,9 +1905,9 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
           {label:'📋 ראשי',cols:[
             {h:'שם תיק',w:NW,r:(p)=>{const d=p._dueD||p._expD;const ov=d&&d<today2;return<div style={{padding:'7px 11px',overflow:'hidden',cursor:'pointer',display:'flex',alignItems:'center',gap:5}} onClick={()=>setPanelProject(p)}>{ov&&<span style={{color:'#dc2626',flexShrink:0,fontSize:10}}>⚠️</span>}<span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:600,fontSize:13,color:GOLD3}}>{p.name}</span></div>;}},
             {h:'סטטוס',w:CW,r:(p)=><EC p={p} field='status' opts={CLIENT_STATUSES} displayNode={<span style={{padding:'2px 8px',borderRadius:20,fontSize:11,fontWeight:500,background:(STATUS_META[p.status]||{}).bg,color:(STATUS_META[p.status]||{}).fg,whiteSpace:'nowrap'}}>{p.status||'—'}</span>}/>},
-            {h:'יוסי',w:CW,r:(p)=><EC p={p} field='yossi' displayNode={<Chk v={p.yossi}/>}/>},
-            {h:'מיכאל',w:CW,r:(p)=><EC p={p} field='michael' displayNode={<Chk v={p.michael}/>}/>},
-            {h:'פייגי',w:CW,r:(p)=><EC p={p} field='feigi' displayNode={<Chk v={p.feigi}/>}/>},
+            {h:'יוסי',w:CW,r:(p)=><EC p={p} field='yossi' displayNode={<Chk v={parseTaskStamp(p.yossi).text}/>}/>},
+            {h:'מיכאל',w:CW,r:(p)=><EC p={p} field='michael' displayNode={<Chk v={parseTaskStamp(p.michael).text}/>}/>},
+            {h:'פייגי',w:CW,r:(p)=><EC p={p} field='feigi' displayNode={<Chk v={parseTaskStamp(p.feigi).text}/>}/>},
             {h:'יעד',w:CW,r:(p)=>{const d=p._dueD||p._expD;const ov=d&&d<today2;return<EC p={p} field='dueDate' displayNode={p.dueDate?<span style={{fontSize:12,color:ov?'#dc2626':'#6b5e50'}}>{p.dueDate}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>;}},
             {h:'הערות',w:FW,r:(p)=><EC p={p} field='notes' displayNode={p.notes?<span style={{fontSize:11,color:'#6b5e50',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}} title={p.notes}>{p.notes}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
           ]},
@@ -3062,7 +3144,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
                         </div>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:13,fontWeight:700,color:'#1a1510',marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</div>
-                          <div style={{fontSize:12,color:'#5a4e44',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{renderBold(p[userField])}</div>
+                          <div style={{fontSize:12,color:'#5a4e44',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{renderBold(parseTaskStamp(p[userField]).text)}</div>
                         </div>
                       </div>
                     );
