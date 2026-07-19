@@ -35,6 +35,7 @@ body{font-family:'Rubik',sans-serif;background:#f0ede8;direction:rtl;color:#1a15
 input,select,textarea{font-family:'Rubik',sans-serif;font-size:14px}
 input:focus,select:focus,textarea:focus{outline:none;border-color:#d9af34 !important;box-shadow:0 0 0 3px rgba(217,175,52,0.15) !important}
 button{font-family:'Rubik',sans-serif}
+[contenteditable][data-ph]:empty:before{content:attr(data-ph);color:#9a8e84;pointer-events:none;}
 /* Mobile safe area */
 @supports(padding-bottom:env(safe-area-inset-bottom)){
   .bottom-nav-bar{padding-bottom:env(safe-area-inset-bottom);}
@@ -632,6 +633,7 @@ function storageToHtml(text){
   return text
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>')
+    .replace(/__([^_\n]+)__/g,'<u>$1</u>')
     .replace(/\n/g,'<br>');
 }
 function htmlToStorage(html){
@@ -642,26 +644,32 @@ function htmlToStorage(html){
     .replace(/<\/p>/gi,'\n').replace(/<p[^>]*>/gi,'')
     .replace(/<strong>([\s\S]*?)<\/strong>/gi,'**$1**')
     .replace(/<b>([\s\S]*?)<\/b>/gi,'**$1**')
+    .replace(/<u>([\s\S]*?)<\/u>/gi,'__$1__')
     .replace(/<[^>]+>/g,'')
     .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
     .replace(/&nbsp;/g,' ')
     .replace(/\n{3,}/g,'\n\n')
     .trim();
 }
-// renderBold — לתצוגה בכרטיסי קנבן (טקסט מאוחסן → JSX)
+// renderBold — לתצוגה (טקסט מאוחסן → JSX): מודגש + קו תחתון
 function renderBold(text){
   if(!text)return null;
-  return text.split(/(\*\*[^*]+\*\*)/g).map((p,i)=>
-    p.startsWith('**')&&p.endsWith('**')&&p.length>4
-      ?<strong key={i}>{p.slice(2,-2)}</strong>:p
-  );
+  return String(text).split(/(\*\*[^*]+\*\*|__[^_]+__)/g).map((p,i)=>{
+    if(p.startsWith('**')&&p.endsWith('**')&&p.length>4)return <strong key={i}>{p.slice(2,-2)}</strong>;
+    if(p.startsWith('__')&&p.endsWith('__')&&p.length>4)return <u key={i}>{p.slice(2,-2)}</u>;
+    return p;
+  });
 }
-function RichEditor({value,onChange,onFocus,onBlur,style}){
+function RichEditor({value,onChange,onFocus,onBlur,style,placeholder,toolbar,autoFocus}){
   const divRef=React.useRef(null);
   const focused=React.useRef(false);
   // סנכרון ראשוני + כשערך חיצוני משתנה (לא בזמן עריכה)
   React.useEffect(()=>{
     if(divRef.current)divRef.current.innerHTML=storageToHtml(value||'');
+    if(autoFocus&&divRef.current){
+      divRef.current.focus();
+      try{const r=document.createRange();r.selectNodeContents(divRef.current);r.collapse(false);const s=window.getSelection();s.removeAllRanges();s.addRange(r);}catch(_){}
+    }
   },[]);
   React.useEffect(()=>{
     if(divRef.current&&!focused.current){
@@ -669,23 +677,35 @@ function RichEditor({value,onChange,onFocus,onBlur,style}){
       if(divRef.current.innerHTML!==h)divRef.current.innerHTML=h;
     }
   },[value]);
+  const fmt=cmd=>e=>{
+    e.preventDefault();
+    try{document.execCommand('styleWithCSS',false,false);}catch(_){}
+    document.execCommand(cmd,false,null);
+    if(divRef.current&&onChange)onChange(htmlToStorage(divRef.current.innerHTML||''));
+  };
+  const tbtn={width:26,height:24,border:'1px solid #ddd0bb',background:'#fff',borderRadius:5,cursor:'pointer',fontSize:13,color:'#4b3400',lineHeight:1};
   return(
-    <div ref={divRef} contentEditable suppressContentEditableWarning
-      onFocus={()=>{focused.current=true;if(onFocus)onFocus();}}
-      onBlur={()=>{focused.current=false;if(onBlur)onBlur();}}
-      onInput={()=>{if(onChange)onChange(htmlToStorage(divRef.current?.innerHTML||''));}}
-      onPaste={e=>{
-        e.preventDefault();
-        const t=e.clipboardData.getData('text/plain');
-        document.execCommand('insertText',false,t);
-      }}
-      onKeyDown={e=>{
-        // Enter = שורה חדשה בלי ליצור <div> חדש
-        if(e.key==='Enter'){e.preventDefault();document.execCommand('insertLineBreak');}
-      }}
-      style={{...style,minHeight:'2.4em',lineHeight:1.5,cursor:'text',
-        wordBreak:'break-word',whiteSpace:'pre-wrap'}}
-    />
+    <div>
+      {toolbar&&<div style={{display:'flex',gap:4,marginBottom:4}}>
+        <button type="button" tabIndex={-1} onMouseDown={fmt('bold')} title="מודגש (Ctrl+B)" style={{...tbtn,fontWeight:700}}>B</button>
+        <button type="button" tabIndex={-1} onMouseDown={fmt('underline')} title="קו תחתון (Ctrl+U)" style={{...tbtn,textDecoration:'underline'}}>U</button>
+      </div>}
+      <div ref={divRef} contentEditable suppressContentEditableWarning data-ph={placeholder||undefined}
+        onFocus={()=>{focused.current=true;if(onFocus)onFocus();}}
+        onBlur={()=>{focused.current=false;if(onBlur)onBlur();}}
+        onInput={()=>{if(onChange)onChange(htmlToStorage(divRef.current?.innerHTML||''));}}
+        onPaste={e=>{
+          e.preventDefault();
+          const t=e.clipboardData.getData('text/plain');
+          document.execCommand('insertText',false,t);
+        }}
+        onKeyDown={e=>{
+          if(e.key==='Enter'){e.preventDefault();document.execCommand('insertLineBreak');}
+        }}
+        style={{...style,minHeight:'2.4em',lineHeight:1.5,cursor:'text',
+          wordBreak:'break-word',whiteSpace:'pre-wrap'}}
+      />
+    </div>
   );
 }
 
@@ -753,16 +773,27 @@ function TaskWidget({value,onChange,onBlur,style}){
 }
 
 // ═══════════════ TASK CHECKLIST (משימות תיק עם ✓) ════════════════
-function TaskChecklist({value,onComplete,onAdd,style}){
+function TaskChecklist({value,onComplete,onAdd,onEdit,style}){
   const [nt,setNt]=React.useState('');
+  const [editIdx,setEditIdx]=React.useState(-1);
+  const [editVal,setEditVal]=React.useState('');
   const items=splitTasks(value);
   const today=new Date();today.setHours(0,0,0,0);
   const add=()=>{if(nt.trim()){onAdd(nt.trim(),'');setNt('');}};
+  const buildLine=(it,txt)=>{
+    if(it.stamp){let ic=it.stamp;if(it.user)ic+=' | '+it.user;if(it.due)ic+=' | 🎯'+it.due;return txt.trim()+' ('+ic+')';}
+    return txt.trim();
+  };
+  const saveEdit=(it)=>{
+    const t=editVal.trim();
+    if(t){const nl=buildLine(it,t);if(nl!==it.line&&onEdit)onEdit(it.line,nl);}
+    setEditIdx(-1);setEditVal('');
+  };
   return(
     <div>
       {items.length===0&&<div style={{fontSize:12,color:'#9a8e84',marginBottom:6}}>אין משימות פתוחות 🎉</div>}
       {items.map((it,i)=>{
-        const dd=parseDate(it.due);const overdue=dd&&dd<today;
+        const dd=parseDate(it.due);const overdue=dd&&dd<today;const editing=editIdx===i;
         return(
           <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'8px 0',borderBottom:'1px solid #f0ebe2'}}>
             <button onClick={()=>onComplete(it.line)} title="סמן כבוצע"
@@ -770,7 +801,9 @@ function TaskChecklist({value,onComplete,onAdd,style}){
               onMouseEnter={e=>{e.currentTarget.style.borderColor='#16a34a';e.currentTarget.style.background='#f0fdf4';}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor='#bdb3a5';e.currentTarget.style.background='#fff';}}>✓</button>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{renderBold(it.text)}</div>
+              {editing
+                ? <RichEditor value={editVal} onChange={setEditVal} onBlur={()=>saveEdit(it)} toolbar autoFocus style={{...(style||{}),width:'100%'}}/>
+                : <div onClick={()=>{setEditIdx(i);setEditVal(it.text);}} title="לחץ לעריכה" style={{fontSize:13,color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word',cursor:'text'}}>{renderBold(it.text)}</div>}
               {(it.due||it.stamp)&&<div style={{fontSize:11,color:'#9a8e84',marginTop:2,display:'flex',gap:8,flexWrap:'wrap'}}>
                 {it.due&&<span style={{color:overdue?'#dc2626':'#b45309',fontWeight:600}}>🎯 {it.due}</span>}
                 {it.stamp&&<span>🕒 {it.stamp}</span>}
@@ -780,9 +813,9 @@ function TaskChecklist({value,onComplete,onAdd,style}){
           </div>
         );
       })}
-      <input value={nt} onChange={e=>setNt(e.target.value)}
-        onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.currentTarget.blur();}}}
-        onBlur={add} placeholder="הוסף משימה..." style={{...(style||{}),marginTop:8}}/>
+      <div style={{marginTop:8}}>
+        <RichEditor value={nt} onChange={setNt} onBlur={add} toolbar placeholder="הוסף משימה..." style={style}/>
+      </div>
     </div>
   );
 }
@@ -1329,6 +1362,18 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
     set(field,existing?existing+'\n'+stamped:stamped);
     autoSave();
   };
+  // עריכת טקסט משימה קיימת — שומרת את החותמת המקורית (מי רשם/מתי/יעד)
+  const doEditTask=(field,oldLine,newLine)=>{
+    dirtyRef.current=true;
+    setForm(f=>{
+      const lines=String(f[field]||'').split('\n');
+      const idx=lines.findIndex(l=>l.trim()===String(oldLine).trim());
+      if(idx>=0)lines[idx]=newLine;
+      const next={...f,[field]:lines.map(l=>l.trim()).filter(Boolean).join('\n')};
+      formRef.current=next;return next;
+    });
+    autoSave();
+  };
   const doDeleteHistory=(line)=>{
     if(!window.confirm('למחוק רשומה זו מההיסטוריה? הפעולה אינה הפיכה.'))return;
     dirtyRef.current=true;
@@ -1503,13 +1548,13 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                     ? (myKey
                         ? (isGeneralTask
                             ? <TaskWidget value={form[myKey]||''} onChange={v=>set(myKey,v)} onBlur={autoSave} style={iS}/>
-                            : <TaskChecklist value={form[myKey]||''} onComplete={line=>doCompleteTask(myKey,line)} onAdd={(t,d)=>doAddTask(myKey,t,d)} style={iS}/>)
+                            : <TaskChecklist value={form[myKey]||''} onComplete={line=>doCompleteTask(myKey,line)} onAdd={(t,d)=>doAddTask(myKey,t,d)} onEdit={(o,n)=>doEditTask(myKey,o,n)} style={iS}/>)
                         : <div style={{fontSize:13,color:'#9a8e84'}}>לא זוהה משתמש מוכר — לחץ "הצג את כל הצוות"</div>)
                     : meta.map(([l,k,c])=>(
                         <div key={k} style={{marginBottom:14}}><FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
                           {isGeneralTask
                             ? <TaskWidget value={form[k]||''} onChange={v=>set(k,v)} onBlur={autoSave} style={iS}/>
-                            : <TaskChecklist value={form[k]||''} onComplete={line=>doCompleteTask(k,line)} onAdd={(t,d)=>doAddTask(k,t,d)} style={iS}/>}
+                            : <TaskChecklist value={form[k]||''} onComplete={line=>doCompleteTask(k,line)} onAdd={(t,d)=>doAddTask(k,t,d)} onEdit={(o,n)=>doEditTask(k,o,n)} style={iS}/>}
                         </div>
                       ))}
                 </>);
@@ -4362,8 +4407,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
         )}
         <div style={{marginBottom:12}}>
           <div style={{fontSize:12,color:'#7a6a58',marginBottom:4,fontWeight:500}}>תוכן המשימה</div>
-          <textarea value={taskText} onChange={e=>setTaskText(e.target.value)} rows={2}
-            style={{...iS,resize:'vertical',lineHeight:1.5}} placeholder="מה צריך לעשות..."/>
+          <RichEditor value={taskText} onChange={setTaskText} toolbar placeholder="מה צריך לעשות..." style={{...iS,minHeight:'3.2em'}}/>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
           <button onClick={submit} disabled={busy}
