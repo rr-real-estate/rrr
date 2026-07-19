@@ -169,6 +169,11 @@ function openFolder(winPath){
   if(!winPath)return;
   window.location.href='opendir:///'+encodeURI(winPath.replace(/\\/g,'/'));
 }
+// פתיחת כל קובצי ה-PDF שבתיקייה (רקורסיבי) דרך פרוטוקול openpdfs://
+function openPdfs(winPath){
+  if(!winPath)return;
+  window.location.href='openpdfs:///'+encodeURI(winPath.replace(/\\/g,'/'));
+}
 // הורדת קובץ .reg להגדרת פרוטוקול opendir://
 function downloadRegFile(){
   // VBS file content — כל תווים מיוחדים בנויים ע"י Chr() כדי להימנע מבעיות escaping
@@ -189,6 +194,22 @@ function downloadRegFile(){
   const vbsContent=vbsLines.join('\r\n');
   const vbsB64=btoa(vbsContent); // pure ASCII → btoa ישיר
 
+  // VBS שני — פתיחת כל קובצי ה-PDF בתיקייה ובתת-תיקיות (רקורסיבי)
+  const vbsPdfLines=[
+    'Dim url, shell, ps',
+    'url = WScript.Arguments(0)',
+    'Set shell = CreateObject("WScript.Shell")',
+    'shell.Environment("Process")("OPENPDFS_URL") = url',
+    'ps = "powershell -NonInteractive -NoProfile -Command " & Chr(34)',
+    'ps = ps & "$dec=[Uri]::UnescapeDataString($env:OPENPDFS_URL);"',
+    'ps = ps & "$p=($dec -replace " & Chr(39) & "^openpdfs:///" & Chr(39) & "," & Chr(39) & Chr(39) & ")"',
+    'ps = ps & ".Replace(" & Chr(39) & "/" & Chr(39) & "," & Chr(39) & Chr(92) & Chr(39) & ");"',
+    'ps = ps & "Get-ChildItem -LiteralPath $p -Recurse -Filter *.pdf | ForEach-Object { Start-Process $_.FullName }"',
+    'ps = ps & Chr(34)',
+    'shell.Run ps, 0, False',
+  ];
+  const vbsPdfB64=btoa(vbsPdfLines.join('\r\n'));
+
   // סקריפט PowerShell שיוצר את ה-VBS ורושם את הפרוטוקול ב-HKCU (ללא הרשאות admin)
   const psLines=[
     '$dir = "$env:APPDATA\\RRFolderOpener"',
@@ -202,6 +223,15 @@ function downloadRegFile(){
     'New-Item -Path "$reg\\shell\\open\\command" -Force | Out-Null',
     '$cmd = \'wscript.exe //B //NoLogo "\' + $vbs + \'" "%1"\'',
     'Set-ItemProperty -Path "$reg\\shell\\open\\command" -Name "(default)" -Value $cmd',
+    '$vbs2 = "$dir\\openpdfs.vbs"',
+    '[IO.File]::WriteAllBytes($vbs2, [Convert]::FromBase64String(\''+vbsPdfB64+'\'))',
+    '$reg2 = "HKCU:\\Software\\Classes\\openpdfs"',
+    'New-Item -Path $reg2 -Force | Out-Null',
+    'Set-ItemProperty -Path $reg2 -Name "(default)" -Value "URL:Open PDFs"',
+    'Set-ItemProperty -Path $reg2 -Name "URL Protocol" -Value ""',
+    'New-Item -Path "$reg2\\shell\\open\\command" -Force | Out-Null',
+    '$cmd2 = \'wscript.exe //B //NoLogo "\' + $vbs2 + \'" "%1"\'',
+    'Set-ItemProperty -Path "$reg2\\shell\\open\\command" -Name "(default)" -Value $cmd2',
   ];
   const psScript=psLines.join('\n');
 
@@ -216,10 +246,10 @@ function downloadRegFile(){
   const batContent=[
     '@echo off',
     'chcp 65001 > nul',
-    'echo מגדיר פרוטוקול פתיחת תיקיות (ללא חלון) ...',
+    'echo מגדיר פרוטוקולים לפתיחת תיקיות ו-PDF (ללא חלון) ...',
     'powershell -NonInteractive -NoProfile -EncodedCommand '+psB64,
     'echo.',
-    'echo  הגדרה הושלמה! כעת פתיחת תיקיות תהיה ללא חלון.',
+    'echo  הגדרה הושלמה! פתיחת תיקיות ופתיחת PDF יעבדו ללא חלון.',
     'echo.',
     'pause',
   ].join('\r\n');
@@ -867,7 +897,7 @@ function openCaseFolder(folderName,e){
   e.stopPropagation();e.preventDefault();
   window.location.href='openrr:'+getCaseBase()+'/'+folderName;
 }
-function ProjectCard({project,onClick,hideDate,folderLink,driveLink}){
+function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf}){
   const [copied,setCopied]=React.useState(false);
   const isMobile=useIsMobile();
   const m=STATUS_META[project.status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
@@ -922,6 +952,10 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink}){
             style={{background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontSize:15,lineHeight:1,color:'#7a6a58',borderRadius:6,transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
             onMouseLeave={e=>e.currentTarget.style.background='none'}>📁</button>}
+          {showPdf&&_folderPath&&!isMobile&&<button title="פתח את כל קובצי ה-PDF שבתיקייה" onClick={e=>{e.stopPropagation();openPdfs(_folderPath);}}
+            style={{background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontSize:15,lineHeight:1,color:'#7a6a58',borderRadius:6,transition:'background 0.15s'}}
+            onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
+            onMouseLeave={e=>e.currentTarget.style.background='none'}>📚</button>}
           {driveLink&&<a href={driveLink} target="_blank" rel="noopener noreferrer" title="פתח תיקייה בגוגל דרייב"
             onClick={e=>e.stopPropagation()}
             style={{display:'inline-flex',alignItems:'center',justifyContent:'center',background:'none',border:'none',cursor:'pointer',padding:'3px 4px',borderRadius:6,textDecoration:'none',transition:'background 0.15s'}}
@@ -1662,7 +1696,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
               </div>
               {isOpen&&(
                 <div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch',gridAutoRows:isMobile?'auto':'190px'}}>
-                  {items.map(p=>{const _mc=(managed||[]).find(c=>c.folder&&c.folder.trim()===p.name.trim());return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}}/>);})}
+                  {items.map(p=>{const _mc=(managed||[]).find(c=>c.folder&&c.folder.trim()===p.name.trim());return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}} showPdf/>);})}
                 </div>
               )}
             </div>
