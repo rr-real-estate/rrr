@@ -169,6 +169,10 @@ function parseTaskStamp(v){
   }
   return{text:(m[1]||'').trim(),stamp:parts[0].trim(),user,due};
 }
+// ירידת שורה בתוך משימה מקודדת בתו נפרד, כך ש-\n שמפריד בין משימות לא ישבור משימה רב-שורתית
+const TASK_NL='\u2028';
+function encodeTaskText(t){return String(t||'').replace(/\n/g,TASK_NL);}
+function decodeTaskText(t){return String(t||'').split(TASK_NL).join('\n');}
 function stampTask(text,userName,due){
   if(!text||!text.trim())return'';
   const d=new Date();
@@ -176,13 +180,13 @@ function stampTask(text,userName,due){
   let inner=`${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
   if(userName)inner+=' | '+userName;
   if(due)inner+=' | 🎯'+due;
-  return text.trim()+' ('+inner+')';
+  return encodeTaskText(text.trim())+' ('+inner+')';
 }
-// ── פיצול שדה משימות לשורות בודדות (משימה לכל שורה) ──
+// ── פיצול שדה משימות לשורות בודדות (משימה לכל שורה); הטקסט מפוענח לתצוגה ──
 function splitTasks(field){
   return String(field||'').split('\n').map(l=>l.trim()).filter(Boolean).map(line=>{
     const ps=parseTaskStamp(line);
-    return {line,text:ps.text||line,stamp:ps.stamp,user:ps.user,due:ps.due};
+    return {line,text:decodeTaskText(ps.text||line),stamp:ps.stamp,user:ps.user,due:ps.due};
   });
 }
 const TASK_FIELD_NAME={yossi:'יוסי',michael:'מיכאל',feigi:'פייגי'};
@@ -660,7 +664,7 @@ function renderBold(text){
     return p;
   });
 }
-function RichEditor({value,onChange,onFocus,onBlur,style,placeholder,toolbar,autoFocus}){
+function RichEditor({value,onChange,onFocus,onBlur,style,placeholder,autoFocus}){
   const divRef=React.useRef(null);
   const focused=React.useRef(false);
   // סנכרון ראשוני + כשערך חיצוני משתנה (לא בזמן עריכה)
@@ -677,35 +681,29 @@ function RichEditor({value,onChange,onFocus,onBlur,style,placeholder,toolbar,aut
       if(divRef.current.innerHTML!==h)divRef.current.innerHTML=h;
     }
   },[value]);
-  const fmt=cmd=>e=>{
-    e.preventDefault();
-    try{document.execCommand('styleWithCSS',false,false);}catch(_){}
-    document.execCommand(cmd,false,null);
-    if(divRef.current&&onChange)onChange(htmlToStorage(divRef.current.innerHTML||''));
-  };
-  const tbtn={width:26,height:24,border:'1px solid #ddd0bb',background:'#fff',borderRadius:5,cursor:'pointer',fontSize:13,color:'#4b3400',lineHeight:1};
   return(
-    <div>
-      {toolbar&&<div style={{display:'flex',gap:4,marginBottom:4}}>
-        <button type="button" tabIndex={-1} onMouseDown={fmt('bold')} title="מודגש (Ctrl+B)" style={{...tbtn,fontWeight:700}}>B</button>
-        <button type="button" tabIndex={-1} onMouseDown={fmt('underline')} title="קו תחתון (Ctrl+U)" style={{...tbtn,textDecoration:'underline'}}>U</button>
-      </div>}
-      <div ref={divRef} contentEditable suppressContentEditableWarning data-ph={placeholder||undefined}
-        onFocus={()=>{focused.current=true;if(onFocus)onFocus();}}
-        onBlur={()=>{focused.current=false;if(onBlur)onBlur();}}
-        onInput={()=>{if(onChange)onChange(htmlToStorage(divRef.current?.innerHTML||''));}}
-        onPaste={e=>{
+    <div ref={divRef} contentEditable suppressContentEditableWarning data-ph={placeholder||undefined}
+      onFocus={()=>{focused.current=true;if(onFocus)onFocus();}}
+      onBlur={()=>{focused.current=false;if(onBlur)onBlur();}}
+      onInput={()=>{if(onChange)onChange(htmlToStorage(divRef.current?.innerHTML||''));}}
+      onPaste={e=>{
+        e.preventDefault();
+        const t=e.clipboardData.getData('text/plain');
+        document.execCommand('insertText',false,t);
+      }}
+      onKeyDown={e=>{
+        if(e.key==='Enter'){e.preventDefault();document.execCommand('insertLineBreak');return;}
+        // Ctrl/Cmd + B / U — מודגש / קו תחתון (עיצוב תגי b/u עקבי)
+        if((e.ctrlKey||e.metaKey)&&/^[buBU]$/.test(e.key)){
           e.preventDefault();
-          const t=e.clipboardData.getData('text/plain');
-          document.execCommand('insertText',false,t);
-        }}
-        onKeyDown={e=>{
-          if(e.key==='Enter'){e.preventDefault();document.execCommand('insertLineBreak');}
-        }}
-        style={{...style,minHeight:'2.4em',lineHeight:1.5,cursor:'text',
-          wordBreak:'break-word',whiteSpace:'pre-wrap'}}
-      />
-    </div>
+          try{document.execCommand('styleWithCSS',false,false);}catch(_){}
+          document.execCommand(e.key.toLowerCase()==='b'?'bold':'underline',false,null);
+          if(divRef.current&&onChange)onChange(htmlToStorage(divRef.current.innerHTML||''));
+        }
+      }}
+      style={{...style,minHeight:'2.4em',lineHeight:1.5,cursor:'text',
+        wordBreak:'break-word',whiteSpace:'pre-wrap'}}
+    />
   );
 }
 
@@ -745,13 +743,14 @@ function NotesWidget({value,onChange,onBlur,style}){
 // עורך משימה — מציג טקסט נקי + שורת מטא (תאריך/שעה + מי רשם), מחתים בשמירה
 function TaskWidget({value,onChange,onBlur,style}){
   const {text,stamp,user,due}=parseTaskStamp(value);
-  const [localText,setLocalText]=React.useState(text);
+  const dtext=decodeTaskText(text);
+  const [localText,setLocalText]=React.useState(dtext);
   const [focused,setFocused]=React.useState(false);
-  React.useEffect(()=>{if(!focused)setLocalText(text);},[text,focused]);
+  React.useEffect(()=>{if(!focused)setLocalText(dtext);},[dtext,focused]);
   const handleBlur=()=>{
     setFocused(false);
     const nt=localText.trim();
-    if(nt!==text){onChange(nt?stampTask(nt,_currentUserName,due):'');}  // מחתים רק אם השתנה, שומר יעד
+    if(nt!==dtext){onChange(nt?stampTask(nt,_currentUserName,due):'');}  // מחתים רק אם השתנה, שומר יעד
     if(onBlur)onBlur();
   };
   return(
@@ -781,8 +780,9 @@ function TaskChecklist({value,onComplete,onAdd,onEdit,style}){
   const today=new Date();today.setHours(0,0,0,0);
   const add=()=>{if(nt.trim()){onAdd(nt.trim(),'');setNt('');}};
   const buildLine=(it,txt)=>{
-    if(it.stamp){let ic=it.stamp;if(it.user)ic+=' | '+it.user;if(it.due)ic+=' | 🎯'+it.due;return txt.trim()+' ('+ic+')';}
-    return txt.trim();
+    const enc=encodeTaskText(txt.trim());
+    if(it.stamp){let ic=it.stamp;if(it.user)ic+=' | '+it.user;if(it.due)ic+=' | 🎯'+it.due;return enc+' ('+ic+')';}
+    return enc;
   };
   const saveEdit=(it)=>{
     const t=editVal.trim();
@@ -802,7 +802,7 @@ function TaskChecklist({value,onComplete,onAdd,onEdit,style}){
               onMouseLeave={e=>{e.currentTarget.style.borderColor='#bdb3a5';e.currentTarget.style.background='#fff';}}>✓</button>
             <div style={{flex:1,minWidth:0}}>
               {editing
-                ? <RichEditor value={editVal} onChange={setEditVal} onBlur={()=>saveEdit(it)} toolbar autoFocus style={{...(style||{}),width:'100%'}}/>
+                ? <RichEditor value={editVal} onChange={setEditVal} onBlur={()=>saveEdit(it)} autoFocus style={{...(style||{}),width:'100%'}}/>
                 : <div onClick={()=>{setEditIdx(i);setEditVal(it.text);}} title="לחץ לעריכה" style={{fontSize:13,color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word',cursor:'text'}}>{renderBold(it.text)}</div>}
               {(it.due||it.stamp)&&<div style={{fontSize:11,color:'#9a8e84',marginTop:2,display:'flex',gap:8,flexWrap:'wrap'}}>
                 {it.due&&<span style={{color:overdue?'#dc2626':'#b45309',fontWeight:600}}>🎯 {it.due}</span>}
@@ -814,7 +814,7 @@ function TaskChecklist({value,onComplete,onAdd,onEdit,style}){
         );
       })}
       <div style={{marginTop:8}}>
-        <RichEditor value={nt} onChange={setNt} onBlur={add} toolbar placeholder="הוסף משימה..." style={style}/>
+        <RichEditor value={nt} onChange={setNt} onBlur={add} placeholder="הוסף משימה..." style={style}/>
       </div>
     </div>
   );
@@ -1568,7 +1568,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                   return(
                     <div key={i} style={{padding:'8px 0',borderBottom:'1px solid #f0ebe2',display:'flex',gap:10,alignItems:'flex-start'}}>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:13,color:'#3a3228',lineHeight:1.5,textDecoration:'line-through',textDecorationColor:'#c8bfb5'}}>✅ {renderBold(h.text)}</div>
+                        <div style={{fontSize:13,color:'#3a3228',lineHeight:1.5,whiteSpace:'pre-wrap',textDecoration:'line-through',textDecorationColor:'#c8bfb5'}}>✅ {renderBold(decodeTaskText(h.text))}</div>
                         <div style={{fontSize:11,color:'#9a8e84',marginTop:2,display:'flex',gap:8,flexWrap:'wrap'}}>
                           {h.assignee&&<span>{h.assignee}</span>}
                           {h.registered&&<span>· נרשם: {h.registered}</span>}
@@ -4407,7 +4407,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
         )}
         <div style={{marginBottom:12}}>
           <div style={{fontSize:12,color:'#7a6a58',marginBottom:4,fontWeight:500}}>תוכן המשימה</div>
-          <RichEditor value={taskText} onChange={setTaskText} toolbar placeholder="מה צריך לעשות..." style={{...iS,minHeight:'3.2em'}}/>
+          <RichEditor value={taskText} onChange={setTaskText} placeholder="מה צריך לעשות..." style={{...iS,minHeight:'3.2em'}}/>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
           <button onClick={submit} disabled={busy}
