@@ -93,7 +93,7 @@ const P={name:0,yossi:1,michael:2,feigi:3,notes:4,dueDate:5,status:6,
   expected:7,advance:8,docs:9,missingDocs:10,buildingFile:11,
   transactions:12,visitSheet:13,visitDate:14,visitHours:15,
   visitPhone:16,visitName:17,visitRole:18,visitNotes:19,
-  postVisitDocs:20,postVisitComplete:21,fee:22,feeStatus:23,feeNotes:24};
+  postVisitDocs:20,postVisitComplete:21,fee:22,feeStatus:23,feeNotes:24,taskHistory:25};
 const M={openDate:0,closeDate:1,fee:2,caseNum:3,status:4,folder:5,
   client:6,phone:7,email:8,advisor:9,advisorPhone:10,advisorEmail:11,
   purpose:12,propType:13,city:14,street:15,houseNum:16,
@@ -176,6 +176,39 @@ function stampTask(text,userName,due){
   if(userName)inner+=' | '+userName;
   if(due)inner+=' | 🎯'+due;
   return text.trim()+' ('+inner+')';
+}
+// ── פיצול שדה משימות לשורות בודדות (משימה לכל שורה) ──
+function splitTasks(field){
+  return String(field||'').split('\n').map(l=>l.trim()).filter(Boolean).map(line=>{
+    const ps=parseTaskStamp(line);
+    return {line,text:ps.text||line,stamp:ps.stamp,user:ps.user,due:ps.due};
+  });
+}
+const TASK_FIELD_NAME={yossi:'יוסי',michael:'מיכאל',feigi:'פייגי'};
+// ── סימון משימה כבוצעה: מסיר מהשדה ובונה רשומת היסטוריה ──
+function computeCompletion(project,field,taskLine,completer){
+  const ps=parseTaskStamp(taskLine);
+  const d=new Date();const p2=n=>String(n).padStart(2,'0');
+  const now=`${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  const historyEntry='✅ '+(ps.text||String(taskLine).trim())
+    +' | '+(TASK_FIELD_NAME[field]||'')
+    +' | נרשם: '+(ps.user||'—')+(ps.stamp?(' '+ps.stamp):'')
+    +' | בוצע: '+(completer||'—')+' '+now;
+  const lines=String(project[field]||'').split('\n');
+  const idx=lines.findIndex(l=>l.trim()===String(taskLine).trim());
+  if(idx>=0)lines.splice(idx,1);
+  const newField=lines.map(l=>l.trim()).filter(Boolean).join('\n');
+  return {newField,historyEntry};
+}
+function appendHistory(existing,entry){
+  const e=String(existing||'').trim();
+  return e?(e+'\n'+entry):entry;
+}
+// ── פירוק רשומת היסטוריה לתצוגה ──
+function parseHistoryLine(line){
+  const m=String(line||'').match(/^✅\s*([\s\S]*?)\s*\|\s*([^|]*?)\s*\|\s*נרשם:\s*([^|]*?)\s*\|\s*בוצע:\s*(.*)$/);
+  if(m)return{text:m[1].trim(),assignee:m[2].trim(),registered:m[3].trim(),done:m[4].trim()};
+  return{text:String(line||'').replace(/^✅\s*/,'').trim(),assignee:'',registered:'',done:''};
 }
 
 // ═══════════════ תיקיות במחשב ═══════════════════════════════════
@@ -464,6 +497,7 @@ function parseProject(row,ri){
     postVisitDocs:fmt(g(row,P.postVisitDocs))||g(row,P.postVisitDocs),
     postVisitComplete:fmt(g(row,P.postVisitComplete))||g(row,P.postVisitComplete),
     fee:g(row,P.fee),feeStatus:g(row,P.feeStatus),feeNotes:g(row,P.feeNotes),
+    taskHistory:g(row,P.taskHistory),
     _expD:parseDate(g(row,P.expected)),_dueD:parseDate(g(row,P.dueDate)),_visitD:parseDate(g(row,P.visitDate)),
   };
 }
@@ -579,14 +613,14 @@ function calcExpected(form){
 // ═══════════════ SAVE ROW HELPER ════════════════════════════════
 function buildProjectRow(upd){
   const row=[...upd._raw];
-  while(row.length<=24)row.push('');
+  while(row.length<=25)row.push('');
   [['status',P.status],['yossi',P.yossi],['michael',P.michael],['feigi',P.feigi],
    ['notes',P.notes],['missingDocs',P.missingDocs],['dueDate',P.dueDate],['expected',P.expected],
    ['advance',P.advance],['docs',P.docs],['buildingFile',P.buildingFile],['transactions',P.transactions],
    ['visitSheet',P.visitSheet],['visitDate',P.visitDate],['visitHours',P.visitHours],
    ['visitPhone',P.visitPhone],['visitName',P.visitName],['visitRole',P.visitRole],
    ['visitNotes',P.visitNotes],['postVisitDocs',P.postVisitDocs],['postVisitComplete',P.postVisitComplete],
-   ['fee',P.fee],['feeStatus',P.feeStatus],['feeNotes',P.feeNotes],
+   ['fee',P.fee],['feeStatus',P.feeStatus],['feeNotes',P.feeNotes],['taskHistory',P.taskHistory],
   ].forEach(([k,i])=>row[i]=upd[k]||'');
   return row;
 }
@@ -714,6 +748,46 @@ function TaskWidget({value,onChange,onBlur,style}){
           {user&&<span style={{color:'#7a6a58'}}>· נרשם ע"י {user}</span>}
         </div>
       )}
+    </div>
+  );
+}
+
+// ═══════════════ TASK CHECKLIST (משימות תיק עם ✓) ════════════════
+function TaskChecklist({value,onComplete,onAdd,style}){
+  const [nt,setNt]=React.useState('');
+  const [nd,setNd]=React.useState('');
+  const items=splitTasks(value);
+  const toISO=v=>{const m=(v||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:'';};
+  const fromISO=v=>{const m=(v||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:'';};
+  const today=new Date();today.setHours(0,0,0,0);
+  const add=()=>{if(nt.trim()){onAdd(nt.trim(),nd);setNt('');setNd('');}};
+  return(
+    <div>
+      {items.length===0&&<div style={{fontSize:12,color:'#9a8e84',marginBottom:6}}>אין משימות פתוחות 🎉</div>}
+      {items.map((it,i)=>{
+        const dd=parseDate(it.due);const overdue=dd&&dd<today;
+        return(
+          <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'8px 0',borderBottom:'1px solid #f0ebe2'}}>
+            <button onClick={()=>onComplete(it.line)} title="סמן כבוצע"
+              style={{flexShrink:0,marginTop:1,width:22,height:22,borderRadius:6,border:'2px solid #bdb3a5',background:'#fff',cursor:'pointer',color:'#16a34a',fontSize:13,fontWeight:700,lineHeight:1,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor='#16a34a';e.currentTarget.style.background='#f0fdf4';}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor='#bdb3a5';e.currentTarget.style.background='#fff';}}>✓</button>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{renderBold(it.text)}</div>
+              {(it.due||it.stamp)&&<div style={{fontSize:11,color:'#9a8e84',marginTop:2,display:'flex',gap:8,flexWrap:'wrap'}}>
+                {it.due&&<span style={{color:overdue?'#dc2626':'#b45309',fontWeight:600}}>🎯 {it.due}</span>}
+                {it.stamp&&<span>🕒 {it.stamp}</span>}
+                {it.user&&<span>· נרשם ע"י {it.user}</span>}
+              </div>}
+            </div>
+          </div>
+        );
+      })}
+      <div style={{display:'flex',gap:6,marginTop:8,flexWrap:'wrap',alignItems:'center'}}>
+        <input value={nt} onChange={e=>setNt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')add();}} placeholder="הוסף משימה..." style={{...(style||{}),flex:1,minWidth:120}}/>
+        <input type="date" value={toISO(nd)} onChange={e=>setNd(fromISO(e.target.value))} title="תאריך יעד" style={{...(style||{}),width:'auto',cursor:'pointer'}}/>
+        <button onClick={add} title="הוסף משימה" style={{background:GOLD,color:'#fff',border:'none',borderRadius:8,width:34,height:34,cursor:'pointer',fontSize:18,fontWeight:600,flexShrink:0,fontFamily:'inherit'}}>＋</button>
+      </div>
     </div>
   );
 }
@@ -990,9 +1064,9 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf}){
   // רק המשימות של המשתמש הנוכחי (אם זוהה); אחרת — הכל
   const _myKey={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'}[_currentUserName];
   const tasks=[
-    {n:'יוסי',v:parseTaskStamp(project.yossi).text,c:'#607060',k:'yossi'},
-    {n:'מיכאל',v:parseTaskStamp(project.michael).text,c:GOLD,k:'michael'},
-    {n:'פייגי',v:parseTaskStamp(project.feigi).text,c:'#8c6239',k:'feigi'},
+    {n:'יוסי',v:splitTasks(project.yossi).map(t=>t.text).join(' · '),c:'#607060',k:'yossi'},
+    {n:'מיכאל',v:splitTasks(project.michael).map(t=>t.text).join(' · '),c:GOLD,k:'michael'},
+    {n:'פייגי',v:splitTasks(project.feigi).map(t=>t.text).join(' · '),c:'#8c6239',k:'feigi'},
   ].filter(t=>t.v&&(!_myKey||t.k===_myKey));
 
   const checks=[
@@ -1245,6 +1319,20 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
       onClose();
     }catch(e){setErr(e.message);}
   };
+  // סימון משימה כבוצעה — מעביר להיסטוריה (עמודה Z)
+  const doCompleteTask=(field,line)=>{
+    const {newField,historyEntry}=computeCompletion(formRef.current,field,line,_currentUserName);
+    dirtyRef.current=true;
+    setForm(f=>{const next={...f,[field]:newField,taskHistory:appendHistory(f.taskHistory,historyEntry)};formRef.current=next;return next;});
+    autoSave();
+  };
+  const doAddTask=(field,text,due)=>{
+    if(!text||!text.trim())return;
+    const stamped=stampTask(text,_currentUserName,due);
+    const existing=(formRef.current[field]||'').trim();
+    set(field,existing?existing+'\n'+stamped:stamped);
+    autoSave();
+  };
   return(
     <div style={{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:isMobile?'flex-end':'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(8px)'}} onClick={handleClose}>
       {/* דיאלוג תזכורת שכ"ט ליוסי */}
@@ -1388,16 +1476,38 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                   </div>
                   {!tasksExpanded
                     ? (myKey
-                        ? <TaskWidget value={form[myKey]||''} onChange={v=>set(myKey,v)} onBlur={autoSave} style={iS}/>
+                        ? (isGeneralTask
+                            ? <TaskWidget value={form[myKey]||''} onChange={v=>set(myKey,v)} onBlur={autoSave} style={iS}/>
+                            : <TaskChecklist value={form[myKey]||''} onComplete={line=>doCompleteTask(myKey,line)} onAdd={(t,d)=>doAddTask(myKey,t,d)} style={iS}/>)
                         : <div style={{fontSize:13,color:'#9a8e84'}}>לא זוהה משתמש מוכר — לחץ "הצג את כל הצוות"</div>)
                     : meta.map(([l,k,c])=>(
-                        <div key={k} style={{marginBottom:10}}><FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
-                          <TaskWidget value={form[k]||''} onChange={v=>set(k,v)} onBlur={autoSave} style={iS}/>
+                        <div key={k} style={{marginBottom:14}}><FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
+                          {isGeneralTask
+                            ? <TaskWidget value={form[k]||''} onChange={v=>set(k,v)} onBlur={autoSave} style={iS}/>
+                            : <TaskChecklist value={form[k]||''} onComplete={line=>doCompleteTask(k,line)} onAdd={(t,d)=>doAddTask(k,t,d)} style={iS}/>}
                         </div>
                       ))}
                 </>);
               })()}
             </div>
+            {!isGeneralTask&&(form.taskHistory||'').trim()&&(
+              <div style={sec}>
+                <SectionTitle icon="🗂️">היסטוריית משימות</SectionTitle>
+                {String(form.taskHistory).split('\n').map(l=>l.trim()).filter(Boolean).map((line,i)=>{
+                  const h=parseHistoryLine(line);
+                  return(
+                    <div key={i} style={{padding:'8px 0',borderBottom:'1px solid #f0ebe2'}}>
+                      <div style={{fontSize:13,color:'#3a3228',lineHeight:1.5,textDecoration:'line-through',textDecorationColor:'#c8bfb5'}}>✅ {renderBold(h.text)}</div>
+                      <div style={{fontSize:11,color:'#9a8e84',marginTop:2,display:'flex',gap:8,flexWrap:'wrap'}}>
+                        {h.assignee&&<span>{h.assignee}</span>}
+                        {h.registered&&<span>· נרשם: {h.registered}</span>}
+                        {h.done&&<span style={{color:'#16a34a',fontWeight:600}}>· בוצע: {h.done}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <div style={sec}>
               <SectionTitle icon="💬">הערות</SectionTitle>
               <NotesWidget value={form.notes||''} onChange={v=>{set('notes',v);autoSave();}} onBlur={()=>{}} style={iS}/>
@@ -3175,7 +3285,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
                         </div>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:13,fontWeight:700,color:'#1a1510',marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</div>
-                          <div style={{fontSize:12,color:'#5a4e44',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{renderBold(parseTaskStamp(p[userField]).text)}</div>
+                          <div style={{fontSize:12,color:'#5a4e44',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{renderBold(splitTasks(p[userField]).map(t=>t.text).join(' · '))}</div>
                         </div>
                       </div>
                     );
@@ -4074,7 +4184,7 @@ function NadlanSearchView(){
 }
 
 // ═══════════════ TASKS VIEW (משימות) ════════════════════════════
-function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTask,isMobile}){
+function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTask,onCompleteTask,isMobile}){
   const me=USER_BY_EMAIL[(user?.email||'').toLowerCase()]||_currentUserName||'';
   const USERS=['יוסי','מיכאל','פייגי'];
   const UF={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'};
@@ -4097,15 +4207,16 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
     const out=[];
     (projects||[]).forEach(p=>{
       if(p.status==='הסתיים'||p.status==='בוטל')return;
+      const numMatch=(p.name||'').match(/\b(5\d{4})\b/);
       USERS.forEach(u=>{
         const raw=p[UF[u]];
         if(!raw||!String(raw).trim())return;
-        const ps=parseTaskStamp(raw);
-        const numMatch=(p.name||'').match(/\b(5\d{4})\b/);
-        const dueStr=ps.due||p.dueDate||'';
-        out.push({row:p._row,assignee:u,author:ps.user,text:ps.text||raw,created:ps.stamp,
-          due:dueStr,caseNum:numMatch?numMatch[1]:'',caseName:p.name||'',isGeneral:!numMatch,
-          _dueD:parseDate(dueStr)});
+        splitTasks(raw).forEach(t=>{
+          const dueStr=t.due||p.dueDate||'';
+          out.push({row:p._row,field:UF[u],assignee:u,author:t.user,text:t.text,created:t.stamp,
+            line:t.line,due:dueStr,caseNum:numMatch?numMatch[1]:'',caseName:p.name||'',
+            isGeneral:!numMatch,_dueD:parseDate(dueStr)});
+        });
       });
     });
     return out;
@@ -4146,6 +4257,11 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
     if(!e.isGeneral||!onDeleteTask)return;
     if(!window.confirm('למחוק את המשימה? הפעולה אינה הפיכה.'))return;
     try{await onDeleteTask(e.row);}catch(ex){setErr(ex.message);}
+  };
+  // סימון בוצע — רק משימות המשויכות לתיק (עוברות להיסטוריה)
+  const complete=async(e)=>{
+    if(e.isGeneral||!onCompleteTask)return;
+    try{await onCompleteTask(e.row,e.field,e.line);}catch(ex){setErr(ex.message);}
   };
 
   const iS={width:'100%',padding:'9px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:14,background:'#fffdf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
@@ -4223,6 +4339,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
                     <span style={{fontSize:12,color:e.isGeneral?'#7a6a58':'#7a5f30',background:e.isGeneral?'#f0ebe2':'#fef3c7',border:`1px solid ${e.isGeneral?'#ddd0bb':'#d9af34'}`,borderRadius:20,padding:'2px 9px',fontWeight:500}}>{e.isGeneral?'כללי':e.caseNum||e.caseName}</span>
                     <div style={{marginInlineStart:'auto',display:'flex',alignItems:'center',gap:8}}>
                       {e.due&&<span style={{fontSize:12,fontWeight:600,color:overdue?'#dc2626':'#b45309'}}>🎯 {e.due}</span>}
+                      {!e.isGeneral&&<button onClick={()=>complete(e)} title="סמן כבוצע" style={{background:'#fff',border:'2px solid #bdb3a5',borderRadius:6,width:24,height:24,cursor:'pointer',fontSize:13,color:'#16a34a',fontWeight:700,lineHeight:1,display:'flex',alignItems:'center',justifyContent:'center'}}>✓</button>}
                       {e.isGeneral&&<button onClick={()=>del(e)} title="מחק משימה" style={{background:'none',border:'none',cursor:'pointer',fontSize:15,color:'#dc2626',padding:'2px 4px',lineHeight:1}}>🗑</button>}
                     </div>
                   </div>
@@ -4260,7 +4377,10 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
                     <td style={{padding:'10px 14px',color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{renderBold(e.text)}</td>
                     <td style={{padding:'10px 14px',whiteSpace:'nowrap'}}><span style={{color:uColor[e.assignee]||'#7a6a58',fontWeight:600}}>{e.assignee}</span></td>
                     <td style={{padding:'10px 14px',whiteSpace:'nowrap',color:'#7a6a58'}}>{e.author||'—'}</td>
-                    <td style={{padding:'10px 6px',textAlign:'center'}}>{e.isGeneral&&<button onClick={()=>del(e)} title="מחק משימה" style={{background:'none',border:'none',cursor:'pointer',fontSize:15,color:'#dc2626',padding:'2px 4px',borderRadius:6}} onMouseEnter={ev=>ev.currentTarget.style.background='#fee2e2'} onMouseLeave={ev=>ev.currentTarget.style.background='none'}>🗑</button>}</td>
+                    <td style={{padding:'10px 6px',textAlign:'center'}}>
+                      {!e.isGeneral&&<button onClick={()=>complete(e)} title="סמן כבוצע" style={{background:'#fff',border:'2px solid #bdb3a5',borderRadius:6,width:24,height:24,cursor:'pointer',fontSize:13,color:'#16a34a',fontWeight:700,lineHeight:1,display:'inline-flex',alignItems:'center',justifyContent:'center'}} onMouseEnter={ev=>{ev.currentTarget.style.borderColor='#16a34a';ev.currentTarget.style.background='#f0fdf4';}} onMouseLeave={ev=>{ev.currentTarget.style.borderColor='#bdb3a5';ev.currentTarget.style.background='#fff';}}>✓</button>}
+                      {e.isGeneral&&<button onClick={()=>del(e)} title="מחק משימה" style={{background:'none',border:'none',cursor:'pointer',fontSize:15,color:'#dc2626',padding:'2px 4px',borderRadius:6}} onMouseEnter={ev=>ev.currentTarget.style.background='#fee2e2'} onMouseLeave={ev=>ev.currentTarget.style.background='none'}>🗑</button>}
+                    </td>
                   </tr>
                 );
               })}
@@ -4450,6 +4570,16 @@ function App(){
     await api.deleteSheetRow('פרויקטים בביצוע',rowNum);
     setProjects(ps=>ps.filter(p=>p._row!==rowNum));
   },[]);
+  // סימון משימת תיק כבוצעה — מסיר מהשדה ומעביר להיסטוריה (עמודה Z)
+  const completeTask=useCallback(async(rowNum,field,taskLine)=>{
+    const p=projects.find(x=>x._row===rowNum);
+    if(!p)throw new Error('התיק לא נמצא');
+    const {newField,historyEntry}=computeCompletion(p,field,taskLine,_currentUserName);
+    const upd={...p,[field]:newField,taskHistory:appendHistory(p.taskHistory,historyEntry)};
+    const row=buildProjectRow(upd);
+    await api.put(`'פרויקטים בביצוע'!A${p._row}:${colLetter(row.length)}${p._row}`,[row]);
+    updateProject(p._row,{...upd,_raw:row});
+  },[projects,updateProject]);
   const deleteCase=useCallback((rowNum)=>{setManaged(ms=>ms.filter(m=>m._row!==rowNum));},[]);
   const handleUpdateFolderLinks=useCallback(async(basePath)=>{
     if(!managed.length)return;
@@ -4511,7 +4641,7 @@ function App(){
         {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)} autoOpenSearch={projectSearch} onAutoOpenSearchConsumed={()=>setProjectSearch('')} isMobile={isMobile}/>}
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject} isMobile={isMobile}/>}
         {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject} initialSearch={managedSearch} onSearchConsumed={()=>setManagedSearch('')} isMobile={isMobile}/>}
-        {view==='tasks'&&<TasksView projects={projects} user={user} onAddTaskToProject={addTaskToProject} onAddGeneralTask={addGeneralTask} onDeleteTask={deleteGeneralTask} isMobile={isMobile}/>}
+        {view==='tasks'&&<TasksView projects={projects} user={user} onAddTaskToProject={addTaskToProject} onAddGeneralTask={addGeneralTask} onDeleteTask={deleteGeneralTask} onCompleteTask={completeTask} isMobile={isMobile}/>}
         {view==='nadlan'&&<NadlanSearchView/>}
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
         {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user} managed={managed} onUpdateFolderLinks={handleUpdateFolderLinks}/>}
