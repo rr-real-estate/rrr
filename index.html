@@ -5054,6 +5054,19 @@ function App(){
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
         {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user} managed={managed} onUpdateFolderLinks={handleUpdateFolderLinks}/>}
       </div>
+      {/* כפתורים מרחפים — משימה חדשה / ביקור בנכס (לא בתצוגות הרשימה) */}
+      {!['projects','clients','managed'].includes(view)&&(
+        <div style={{position:'fixed',left:16,bottom:isMobile?84:24,zIndex:450,display:'flex',flexDirection:'column',gap:12,alignItems:'flex-start'}}>
+          {[{id:'tasks',icon:'✅',label:'משימה'},{id:'visit',icon:'🏘️',label:'ביקור בנכס'}].map(fb=>(
+            <button key={fb.id} onClick={()=>setView(fb.id)} title={fb.label}
+              style={{display:'flex',alignItems:'center',gap:7,border:'none',borderRadius:30,background:`linear-gradient(135deg,${GOLD} 0%,${GOLD2} 100%)`,color:'#fff',cursor:'pointer',boxShadow:'0 5px 18px rgba(0,0,0,0.3)',padding:'11px 17px',fontSize:14,fontWeight:600,fontFamily:'inherit',whiteSpace:'nowrap'}}>
+              <span style={{fontSize:20,fontWeight:700,lineHeight:1}}>＋</span>
+              <span style={{fontSize:16}}>{fb.icon}</span>
+              <span>{fb.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
