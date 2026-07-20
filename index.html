@@ -4674,7 +4674,12 @@ function VisitFormView({managed,user,isMobile}){
       let target=colA.length+1;
       for(let i=1;i<colA.length;i++){if(!(colA[i]&&String(colA[i][0]||'').trim())){target=i+1;break;}}
       await api.put(`'ביקורים'!A${target}`,[row],MAAGAR_ID);
-      setMsg('הביקור נשמר בהצלחה ✓ (שורה '+target+')');
+      // הפקת דוח PDF ושמירה לתיקיית "ביקור בנכס" דרך Apps Script (לו יש הרשאת Drive)
+      try{
+        const pairs=[['מספר תיק',f.caseNum||''],['שמאי מבקר',f.appraiser||''],['שם שמאי',f.appraiser==='אחר'?(f.appraiserName||''):''],['אימות גוש/חלקה',f.gushVerify?'בוצע':''],['תאריך ביקור',f.visitDate||''],['מעלית',f.elevator||''],['קומה',f.floor||''],['מספר קומות',f.numFloors||''],['מספר דירה',f.aptNum||''],['מציג הנכס',f.presenter||''],['ת.ז. מציג הנכס',f.presenterId||''],['שייכות מציג הנכס',f.presenterRelation||''],['מתגוררים בנכס',residentsOut],['חלוקה - בחירה',oVal],['פירוט חלוקה חופשי',pVal],['מספר חדרים',f.numRooms||''],['סוג ריצוף',jm('floorType')],['גודל ריצוף',jm('floorSize')],['ארונות מטבח',f.kitchenCabinets||''],['כלים סניטריים',f.sanitary||''],['אריחי קרמיקה בקירות חדרי רחצה',f.ceramicWalls||''],['חלונות',f.windows||''],['דלתות פנים',f.interiorDoors||''],['מיזוג',jm('ac')],['מצב פיזי',f.physical||''],['מצב תחזוקתי',f.maintenance||''],['מיקום דירה תואם ל',f.locationMatch||''],['חלוקה פנימית של הדירה',f.internalDivision||''],['מידות פנימיות',f.internalDims||''],['חריגות בניה',f.buildingViolations||''],['פירוט חריגות',f.buildingViolations==='יש'?(f.violationsDetail||''):'']].filter(pr=>String(pr[1]).trim()!=='');
+        fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'visitReport',tikNum:f.caseNum,dateStr:f.visitDate,pairs})}).catch(()=>{});
+      }catch(_){}
+      setMsg('הביקור נשמר ✓ (שורה '+target+') · הדוח מופק ונשמר לתיקיית "ביקור בנכס"');
       setF(blankForm());
       window.scrollTo({top:0,behavior:'smooth'});
       setTimeout(()=>setMsg(''),3500);
