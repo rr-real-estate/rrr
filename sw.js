@@ -3,7 +3,7 @@
 //  אסטרטגיה: Cache-First לקבצים סטטיים, Network-First לשאר
 // ═══════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'rr-v18';
+const CACHE_NAME = 'rr-v19';
 
 // קבצים שיישמרו בcache בעת ההתקנה
 const STATIC_ASSETS = [
@@ -29,9 +29,10 @@ const NETWORK_ONLY_ORIGINS = [
 // ─── התקנה: שמור קבצים סטטיים ───────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
+    caches.open(CACHE_NAME).then((cache) =>
+      // כל קובץ בנפרד — קובץ חסר לא ישבור את כל ההתקנה
+      Promise.all(STATIC_ASSETS.map((u) => cache.add(u).catch(() => {})))
+    )
   );
   self.skipWaiting();
 });
