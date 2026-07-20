@@ -4548,6 +4548,42 @@ const VISIT_FIELDS=[
   {k:'buildingViolations',l:'חריגות בניה',t:'enum',o:['יש','אין'],noOther:true},
   {k:'violationsDetail',l:'פירוט חריגות',t:'long',showIf:f=>f.buildingViolations==='יש'},
 ];
+// תוויות לפי סדר עמודות הגיליון A..AG (אחד לשורה — בטוח מ-RTL/bidi)
+const VISIT_COLS=[
+  'חותמת זמן',
+  'מספר תיק',
+  'שמאי מבקר',
+  'שם שמאי',
+  'אימות גוש/חלקה',
+  'תאריך ביקור',
+  'מעלית',
+  'קומה',
+  'מספר קומות',
+  'מספר דירה',
+  'מציג הנכס',
+  'ת.ז. מציג הנכס',
+  'שייכות מציג הנכס',
+  'מתגוררים בנכס',
+  'חלוקה - בחירה',
+  'פירוט חלוקה חופשי',
+  'חלוקה',
+  'מספר חדרים',
+  'סוג ריצוף',
+  'גודל ריצוף',
+  'ארונות מטבח',
+  'כלים סניטריים',
+  'אריחי קרמיקה בקירות חדרי רחצה',
+  'חלונות',
+  'דלתות פנים',
+  'מיזוג',
+  'מצב פיזי',
+  'מצב תחזוקתי',
+  'מיקום דירה תואם ל',
+  'חלוקה פנימית של הדירה',
+  'מידות פנימיות',
+  'חריגות בניה',
+  'פירוט חריגות',
+];
 function VisitFormView({managed,user,isMobile}){
   const me=USER_BY_EMAIL[(user?.email||'').toLowerCase()]||'';
   const p2=n=>String(n).padStart(2,'0');
@@ -4558,6 +4594,8 @@ function VisitFormView({managed,user,isMobile}){
   const [msg,setMsg]=React.useState('');
   const [err,setErr]=React.useState('');
   const [hist,setHist]=React.useState([]);
+  const [editRow,setEditRow]=React.useState(null);
+  const [editOldDate,setEditOldDate]=React.useState('');
   const set=(k,v)=>setF(o=>({...o,[k]:v}));
   const toggleMulti=(k,opt)=>setF(o=>{const cur=o[k]||[];return {...o,[k]:cur.includes(opt)?cur.filter(x=>x!==opt):[...cur,opt]};});
   const toISO=v=>{const m=(v||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:'';};
@@ -4565,11 +4603,41 @@ function VisitFormView({managed,user,isMobile}){
   const caseNums=[...new Set((managed||[]).map(c=>String(c.caseNum||'').trim()).filter(Boolean))];
 
   const loadHist=React.useCallback(async()=>{
-    try{const rows=await api.get("'ביקורים'!A2:AG",MAAGAR_ID);
-      const arr=(rows||[]).map((r,i)=>({_i:i,ts:r[0]||'',caseNum:r[1]||'',appraiser:r[2]||'',date:r[5]||''})).filter(x=>x.caseNum||x.ts);
-      setHist(arr.reverse().slice(0,25));
+    try{const rows=await api.get("'ביקורים'!A2:AH",MAAGAR_ID);
+      const arr=(rows||[]).map((r,i)=>({rowNum:i+2,row:r,ts:r[0]||'',caseNum:r[1]||'',appraiser:r[2]||'',date:r[5]||'',web:(r[33]||'')==='אתר'})).filter(x=>x.web);
+      setHist(arr.reverse().slice(0,50));
     }catch(e){/* שקט */}
   },[]);
+  // פענוח שדה החלוקה (עמודה O) חזרה לקומות: "קומה: פריט, פריט, קומה2: פריט"
+  const parseDivision=(o)=>{
+    o=String(o||'').trim();if(!o)return [{name:'',items:[]}];
+    const parts=o.split(',').map(x=>x.trim()).filter(Boolean);
+    const levels=[];let cur={name:'',items:[]};let started=false;
+    parts.forEach(p=>{const ci=p.indexOf(':');
+      if(ci>-1){if(started)levels.push(cur);cur={name:p.slice(0,ci).trim(),items:[]};const fi=p.slice(ci+1).trim();if(fi)cur.items.push(fi);started=true;}
+      else{cur.items.push(p);started=true;}});
+    if(started)levels.push(cur);
+    return levels.length?levels:[{name:'',items:[]}];
+  };
+  // טעינת ביקור לעריכה
+  const editVisit=(h)=>{
+    const r=h.row,sp=x=>String(x||'').split(', ').filter(Boolean);
+    setF({caseNum:r[1]||'',appraiser:r[2]||'',appraiserName:r[3]||'',gushVerify:(r[4]||'')==='בוצע',visitDate:r[5]||'',
+      elevator:r[6]||'',floor:r[7]||'',numFloors:r[8]||'',aptNum:r[9]||'',presenter:r[10]||'',presenterId:r[11]||'',
+      presenterRelation:r[12]||'',residents:r[13]||'',divisionLevels:parseDivision(r[14]||''),divisionFree:r[15]||'',
+      numRooms:r[17]||'',floorType:sp(r[18]),floorSize:sp(r[19]),kitchenCabinets:r[20]||'',sanitary:r[21]||'',ceramicWalls:r[22]||'',
+      windows:r[23]||'',interiorDoors:r[24]||'',ac:sp(r[25]),physical:r[26]||'',maintenance:r[27]||'',locationMatch:r[28]||'',
+      internalDivision:r[29]||'',internalDims:r[30]||'',buildingViolations:r[31]||'',violationsDetail:r[32]||''});
+    setEditRow(h.rowNum);setEditOldDate(r[5]||'');setErr('');setMsg('');
+    window.scrollTo({top:0,behavior:'smooth'});
+  };
+  const cancelEdit=()=>{setEditRow(null);setEditOldDate('');setF(blankForm());setErr('');setMsg('');};
+  // הפקה חוזרת של דוח מרשומת היסטוריה
+  const genReport=(h)=>{
+    const pairs=VISIT_COLS.map((label,idx)=>[label,h.row[idx]||'']).filter((p,idx)=>idx>0&&idx!==16&&String(p[1]).trim()!=='');
+    fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'visitReport',tikNum:h.caseNum,dateStr:h.date,oldDateStr:h.date,pairs})}).catch(()=>{});
+    setMsg('הדוח מופק מחדש ונשמר לתיקיית "ביקור בנכס" ✓');setTimeout(()=>setMsg(''),3500);
+  };
   React.useEffect(()=>{loadHist();},[loadHist]);
 
   const iS={width:'100%',padding:'9px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:15,background:'#fffdf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
@@ -4669,18 +4737,20 @@ function VisitFormView({managed,user,isMobile}){
         f.numRooms||'',jm('floorType'),jm('floorSize'),f.kitchenCabinets||'',f.sanitary||'',f.ceramicWalls||'',
         f.windows||'',f.interiorDoors||'',jm('ac'),f.physical||'',f.maintenance||'',f.locationMatch||'',
         f.internalDivision||'',f.internalDims||'',f.buildingViolations||'',f.violationsDetail||''];
-      // כתיבה לשורה הפנויה הראשונה (append של Google מזהה "טבלה" עד סוף העיצוב ומדלג שורות)
-      const colA=await api.get("'ביקורים'!A:A",MAAGAR_ID);
-      let target=colA.length+1;
-      for(let i=1;i<colA.length;i++){if(!(colA[i]&&String(colA[i][0]||'').trim())){target=i+1;break;}}
-      await api.put(`'ביקורים'!A${target}`,[row],MAAGAR_ID);
+      const fullRow=[...row,'אתר']; // עמודה AH = סימון "ביקור מהאתר"
+      let target=editRow;
+      if(!target){ // כתיבה לשורה הפנויה הראשונה (append של Google מדלג שורות בגלל עיצוב)
+        const colA=await api.get("'ביקורים'!A:A",MAAGAR_ID);target=colA.length+1;
+        for(let i=1;i<colA.length;i++){if(!(colA[i]&&String(colA[i][0]||'').trim())){target=i+1;break;}}
+      }
+      await api.put(`'ביקורים'!A${target}`,[fullRow],MAAGAR_ID);
       // הפקת דוח PDF ושמירה לתיקיית "ביקור בנכס" דרך Apps Script (לו יש הרשאת Drive)
       try{
         const pairs=[['מספר תיק',f.caseNum||''],['שמאי מבקר',f.appraiser||''],['שם שמאי',f.appraiser==='אחר'?(f.appraiserName||''):''],['אימות גוש/חלקה',f.gushVerify?'בוצע':''],['תאריך ביקור',f.visitDate||''],['מעלית',f.elevator||''],['קומה',f.floor||''],['מספר קומות',f.numFloors||''],['מספר דירה',f.aptNum||''],['מציג הנכס',f.presenter||''],['ת.ז. מציג הנכס',f.presenterId||''],['שייכות מציג הנכס',f.presenterRelation||''],['מתגוררים בנכס',residentsOut],['חלוקה - בחירה',oVal],['פירוט חלוקה חופשי',pVal],['מספר חדרים',f.numRooms||''],['סוג ריצוף',jm('floorType')],['גודל ריצוף',jm('floorSize')],['ארונות מטבח',f.kitchenCabinets||''],['כלים סניטריים',f.sanitary||''],['אריחי קרמיקה בקירות חדרי רחצה',f.ceramicWalls||''],['חלונות',f.windows||''],['דלתות פנים',f.interiorDoors||''],['מיזוג',jm('ac')],['מצב פיזי',f.physical||''],['מצב תחזוקתי',f.maintenance||''],['מיקום דירה תואם ל',f.locationMatch||''],['חלוקה פנימית של הדירה',f.internalDivision||''],['מידות פנימיות',f.internalDims||''],['חריגות בניה',f.buildingViolations||''],['פירוט חריגות',f.buildingViolations==='יש'?(f.violationsDetail||''):'']].filter(pr=>String(pr[1]).trim()!=='');
-        fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'visitReport',tikNum:f.caseNum,dateStr:f.visitDate,pairs})}).catch(()=>{});
+        fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'visitReport',tikNum:f.caseNum,dateStr:f.visitDate,oldDateStr:editRow?editOldDate:'',pairs})}).catch(()=>{});
       }catch(_){}
-      setMsg('הביקור נשמר ✓ (שורה '+target+') · הדוח מופק ונשמר לתיקיית "ביקור בנכס"');
-      setF(blankForm());
+      setMsg((editRow?'הביקור עודכן ✓':'הביקור נשמר ✓')+' · הדוח מופק ונשמר לתיקיית "ביקור בנכס"');
+      setF(blankForm());setEditRow(null);setEditOldDate('');
       window.scrollTo({top:0,behavior:'smooth'});
       setTimeout(()=>setMsg(''),3500);
       loadHist();
@@ -4693,13 +4763,18 @@ function VisitFormView({managed,user,isMobile}){
       <div style={{marginBottom:18}}>
         <h2 style={{fontSize:isMobile?19:23,fontWeight:500,color:'#1a1510'}}>🏠 ביקור בנכס</h2>
         <div style={{fontSize:13,color:'#9a8e84',marginTop:4}}>מילוי דף ביקור ושמירתו לגיליון הביקורים</div>
+        {editRow&&<div style={{marginTop:12,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'9px 14px',fontSize:13,color:'#1e40af',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          ✏️ עריכת ביקור קיים (שורה {editRow}) — שמירה תעדכן את השורה ותפיק את הדוח מחדש.
+          <button onClick={cancelEdit} style={{background:'none',border:'none',color:'#1e40af',textDecoration:'underline',cursor:'pointer',fontSize:13,fontFamily:'inherit'}}>ביטול עריכה</button>
+        </div>}
       </div>
       <div style={card}>
         {VISIT_FIELDS.map(renderField)}
         <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',marginTop:6,borderTop:'1px solid #f0ebe2',paddingTop:16}}>
           <button onClick={save} disabled={busy}
             style={{background:busy?'#c8bfb5':GOLD,color:'#fff',border:'none',borderRadius:10,padding:'12px 30px',cursor:busy?'default':'pointer',fontSize:15,fontWeight:600,fontFamily:'inherit'}}>
-            {busy?'שומר…':'💾 שמור ביקור'}</button>
+            {busy?'שומר…':(editRow?'✔ עדכן ביקור':'💾 שמור ביקור')}</button>
+          {editRow&&<button onClick={cancelEdit} disabled={busy} style={{background:'#fff',color:'#6b5e50',border:'1px solid #ddd0bb',borderRadius:10,padding:'12px 20px',cursor:'pointer',fontSize:14,fontFamily:'inherit'}}>ביטול</button>}
           {msg&&<span style={{fontSize:14,color:'#16a34a',fontWeight:600}}>{msg}</span>}
           {err&&<span style={{fontSize:14,color:'#dc2626',fontWeight:600}}>{err}</span>}
         </div>
@@ -4709,10 +4784,14 @@ function VisitFormView({managed,user,isMobile}){
         {hist.length===0?(
           <div style={{padding:30,textAlign:'center',color:'#9a8e84',fontSize:14}}>אין ביקורים להצגה</div>
         ):hist.map((h,i)=>(
-          <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'11px 18px',borderBottom:i<hist.length-1?'1px solid #f0ebe2':'none',flexWrap:'wrap'}}>
+          <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 18px',borderBottom:i<hist.length-1?'1px solid #f0ebe2':'none',flexWrap:'wrap',background:editRow===h.rowNum?'#eff6ff':'transparent'}}>
             <span style={{fontSize:12,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 10px',fontWeight:600,whiteSpace:'nowrap'}}>תיק {h.caseNum||'—'}</span>
             <span style={{fontSize:13,color:'#1a1510',fontWeight:500}}>{h.date||h.ts}</span>
             {h.appraiser&&<span style={{fontSize:12,color:'#9a8e84'}}>· {h.appraiser}</span>}
+            <div style={{marginInlineStart:'auto',display:'flex',gap:6}}>
+              <button onClick={()=>editVisit(h)} title="ערוך ביקור" style={{background:'#fff',border:'1px solid #ddd0bb',borderRadius:8,padding:'4px 10px',cursor:'pointer',fontSize:12,color:'#6b5e50',fontFamily:'inherit'}}>✏️ ערוך</button>
+              <button onClick={()=>genReport(h)} title="הפק דוח מחדש" style={{background:'#fff',border:'1px solid #ddd0bb',borderRadius:8,padding:'4px 10px',cursor:'pointer',fontSize:12,color:'#6b5e50',fontFamily:'inherit'}}>📄 הפק דוח</button>
+            </div>
           </div>
         ))}
       </div>
