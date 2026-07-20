@@ -56,6 +56,7 @@ const CONFIG = {
   SCOPES:         'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.send profile email',
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
+const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
 function loadSettings(){try{return{...DEFAULT_SETTINGS,...JSON.parse(localStorage.getItem('rrSettings')||'{}')};}catch{return DEFAULT_SETTINGS;}}
@@ -3034,6 +3035,7 @@ function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,
     {id:'clients',icon:'⏳',label:'ממתין ללקוח',count:counts.client},
     {id:'managed',icon:'🗂️',label:'כלל התיקים',count:counts.managed},
     {id:'tasks',icon:'✅',label:'משימות'},
+    {id:'visit',icon:'🏘️',label:'ביקור בנכס'},
     ...(!isMobile?[{id:'nadlan',icon:'🏡',label:'עסקאות נדל"ן'}]:[]),
     {id:'reports',icon:'📊',label:'דוחות'},
     {id:'settings',icon:'⚙️',label:'הגדרות'},
@@ -4504,6 +4506,149 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
   );
 }
 
+// ═══════════════ VISIT FORM (ביקור בנכס) ════════════════════════
+// שדות טופס הביקור לפי סדר העמודות בגיליון "ביקורים" (A..AG)
+const VISIT_FIELDS=[
+  {sec:'זיהוי'},
+  {k:'caseNum',l:'מספר תיק',t:'case',req:true},
+  {k:'appraiser',l:'שמאי מבקר',t:'enum',o:['אחר','מיכאל רוזנטל','יוסף רובינשטיין']},
+  {k:'appraiserName',l:'שם שמאי',t:'text'},
+  {k:'gushVerify',l:'בוצע צילום מסך ממפות ישראל (שכבות גוש/חלקה) ואומת שהנכס בחלקה הנכונה',t:'check'},
+  {k:'visitDate',l:'תאריך ביקור',t:'date'},
+  {sec:'מיקום ומבנה'},
+  {k:'elevator',l:'מעלית',t:'enum',o:['יש','אין']},
+  {k:'floor',l:'קומה',t:'num'},
+  {k:'numFloors',l:'מספר קומות',t:'num'},
+  {k:'aptNum',l:'מספר דירה',t:'num'},
+  {k:'locationMatch',l:'מיקום דירה תואם ל',t:'enum',o:['תשריט בית משותף','תשריט מכר','לא תואם','חלקה','מגרש']},
+  {k:'internalDivision',l:'חלוקה פנימית של הדירה',t:'enum',o:['תכנית היתר','תשריט בית משותף','תכנית אדריכלית','דף ביקור']},
+  {sec:'נוכחים בביקור'},
+  {k:'presenter',l:'מציג הנכס',t:'text'},
+  {k:'presenterId',l:'ת.ז. מציג הנכס',t:'num'},
+  {k:'presenterRelation',l:'שייכות מציג הנכס',t:'enum',o:['בעלים','שוכר','מתווך','רוכש','עצמאי']},
+  {k:'residents',l:'מתגוררים בנכס',t:'enum',o:['משפחה','שוכרים','ריק - לא מאוכלס']},
+  {sec:'חלוקה'},
+  {k:'divisionSelect',l:'חלוקה - בחירה',t:'multi',o:['סלון','מטבח','חדר','2 חדרים','3 חדרים','4 חדרים','חצי חדר','ממ"ד','חדר שינה הכולל יחידת הורים ובה שירותים ואמבטיה','חדר שינה הכולל יחידת הורים ובה שירותים ומקלחון','חדר רחצה הכולל שירותים ואמבטיה','חדר רחצה הכולל שירותים ומקלחון','חדר שירותים','2 חדרי שירותים','מרפסת שירות','מרפסת','חצר','מחסן']},
+  {k:'divisionFree',l:'פירוט חלוקה חופשי',t:'long'},
+  {k:'numRooms',l:'מספר חדרים',t:'num'},
+  {sec:'גימור'},
+  {k:'floorType',l:'סוג ריצוף',t:'multi',o:['קרמיקה','טראצו','שיש','דמוי פרקט','ללא']},
+  {k:'floorSize',l:'גודל ריצוף',t:'multi',o:['20/20','30/30','40/40','45/45','50/50','60/60','60/120','80/80','100/100','120/120','ללא']},
+  {k:'kitchenCabinets',l:'ארונות מטבח',t:'enum',o:['עיליים ותחתיים','תחתיים','ללא']},
+  {k:'sanitary',l:'כלים סניטריים',t:'enum',o:['בסיסיים','משודרגים','ללא']},
+  {k:'ceramicWalls',l:'אריחי קרמיקה בקירות חדרי רחצה',t:'enum',o:['חלקי','מלא','ללא']},
+  {k:'windows',l:'חלונות',t:'enum',o:['אלומיניום','עץ','ללא']},
+  {k:'interiorDoors',l:'דלתות פנים',t:'enum',o:['פולימר','עץ','ללא']},
+  {k:'ac',l:'מיזוג',t:'multi',o:['מיזוג עילי','מיזוג עילי בסלון ובחדרים','מיזוג עילי בסלון','מיזוג עילי בחדרים','מיזוג מרכזי VRF','מיזוג מיני מרכזי','ללא']},
+  {sec:'מצב ומידות'},
+  {k:'physical',l:'מצב פיזי',t:'enum',o:['ירוד','סביר','טוב','משודרג']},
+  {k:'maintenance',l:'מצב תחזוקתי',t:'enum',o:['ירוד','סביר','טוב','משודרג']},
+  {k:'internalDims',l:'מידות פנימיות',t:'text'},
+  {k:'buildingViolations',l:'חריגות בניה',t:'enum',o:['אין','יש']},
+  {k:'violationsDetail',l:'פירוט חריגות',t:'long'},
+];
+function VisitFormView({managed,user,isMobile}){
+  const me=USER_BY_EMAIL[(user?.email||'').toLowerCase()]||'';
+  const p2=n=>String(n).padStart(2,'0');
+  const today=()=>{const d=new Date();return `${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`;};
+  const [f,setF]=React.useState({visitDate:today()});
+  const [busy,setBusy]=React.useState(false);
+  const [msg,setMsg]=React.useState('');
+  const [err,setErr]=React.useState('');
+  const [hist,setHist]=React.useState([]);
+  const set=(k,v)=>setF(o=>({...o,[k]:v}));
+  const toggleMulti=(k,opt)=>setF(o=>{const cur=o[k]||[];return {...o,[k]:cur.includes(opt)?cur.filter(x=>x!==opt):[...cur,opt]};});
+  const toISO=v=>{const m=(v||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:'';};
+  const fromISO=v=>{const m=(v||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:'';};
+  const caseNums=[...new Set((managed||[]).map(c=>String(c.caseNum||'').trim()).filter(Boolean))];
+
+  const loadHist=React.useCallback(async()=>{
+    try{const rows=await api.get("'ביקורים'!A2:AG",MAAGAR_ID);
+      const arr=(rows||[]).map((r,i)=>({_i:i,ts:r[0]||'',caseNum:r[1]||'',appraiser:r[2]||'',date:r[5]||''})).filter(x=>x.caseNum||x.ts);
+      setHist(arr.reverse().slice(0,25));
+    }catch(e){/* שקט */}
+  },[]);
+  React.useEffect(()=>{loadHist();},[loadHist]);
+
+  const iS={width:'100%',padding:'9px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:15,background:'#fffdf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
+  const card={background:'#fff',borderRadius:16,padding:isMobile?'16px 14px':'20px 22px',marginBottom:16,boxShadow:'0 2px 10px rgba(0,0,0,0.06)',border:'1px solid #e8e0d4'};
+  const fieldLabel=t=><div style={{fontSize:13,color:'#6b5e50',marginBottom:6,fontWeight:600,lineHeight:1.4}}>{t}</div>;
+  const optBtn=(active,onClick,label,key)=>(
+    <button key={key} type="button" onClick={onClick}
+      style={{border:`1.5px solid ${active?GOLD:'#ddd0bb'}`,background:active?`${GOLD}20`:'#fff',color:active?GOLD3:'#5a4e44',borderRadius:9,padding:'8px 14px',cursor:'pointer',fontSize:14,fontWeight:active?600:400,fontFamily:'inherit',transition:'all 0.12s'}}>{label}</button>
+  );
+
+  const renderField=fl=>{
+    if(fl.sec)return <div key={fl.sec} style={{fontSize:14,fontWeight:600,color:GOLD3,margin:'6px 0 2px',display:'flex',alignItems:'center',gap:6}}><span style={{width:5,height:5,borderRadius:'50%',background:GOLD}}/>{fl.sec}</div>;
+    const v=f[fl.k];
+    let inp;
+    if(fl.t==='case') inp=<AutocompleteInput value={v||''} onChange={x=>set(fl.k,x)} options={caseNums} style={iS} placeholder="הקלד/בחר מספר תיק..."/>;
+    else if(fl.t==='text') inp=<input value={v||''} onChange={e=>set(fl.k,e.target.value)} style={iS}/>;
+    else if(fl.t==='num') inp=<input type="number" inputMode="decimal" value={v||''} onChange={e=>set(fl.k,e.target.value)} style={iS}/>;
+    else if(fl.t==='long') inp=<textarea value={v||''} onChange={e=>set(fl.k,e.target.value)} rows={2} style={{...iS,resize:'vertical',lineHeight:1.5}}/>;
+    else if(fl.t==='date') inp=<input type="date" value={toISO(v||'')} onChange={e=>set(fl.k,fromISO(e.target.value))} style={{...iS,cursor:'pointer'}}/>;
+    else if(fl.t==='check') inp=<button type="button" onClick={()=>set(fl.k,!v)} style={{border:`1.5px solid ${v?'#16a34a':'#ddd0bb'}`,background:v?'#f0fdf4':'#fff',color:v?'#15803d':'#6b5e50',borderRadius:9,padding:'9px 16px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:8}}>{v?'✓ בוצע':'סמן כבוצע'}</button>;
+    else if(fl.t==='enum') inp=<div style={{display:'flex',gap:7,flexWrap:'wrap'}}>{fl.o.map(o=>optBtn(v===o,()=>set(fl.k,v===o?'':o),o,o))}</div>;
+    else if(fl.t==='multi'){const cur=v||[];inp=<div style={{display:'flex',gap:7,flexWrap:'wrap'}}>{fl.o.map(o=>optBtn(cur.includes(o),()=>toggleMulti(fl.k,o),o,o))}</div>;}
+    return <div key={fl.k} style={{marginBottom:14}}>{fieldLabel(fl.l+(fl.req?' *':''))}{inp}</div>;
+  };
+
+  const save=async()=>{
+    setErr('');setMsg('');
+    if(!String(f.caseNum||'').trim()){setErr('יש להזין מספר תיק');return;}
+    setBusy(true);
+    try{
+      const d=new Date();
+      const ts=`${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+      const j=a=>(a||[]).join(', ');
+      const row=[ts,f.caseNum||'',f.appraiser||'',f.appraiserName||'',f.gushVerify?'בוצע':'',f.visitDate||'',
+        f.elevator||'',f.floor||'',f.numFloors||'',f.aptNum||'',f.presenter||'',f.presenterId||'',
+        f.presenterRelation||'',f.residents||'',j(f.divisionSelect),f.divisionFree||'',j(f.divisionSelect),
+        f.numRooms||'',j(f.floorType),j(f.floorSize),f.kitchenCabinets||'',f.sanitary||'',f.ceramicWalls||'',
+        f.windows||'',f.interiorDoors||'',j(f.ac),f.physical||'',f.maintenance||'',f.locationMatch||'',
+        f.internalDivision||'',f.internalDims||'',f.buildingViolations||'',f.violationsDetail||''];
+      await api.append("'ביקורים'",[row],MAAGAR_ID);
+      setMsg('הביקור נשמר בהצלחה ✓');
+      setF({visitDate:today()});
+      window.scrollTo({top:0,behavior:'smooth'});
+      setTimeout(()=>setMsg(''),3500);
+      loadHist();
+    }catch(e){setErr('שגיאה בשמירה: '+e.message);}
+    finally{setBusy(false);}
+  };
+
+  return(
+    <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:760,margin:'0 auto'}}>
+      <div style={{marginBottom:18}}>
+        <h2 style={{fontSize:isMobile?19:23,fontWeight:500,color:'#1a1510'}}>🏠 ביקור בנכס</h2>
+        <div style={{fontSize:13,color:'#9a8e84',marginTop:4}}>מילוי דף ביקור ושמירתו לגיליון הביקורים</div>
+      </div>
+      <div style={card}>
+        {VISIT_FIELDS.map(renderField)}
+        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',marginTop:6,borderTop:'1px solid #f0ebe2',paddingTop:16}}>
+          <button onClick={save} disabled={busy}
+            style={{background:busy?'#c8bfb5':GOLD,color:'#fff',border:'none',borderRadius:10,padding:'12px 30px',cursor:busy?'default':'pointer',fontSize:15,fontWeight:600,fontFamily:'inherit'}}>
+            {busy?'שומר…':'💾 שמור ביקור'}</button>
+          {msg&&<span style={{fontSize:14,color:'#16a34a',fontWeight:600}}>{msg}</span>}
+          {err&&<span style={{fontSize:14,color:'#dc2626',fontWeight:600}}>{err}</span>}
+        </div>
+      </div>
+      <div style={{...card,padding:0,overflow:'hidden'}}>
+        <div style={{padding:'14px 18px',borderBottom:'1px solid #ede8e0',fontSize:14,fontWeight:600,color:'#3a2a00',background:'#fdfaf5'}}>🗂️ היסטוריית ביקורים {hist.length?`(${hist.length})`:''}</div>
+        {hist.length===0?(
+          <div style={{padding:30,textAlign:'center',color:'#9a8e84',fontSize:14}}>אין ביקורים להצגה</div>
+        ):hist.map((h,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'11px 18px',borderBottom:i<hist.length-1?'1px solid #f0ebe2':'none',flexWrap:'wrap'}}>
+            <span style={{fontSize:12,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 10px',fontWeight:600,whiteSpace:'nowrap'}}>תיק {h.caseNum||'—'}</span>
+            <span style={{fontSize:13,color:'#1a1510',fontWeight:500}}>{h.date||h.ts}</span>
+            {h.appraiser&&<span style={{fontSize:12,color:'#9a8e84'}}>· {h.appraiser}</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function App(){
   const isMobile=useIsMobile();
   const [drawerOpen,setDrawerOpen]=useState(false);
@@ -4754,6 +4899,7 @@ function App(){
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject} isMobile={isMobile}/>}
         {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject} initialSearch={managedSearch} onSearchConsumed={()=>setManagedSearch('')} isMobile={isMobile}/>}
         {view==='tasks'&&<TasksView projects={projects} user={user} onAddTaskToProject={addTaskToProject} onAddGeneralTask={addGeneralTask} onDeleteTask={deleteGeneralTask} onCompleteTask={completeTask} isMobile={isMobile}/>}
+        {view==='visit'&&<VisitFormView managed={managed} user={user} isMobile={isMobile}/>}
         {view==='nadlan'&&<NadlanSearchView/>}
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
         {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user} managed={managed} onUpdateFolderLinks={handleUpdateFolderLinks}/>}
