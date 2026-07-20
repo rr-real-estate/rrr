@@ -4508,10 +4508,11 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
 
 // ═══════════════ VISIT FORM (ביקור בנכס) ════════════════════════
 // שדות טופס הביקור לפי סדר העמודות בגיליון "ביקורים" (A..AG)
+const DIVISION_OPTS=['סלון','מטבח','חדר','2 חדרים','3 חדרים','4 חדרים','חצי חדר','ממ"ד','חדר שינה הכולל יחידת הורים ובה שירותים ואמבטיה','חדר שינה הכולל יחידת הורים ובה שירותים ומקלחון','חדר רחצה הכולל שירותים ואמבטיה','חדר רחצה הכולל שירותים ומקלחון','חדר שירותים','2 חדרי שירותים','מרפסת שירות','מרפסת','חצר','מחסן'];
 const VISIT_FIELDS=[
   {sec:'זיהוי'},
   {k:'caseNum',l:'מספר תיק',t:'case',req:true},
-  {k:'appraiser',l:'שמאי מבקר',t:'enum',o:['אחר','מיכאל רוזנטל','יוסף רובינשטיין'],noOther:true},
+  {k:'appraiser',l:'שמאי מבקר',t:'enum',o:['יוסף רובינשטיין','מיכאל רוזנטל','אחר'],noOther:true},
   {k:'appraiserName',l:'שם שמאי',t:'text',showIf:f=>f.appraiser==='אחר'},
   {k:'gushVerify',l:'בוצע צילום מסך ממפות ישראל (שכבות גוש/חלקה) ואומת שהנכס בחלקה הנכונה',t:'check'},
   {k:'visitDate',l:'תאריך ביקור',t:'date'},
@@ -4526,7 +4527,7 @@ const VISIT_FIELDS=[
   {k:'presenterRelation',l:'שייכות מציג הנכס',t:'enum',o:['בעלים','שוכר','מתווך','רוכש','עצמאי'],allowOther:true},
   {k:'residents',l:'מתגוררים בנכס',t:'residents'},
   {sec:'חלוקה'},
-  {k:'divisionSelect',l:'חלוקה - בחירה',t:'multi',noOther:true,o:['סלון','מטבח','חדר','2 חדרים','3 חדרים','4 חדרים','חצי חדר','ממ"ד','חדר שינה הכולל יחידת הורים ובה שירותים ואמבטיה','חדר שינה הכולל יחידת הורים ובה שירותים ומקלחון','חדר רחצה הכולל שירותים ואמבטיה','חדר רחצה הכולל שירותים ומקלחון','חדר שירותים','2 חדרי שירותים','מרפסת שירות','מרפסת','חצר','מחסן']},
+  {k:'divisionLevels',l:'חלוקה - בחירה',t:'divisions'},
   {k:'divisionFree',l:'פירוט חלוקה חופשי',t:'long'},
   {k:'numRooms',l:'מספר חדרים',t:'num'},
   {sec:'גימור'},
@@ -4539,19 +4540,20 @@ const VISIT_FIELDS=[
   {k:'interiorDoors',l:'דלתות פנים',t:'enum',o:['פולימר','עץ','ללא']},
   {k:'ac',l:'מיזוג',t:'multi',o:['מיזוג עילי','מיזוג עילי בסלון ובחדרים','מיזוג עילי בסלון','מיזוג עילי בחדרים','מיזוג מרכזי VRF','מיזוג מיני מרכזי','ללא']},
   {sec:'מצב ומידות'},
-  {k:'physical',l:'מצב פיזי',t:'enum',o:['ירוד','סביר','טוב','משודרג'],noOther:true},
-  {k:'maintenance',l:'מצב תחזוקתי',t:'enum',o:['ירוד','סביר','טוב','משודרג'],noOther:true},
+  {k:'physical',l:'מצב פיזי',t:'enum',o:['משודרג','טוב','סביר','ירוד'],noOther:true},
+  {k:'maintenance',l:'מצב תחזוקתי',t:'enum',o:['משודרג','טוב','סביר','ירוד'],noOther:true},
   {k:'locationMatch',l:'מיקום דירה תואם ל',t:'enum',o:['תשריט בית משותף','תשריט מכר','לא תואם','חלקה','מגרש']},
   {k:'internalDivision',l:'חלוקה פנימית של הדירה',t:'enum',o:['תכנית היתר','תשריט בית משותף','תכנית אדריכלית','דף ביקור']},
   {k:'internalDims',l:'מידות פנימיות',t:'text'},
-  {k:'buildingViolations',l:'חריגות בניה',t:'enum',o:['אין','יש'],noOther:true},
+  {k:'buildingViolations',l:'חריגות בניה',t:'enum',o:['יש','אין'],noOther:true},
   {k:'violationsDetail',l:'פירוט חריגות',t:'long',showIf:f=>f.buildingViolations==='יש'},
 ];
 function VisitFormView({managed,user,isMobile}){
   const me=USER_BY_EMAIL[(user?.email||'').toLowerCase()]||'';
   const p2=n=>String(n).padStart(2,'0');
   const today=()=>{const d=new Date();return `${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`;};
-  const [f,setF]=React.useState({visitDate:today()});
+  const blankForm=()=>({visitDate:today(),divisionLevels:[{name:'',items:[]}]});
+  const [f,setF]=React.useState(blankForm);
   const [busy,setBusy]=React.useState(false);
   const [msg,setMsg]=React.useState('');
   const [err,setErr]=React.useState('');
@@ -4582,7 +4584,7 @@ function VisitFormView({managed,user,isMobile}){
   const familyLabel=lastName?('משפחת '+lastName):'משפחת';
   const RESIDENT_FIXED=['שוכרים','ריק - לא מאוכלס'];
   const renderField=fl=>{
-    if(fl.sec)return <div key={fl.sec} style={{fontSize:14,fontWeight:600,color:GOLD3,margin:'6px 0 2px',display:'flex',alignItems:'center',gap:6}}><span style={{width:5,height:5,borderRadius:'50%',background:GOLD}}/>{fl.sec}</div>;
+    if(fl.sec)return null;
     if(fl.showIf&&!fl.showIf(f))return null;
     const v=f[fl.k];
     let inp;
@@ -4625,6 +4627,26 @@ function VisitFormView({managed,user,isMobile}){
         {otherActive&&<input value={f[fl.k+'__oth']||''} onChange={e=>set(fl.k+'__oth',e.target.value)} placeholder="הקלד..." style={{...iS,marginTop:8,fontSize:14}}/>}
       </div>;
     }
+    else if(fl.t==='divisions'){
+      const levels=(v&&v.length)?v:[{name:'',items:[]}];
+      const setLevels=upd=>set(fl.k,upd);
+      const toggleItem=(li,room)=>setLevels(levels.map((lv,j)=>j===li?{...lv,items:(lv.items||[]).includes(room)?(lv.items||[]).filter(x=>x!==room):[...(lv.items||[]),room]}:lv));
+      const setName=(li,name)=>setLevels(levels.map((lv,j)=>j===li?{...lv,name}:lv));
+      const addLevel=()=>setLevels([...levels,{name:'',items:[]}]);
+      const removeLevel=li=>setLevels(levels.filter((_,j)=>j!==li));
+      inp=<div>
+        {levels.map((lv,li)=>(
+          <div key={li} style={li>0?{marginTop:10,padding:'10px 12px',border:'1px solid #ede8e0',borderRadius:10,background:'#fdfaf5'}:{marginBottom:6}}>
+            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
+              <input value={lv.name||''} onChange={e=>setName(li,e.target.value)} placeholder={li===0?'שם קומה / מפלס (אופציונלי)':'שם קומה / מפלס (למשל קומת כניסה)'} style={{...iS,fontSize:14,flex:1}}/>
+              {li>0&&<button type="button" onClick={()=>removeLevel(li)} title="הסר קומה" style={{background:'none',border:'none',cursor:'pointer',color:'#c0392b',fontSize:16,lineHeight:1}}>🗑</button>}
+            </div>
+            <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>{DIVISION_OPTS.map(o=>optBtn((lv.items||[]).includes(o),()=>toggleItem(li,o),o,o))}</div>
+          </div>
+        ))}
+        <button type="button" onClick={addLevel} style={{marginTop:10,border:`1.5px dashed ${GOLD}`,background:'#fff',color:GOLD3,borderRadius:9,padding:'8px 14px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>➕ הוסף קומה / מפלס</button>
+      </div>;
+    }
     return <div key={fl.k} style={{marginBottom:14}}>{fieldLabel(fl.l+(fl.req?' *':''))}{inp}</div>;
   };
 
@@ -4638,7 +4660,7 @@ function VisitFormView({managed,user,isMobile}){
       const j=a=>(a||[]).join(', ');
       const jm=k=>[...(f[k]||[]),String(f[k+'__oth']||'').trim()].filter(x=>x&&String(x).trim()).join(', '); // רב-בחירה + "אחר"
       const residentsOut=f.residents==='__family__'?familyLabel:(f.residents||'');
-      const oVal=jm('divisionSelect');           // חלוקה - בחירה
+      const oVal=(f.divisionLevels||[]).map(lv=>{const items=(lv.items||[]).join(', ');if(!items)return '';return (lv.name||'').trim()?((lv.name||'').trim()+': '+items):items;}).filter(Boolean).join(', '); // חלוקה - בחירה (כולל קומות/מפלסים)
       const pVal=f.divisionFree||'';             // פירוט חלוקה חופשי
       const qVal=[oVal,pVal].filter(x=>String(x).trim()).join(', '); // חלוקה = O + P מחוברים בפסיק
       const row=[ts,f.caseNum||'',f.appraiser||'',f.appraiser==='אחר'?(f.appraiserName||''):'',f.gushVerify?'בוצע':'',f.visitDate||'',
@@ -4653,7 +4675,7 @@ function VisitFormView({managed,user,isMobile}){
       for(let i=1;i<colA.length;i++){if(!(colA[i]&&String(colA[i][0]||'').trim())){target=i+1;break;}}
       await api.put(`'ביקורים'!A${target}`,[row],MAAGAR_ID);
       setMsg('הביקור נשמר בהצלחה ✓ (שורה '+target+')');
-      setF({visitDate:today()});
+      setF(blankForm());
       window.scrollTo({top:0,behavior:'smooth'});
       setTimeout(()=>setMsg(''),3500);
       loadHist();
