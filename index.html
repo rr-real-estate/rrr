@@ -4511,7 +4511,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
 const VISIT_FIELDS=[
   {sec:'זיהוי'},
   {k:'caseNum',l:'מספר תיק',t:'case',req:true},
-  {k:'appraiser',l:'שמאי מבקר',t:'enum',o:['אחר','מיכאל רוזנטל','יוסף רובינשטיין']},
+  {k:'appraiser',l:'שמאי מבקר',t:'enum',o:['אחר','מיכאל רוזנטל','יוסף רובינשטיין'],noOther:true},
   {k:'appraiserName',l:'שם שמאי',t:'text',showIf:f=>f.appraiser==='אחר'},
   {k:'gushVerify',l:'בוצע צילום מסך ממפות ישראל (שכבות גוש/חלקה) ואומת שהנכס בחלקה הנכונה',t:'check'},
   {k:'visitDate',l:'תאריך ביקור',t:'date'},
@@ -4526,7 +4526,7 @@ const VISIT_FIELDS=[
   {k:'presenterRelation',l:'שייכות מציג הנכס',t:'enum',o:['בעלים','שוכר','מתווך','רוכש','עצמאי'],allowOther:true},
   {k:'residents',l:'מתגוררים בנכס',t:'residents'},
   {sec:'חלוקה'},
-  {k:'divisionSelect',l:'חלוקה - בחירה',t:'multi',o:['סלון','מטבח','חדר','2 חדרים','3 חדרים','4 חדרים','חצי חדר','ממ"ד','חדר שינה הכולל יחידת הורים ובה שירותים ואמבטיה','חדר שינה הכולל יחידת הורים ובה שירותים ומקלחון','חדר רחצה הכולל שירותים ואמבטיה','חדר רחצה הכולל שירותים ומקלחון','חדר שירותים','2 חדרי שירותים','מרפסת שירות','מרפסת','חצר','מחסן']},
+  {k:'divisionSelect',l:'חלוקה - בחירה',t:'multi',noOther:true,o:['סלון','מטבח','חדר','2 חדרים','3 חדרים','4 חדרים','חצי חדר','ממ"ד','חדר שינה הכולל יחידת הורים ובה שירותים ואמבטיה','חדר שינה הכולל יחידת הורים ובה שירותים ומקלחון','חדר רחצה הכולל שירותים ואמבטיה','חדר רחצה הכולל שירותים ומקלחון','חדר שירותים','2 חדרי שירותים','מרפסת שירות','מרפסת','חצר','מחסן']},
   {k:'divisionFree',l:'פירוט חלוקה חופשי',t:'long'},
   {k:'numRooms',l:'מספר חדרים',t:'num'},
   {sec:'גימור'},
@@ -4539,12 +4539,12 @@ const VISIT_FIELDS=[
   {k:'interiorDoors',l:'דלתות פנים',t:'enum',o:['פולימר','עץ','ללא']},
   {k:'ac',l:'מיזוג',t:'multi',o:['מיזוג עילי','מיזוג עילי בסלון ובחדרים','מיזוג עילי בסלון','מיזוג עילי בחדרים','מיזוג מרכזי VRF','מיזוג מיני מרכזי','ללא']},
   {sec:'מצב ומידות'},
-  {k:'physical',l:'מצב פיזי',t:'enum',o:['ירוד','סביר','טוב','משודרג']},
-  {k:'maintenance',l:'מצב תחזוקתי',t:'enum',o:['ירוד','סביר','טוב','משודרג']},
+  {k:'physical',l:'מצב פיזי',t:'enum',o:['ירוד','סביר','טוב','משודרג'],noOther:true},
+  {k:'maintenance',l:'מצב תחזוקתי',t:'enum',o:['ירוד','סביר','טוב','משודרג'],noOther:true},
   {k:'locationMatch',l:'מיקום דירה תואם ל',t:'enum',o:['תשריט בית משותף','תשריט מכר','לא תואם','חלקה','מגרש']},
   {k:'internalDivision',l:'חלוקה פנימית של הדירה',t:'enum',o:['תכנית היתר','תשריט בית משותף','תכנית אדריכלית','דף ביקור']},
   {k:'internalDims',l:'מידות פנימיות',t:'text'},
-  {k:'buildingViolations',l:'חריגות בניה',t:'enum',o:['אין','יש']},
+  {k:'buildingViolations',l:'חריגות בניה',t:'enum',o:['אין','יש'],noOther:true},
   {k:'violationsDetail',l:'פירוט חריגות',t:'long',showIf:f=>f.buildingViolations==='יש'},
 ];
 function VisitFormView({managed,user,isMobile}){
@@ -4581,7 +4581,6 @@ function VisitFormView({managed,user,isMobile}){
   const lastName=(String(f.presenter||'').trim().split(/\s+/).filter(Boolean).pop()||'');
   const familyLabel=lastName?('משפחת '+lastName):'משפחת';
   const RESIDENT_FIXED=['שוכרים','ריק - לא מאוכלס'];
-  const otherInput=(key,val)=><input value={val} onChange={e=>set(key,e.target.value)} placeholder="אחר (הקלד)..." style={{...iS,marginTop:8,fontSize:14}}/>;
   const renderField=fl=>{
     if(fl.sec)return <div key={fl.sec} style={{fontSize:14,fontWeight:600,color:GOLD3,margin:'6px 0 2px',display:'flex',alignItems:'center',gap:6}}><span style={{width:5,height:5,borderRadius:'50%',background:GOLD}}/>{fl.sec}</div>;
     if(fl.showIf&&!fl.showIf(f))return null;
@@ -4594,23 +4593,38 @@ function VisitFormView({managed,user,isMobile}){
     else if(fl.t==='date') inp=<input type="date" value={toISO(v||'')} onChange={e=>set(fl.k,fromISO(e.target.value))} style={{...iS,cursor:'pointer'}}/>;
     else if(fl.t==='check') inp=<button type="button" onClick={()=>set(fl.k,!v)} style={{border:`1.5px solid ${v?'#16a34a':'#ddd0bb'}`,background:v?'#f0fdf4':'#fff',color:v?'#15803d':'#6b5e50',borderRadius:9,padding:'9px 16px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:8}}>{v?'✓ בוצע':'סמן כבוצע'}</button>;
     else if(fl.t==='enum'){
-      const isOther=fl.allowOther&&v&&!fl.o.includes(v);
+      const canOther=!fl.noOther;
+      const otherActive=canOther&&(f[fl.k+'__oon']||(v&&!fl.o.includes(v)));
       inp=<div>
-        <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>{fl.o.map(o=>optBtn(v===o,()=>set(fl.k,v===o?'':o),o,o))}</div>
-        {fl.allowOther&&otherInput(fl.k,isOther?v:'')}
+        <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
+          {fl.o.map(o=>optBtn(v===o,()=>setF(s=>({...s,[fl.k]:s[fl.k]===o?'':o,[fl.k+'__oon']:false})),o,o))}
+          {canOther&&optBtn(otherActive,()=>setF(s=>{const act=s[fl.k+'__oon']||(s[fl.k]&&!fl.o.includes(s[fl.k]));return act?{...s,[fl.k+'__oon']:false,[fl.k]:''}:{...s,[fl.k+'__oon']:true,[fl.k]:fl.o.includes(s[fl.k])?'':(s[fl.k]||'')};}),'אחר','__o')}
+        </div>
+        {otherActive&&<input value={fl.o.includes(v)?'':(v||'')} onChange={e=>set(fl.k,e.target.value)} placeholder="הקלד..." style={{...iS,marginTop:8,fontSize:14}}/>}
       </div>;
     }
     else if(fl.t==='residents'){
-      const isFam=v==='__family__';const isOther=v&&v!=='__family__'&&!RESIDENT_FIXED.includes(v);
+      const isFam=v==='__family__';
+      const otherActive=f['residents__oon']||(v&&v!=='__family__'&&!RESIDENT_FIXED.includes(v));
       inp=<div>
         <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
-          {optBtn(isFam,()=>set('residents',isFam?'':'__family__'),familyLabel,'fam')}
-          {RESIDENT_FIXED.map(o=>optBtn(v===o,()=>set('residents',v===o?'':o),o,o))}
+          {optBtn(isFam,()=>setF(s=>({...s,residents:s.residents==='__family__'?'':'__family__',residents__oon:false})),familyLabel,'fam')}
+          {RESIDENT_FIXED.map(o=>optBtn(v===o,()=>setF(s=>({...s,residents:s.residents===o?'':o,residents__oon:false})),o,o))}
+          {optBtn(otherActive,()=>setF(s=>{const act=s['residents__oon']||(s.residents&&s.residents!=='__family__'&&!RESIDENT_FIXED.includes(s.residents));return act?{...s,residents__oon:false,residents:''}:{...s,residents__oon:true,residents:(['__family__',...RESIDENT_FIXED].includes(s.residents)?'':(s.residents||''))};}),'אחר','__o')}
         </div>
-        {otherInput('residents',isOther?v:'')}
+        {otherActive&&<input value={(v&&v!=='__family__'&&!RESIDENT_FIXED.includes(v))?v:''} onChange={e=>set('residents',e.target.value)} placeholder="הקלד..." style={{...iS,marginTop:8,fontSize:14}}/>}
       </div>;
     }
-    else if(fl.t==='multi'){const cur=v||[];inp=<div style={{display:'flex',gap:7,flexWrap:'wrap'}}>{fl.o.map(o=>optBtn(cur.includes(o),()=>toggleMulti(fl.k,o),o,o))}</div>;}
+    else if(fl.t==='multi'){
+      const cur=v||[];const canOther=!fl.noOther;const otherActive=canOther&&f[fl.k+'__oon'];
+      inp=<div>
+        <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
+          {fl.o.map(o=>optBtn(cur.includes(o),()=>toggleMulti(fl.k,o),o,o))}
+          {canOther&&optBtn(otherActive,()=>setF(s=>{const on=!s[fl.k+'__oon'];return on?{...s,[fl.k+'__oon']:true}:{...s,[fl.k+'__oon']:false,[fl.k+'__oth']:''};}),'אחר','__o')}
+        </div>
+        {otherActive&&<input value={f[fl.k+'__oth']||''} onChange={e=>set(fl.k+'__oth',e.target.value)} placeholder="הקלד..." style={{...iS,marginTop:8,fontSize:14}}/>}
+      </div>;
+    }
     return <div key={fl.k} style={{marginBottom:14}}>{fieldLabel(fl.l+(fl.req?' *':''))}{inp}</div>;
   };
 
@@ -4622,12 +4636,16 @@ function VisitFormView({managed,user,isMobile}){
       const d=new Date();
       const ts=`${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
       const j=a=>(a||[]).join(', ');
+      const jm=k=>[...(f[k]||[]),String(f[k+'__oth']||'').trim()].filter(x=>x&&String(x).trim()).join(', '); // רב-בחירה + "אחר"
       const residentsOut=f.residents==='__family__'?familyLabel:(f.residents||'');
+      const oVal=jm('divisionSelect');           // חלוקה - בחירה
+      const pVal=f.divisionFree||'';             // פירוט חלוקה חופשי
+      const qVal=[oVal,pVal].filter(x=>String(x).trim()).join(', '); // חלוקה = O + P מחוברים בפסיק
       const row=[ts,f.caseNum||'',f.appraiser||'',f.appraiser==='אחר'?(f.appraiserName||''):'',f.gushVerify?'בוצע':'',f.visitDate||'',
         f.elevator||'',f.floor||'',f.numFloors||'',f.aptNum||'',f.presenter||'',f.presenterId||'',
-        f.presenterRelation||'',residentsOut,j(f.divisionSelect),f.divisionFree||'',j(f.divisionSelect),
-        f.numRooms||'',j(f.floorType),j(f.floorSize),f.kitchenCabinets||'',f.sanitary||'',f.ceramicWalls||'',
-        f.windows||'',f.interiorDoors||'',j(f.ac),f.physical||'',f.maintenance||'',f.locationMatch||'',
+        f.presenterRelation||'',residentsOut,oVal,pVal,qVal,
+        f.numRooms||'',jm('floorType'),jm('floorSize'),f.kitchenCabinets||'',f.sanitary||'',f.ceramicWalls||'',
+        f.windows||'',f.interiorDoors||'',jm('ac'),f.physical||'',f.maintenance||'',f.locationMatch||'',
         f.internalDivision||'',f.internalDims||'',f.buildingViolations||'',f.violationsDetail||''];
       // כתיבה לשורה הפנויה הראשונה (append של Google מזהה "טבלה" עד סוף העיצוב ומדלג שורות)
       const colA=await api.get("'ביקורים'!A:A",MAAGAR_ID);
