@@ -63,12 +63,20 @@ function saveSettings(s){try{localStorage.setItem('rrSettings',JSON.stringify(s)
 const FONT_ZOOM={small:0.88,medium:1,large:1.14};
 
 // ═══════════════ MOBILE HOOK ══════════════════════════════════════
+function isMobileLayout(){
+  if(typeof window==='undefined')return false;
+  const w=window.innerWidth;
+  const touch=(navigator.maxTouchPoints||0)>0||('ontouchstart' in window);
+  // טלפונים תמיד; טאבלטים (מסך מגע) עד 1366px — תצוגת נייד
+  return w<768 || (touch && w<=1366);
+}
 function useIsMobile(){
-  const [v,setV]=useState(()=>typeof window!=='undefined'&&window.innerWidth<768);
+  const [v,setV]=useState(isMobileLayout);
   useEffect(()=>{
-    const h=()=>setV(window.innerWidth<768);
+    const h=()=>setV(isMobileLayout());
     window.addEventListener('resize',h,{passive:true});
-    return()=>window.removeEventListener('resize',h);
+    window.addEventListener('orientationchange',h,{passive:true});
+    return()=>{window.removeEventListener('resize',h);window.removeEventListener('orientationchange',h);};
   },[]);
   return v;
 }
@@ -2965,11 +2973,11 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
 // ═══════════════ BOTTOM NAV (mobile only) ════════════════════════
 function BottomNav({view,setView,counts,onOpenDrawer,loading}){
   const items=[
+    {id:'__more',  icon:'☰', label:'עוד'},
     {id:'home',   icon:'🏠',label:'בית'},
     {id:'projects',icon:'📁',label:'בביצוע',count:counts.active},
     {id:'clients', icon:'⏳',label:'ממתין', count:counts.client},
     {id:'managed', icon:'🗂',label:'תיקים'},
-    {id:'__more',  icon:'☰', label:'עוד'},
   ];
   return(
     <div className="bottom-nav-bar" style={{
