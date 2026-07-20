@@ -790,19 +790,18 @@ function TaskChecklist({value,onComplete,onAdd,onEdit,style}){
     setEditIdx(-1);setEditVal('');
   };
   return(
-    <div>
-      {items.length===0&&<div style={{fontSize:12,color:'#9a8e84',marginBottom:6}}>אין משימות פתוחות 🎉</div>}
+    <div style={{border:'1px solid #ddd0bb',borderRadius:9,background:'#fffdf8',overflow:'hidden'}}>
       {items.map((it,i)=>{
         const dd=parseDate(it.due);const overdue=dd&&dd<today;const editing=editIdx===i;
         return(
-          <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'8px 0',borderBottom:'1px solid #f0ebe2'}}>
+          <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'9px 12px',borderBottom:'1px solid #f0ebe2',background:editing?'#fffef5':'transparent'}}>
             <button onClick={()=>onComplete(it.line)} title="סמן כבוצע"
-              style={{flexShrink:0,marginTop:1,width:22,height:22,borderRadius:6,border:'2px solid #bdb3a5',background:'#fff',cursor:'pointer',color:'#16a34a',fontSize:13,fontWeight:700,lineHeight:1,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit'}}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor='#16a34a';e.currentTarget.style.background='#f0fdf4';}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor='#bdb3a5';e.currentTarget.style.background='#fff';}}>✓</button>
+              style={{flexShrink:0,marginTop:1,width:18,height:18,borderRadius:5,border:'1.5px solid #d8cdbb',background:'#fff',cursor:'pointer',color:'#c4b8a6',fontSize:11,fontWeight:400,lineHeight:1,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit',transition:'all 0.15s'}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor='#16a34a';e.currentTarget.style.background='#f0fdf4';e.currentTarget.style.color='#16a34a';}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor='#d8cdbb';e.currentTarget.style.background='#fff';e.currentTarget.style.color='#c4b8a6';}}>✓</button>
             <div style={{flex:1,minWidth:0}}>
               {editing
-                ? <RichEditor value={editVal} onChange={setEditVal} onBlur={()=>saveEdit(it)} autoFocus style={{...(style||{}),width:'100%'}}/>
+                ? <RichEditor value={editVal} onChange={setEditVal} onBlur={()=>saveEdit(it)} autoFocus style={{border:'none',background:'transparent',padding:0,fontSize:13,width:'100%'}}/>
                 : <div onClick={()=>{setEditIdx(i);setEditVal(it.text);}} title="לחץ לעריכה" style={{fontSize:13,color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word',cursor:'text'}}>{renderBold(it.text)}</div>}
               {(it.due||it.stamp)&&<div style={{fontSize:11,color:'#9a8e84',marginTop:2,display:'flex',gap:8,flexWrap:'wrap'}}>
                 {it.due&&<span style={{color:overdue?'#dc2626':'#b45309',fontWeight:600}}>🎯 {it.due}</span>}
@@ -813,9 +812,7 @@ function TaskChecklist({value,onComplete,onAdd,onEdit,style}){
           </div>
         );
       })}
-      <div style={{marginTop:8}}>
-        <RichEditor value={nt} onChange={setNt} onBlur={add} placeholder="הוסף משימה..." style={style}/>
-      </div>
+      <RichEditor value={nt} onChange={setNt} onBlur={add} placeholder="הוסף משימה..." style={{border:'none',background:'transparent',padding:'9px 12px',fontSize:13,color:'#1a1510'}}/>
     </div>
   );
 }
@@ -1231,6 +1228,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const [confirmKtiva,setConfirmKtiva]=useState(false);
   const [feigaReminder,setFeigaReminder]=useState(false);
   const [tasksExpanded,setTasksExpanded]=useState((taskScope||'mine')==='team');
+  const [histOpen,setHistOpen]=useState(false);
   const pendingStatusRef=useRef(null);
   const savingRef=useRef(false);
   const formRef=useRef({...project});
@@ -1560,32 +1558,43 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 </>);
               })()}
             </div>
-            {!isGeneralTask&&(form.taskHistory||'').trim()&&(
-              <div style={sec}>
-                <SectionTitle icon="🗂️">היסטוריית משימות</SectionTitle>
-                {String(form.taskHistory).split('\n').map(l=>l.trim()).filter(Boolean).map((line,i)=>{
-                  const h=parseHistoryLine(line);
-                  return(
-                    <div key={i} style={{padding:'8px 0',borderBottom:'1px solid #f0ebe2',display:'flex',gap:10,alignItems:'flex-start'}}>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:13,color:'#3a3228',lineHeight:1.5,whiteSpace:'pre-wrap',textDecoration:'line-through',textDecorationColor:'#c8bfb5'}}>✅ {renderBold(decodeTaskText(h.text))}</div>
-                        <div style={{fontSize:11,color:'#9a8e84',marginTop:2,display:'flex',gap:8,flexWrap:'wrap'}}>
-                          {h.assignee&&<span>{h.assignee}</span>}
-                          {h.registered&&<span>· נרשם: {h.registered}</span>}
-                          {h.done&&<span style={{color:'#16a34a',fontWeight:600}}>· בוצע: {h.done}</span>}
-                        </div>
-                      </div>
-                      <button onClick={()=>doRestoreTask(line)} title="בטל בוצע — החזר לפעילות" style={{flexShrink:0,background:'none',border:'none',cursor:'pointer',fontSize:15,color:'#2563eb',padding:'2px 4px',borderRadius:6,lineHeight:1}} onMouseEnter={e=>e.currentTarget.style.background='#dbeafe'} onMouseLeave={e=>e.currentTarget.style.background='none'}>↩</button>
-                      <button onClick={()=>doDeleteHistory(line)} title="מחק מההיסטוריה" style={{flexShrink:0,background:'none',border:'none',cursor:'pointer',fontSize:14,color:'#c0392b',padding:'2px 4px',borderRadius:6,lineHeight:1}} onMouseEnter={e=>e.currentTarget.style.background='#fee2e2'} onMouseLeave={e=>e.currentTarget.style.background='none'}>🗑</button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
             <div style={sec}>
               <SectionTitle icon="💬">הערות</SectionTitle>
               <NotesWidget value={form.notes||''} onChange={v=>{set('notes',v);autoSave();}} onBlur={()=>{}} style={iS}/>
             </div>
+            {!isGeneralTask&&(form.taskHistory||'').trim()&&(()=>{
+              const hist=String(form.taskHistory).split('\n').map(l=>l.trim()).filter(Boolean);
+              return(
+                <div style={sec}>
+                  <div onClick={()=>setHistOpen(o=>!o)} style={{display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer',userSelect:'none'}}>
+                    <div style={{fontSize:14,fontWeight:500,color:GOLD3,display:'flex',alignItems:'center',gap:6}}>
+                      <span style={{fontSize:17}}>🗂️</span>היסטוריית משימות
+                      <span style={{fontSize:12,color:'#9a8e84',background:'#f0ebe2',borderRadius:20,padding:'1px 9px',fontWeight:500}}>{hist.length}</span>
+                    </div>
+                    <span style={{fontSize:13,color:'#9a8e84'}}>{histOpen?'▲':'▼'}</span>
+                  </div>
+                  {histOpen&&<div style={{marginTop:12}}>
+                    {hist.map((line,i)=>{
+                      const h=parseHistoryLine(line);
+                      return(
+                        <div key={i} style={{padding:'8px 0',borderBottom:i<hist.length-1?'1px solid #f0ebe2':'none',display:'flex',gap:10,alignItems:'flex-start'}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,color:'#3a3228',lineHeight:1.5,whiteSpace:'pre-wrap',textDecoration:'line-through',textDecorationColor:'#c8bfb5'}}>✅ {renderBold(decodeTaskText(h.text))}</div>
+                            <div style={{fontSize:11,color:'#9a8e84',marginTop:2,display:'flex',gap:8,flexWrap:'wrap'}}>
+                              {h.assignee&&<span>{h.assignee}</span>}
+                              {h.registered&&<span>· נרשם: {h.registered}</span>}
+                              {h.done&&<span style={{color:'#16a34a',fontWeight:600}}>· בוצע: {h.done}</span>}
+                            </div>
+                          </div>
+                          <button onClick={()=>doRestoreTask(line)} title="בטל בוצע — החזר לפעילות" style={{flexShrink:0,background:'none',border:'none',cursor:'pointer',fontSize:15,color:'#2563eb',padding:'2px 4px',borderRadius:6,lineHeight:1}} onMouseEnter={e=>e.currentTarget.style.background='#dbeafe'} onMouseLeave={e=>e.currentTarget.style.background='none'}>↩</button>
+                          <button onClick={()=>doDeleteHistory(line)} title="מחק מההיסטוריה" style={{flexShrink:0,background:'none',border:'none',cursor:'pointer',fontSize:14,color:'#c0392b',padding:'2px 4px',borderRadius:6,lineHeight:1}} onMouseEnter={e=>e.currentTarget.style.background='#fee2e2'} onMouseLeave={e=>e.currentTarget.style.background='none'}>🗑</button>
+                        </div>
+                      );
+                    })}
+                  </div>}
+                </div>
+              );
+            })()}
           </div>}
           {tab==='docs'&&<div>
             <div style={sec}>
