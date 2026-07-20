@@ -4602,27 +4602,47 @@ function VisitFormView({managed,user,isMobile}){
   const fromISO=v=>{const m=(v||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:'';};
   const caseNums=[...new Set((managed||[]).map(c=>String(c.caseNum||'').trim()).filter(Boolean))];
 
-  // ── מצלמה: תמונות ישירות לתת-תיקיית "ביקור בנכס" ──
-  const camRef=React.useRef(null);
+  // ── מצלמה מובנית: צילום ושמירה מיידית לתת-תיקיית "ביקור בנכס" ──
   const [camMsg,setCamMsg]=React.useState('');
+  const [camOpen,setCamOpen]=React.useState(false);
+  const [shotCount,setShotCount]=React.useState(0);
+  const [snapping,setSnapping]=React.useState(false);
+  const [flash,setFlash]=React.useState(false);
+  const videoRef=React.useRef(null);
+  const streamRef=React.useRef(null);
   const matchedCase=(managed||[]).find(c=>String(c.caseNum||'').trim()===String(f.caseNum||'').trim());
   const driveFolderId=(()=>{const m=String(matchedCase?.driveFolderLink||'').match(/[-\w]{25,}/);return m?m[0]:'';})();
-  const onPhotos=async(e)=>{
-    const files=[...(e.target.files||[])];e.target.value='';
-    if(!files.length)return;
+  const openCam=()=>{
     if(!String(f.caseNum||'').trim()){setCamMsg('בחר תיק לפני צילום');setTimeout(()=>setCamMsg(''),3500);return;}
-    setCamMsg('שולח '+files.length+' תמונות...');
-    let ok=0;
-    for(const file of files){
-      try{
-        const dataUrl=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});
-        await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'visitPhoto',tikNum:f.caseNum,folderId:driveFolderId,name:file.name||'',dataUrl})});
-        ok++;
-      }catch(_){}
-    }
-    setCamMsg('✓ '+ok+' תמונות נשלחו לתיקיית "ביקור בנכס"');
-    setTimeout(()=>setCamMsg(''),5000);
+    setShotCount(0);setCamOpen(true);
   };
+  React.useEffect(()=>{
+    if(!camOpen)return;
+    let active=true;
+    (async()=>{
+      try{
+        const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+        if(!active){stream.getTracks().forEach(t=>t.stop());return;}
+        streamRef.current=stream;
+        if(videoRef.current){videoRef.current.srcObject=stream;videoRef.current.play().catch(()=>{});}
+      }catch(e){setCamMsg('אין גישה למצלמה');setCamOpen(false);setTimeout(()=>setCamMsg(''),3500);}
+    })();
+    return()=>{active=false;if(streamRef.current){streamRef.current.getTracks().forEach(t=>t.stop());streamRef.current=null;}};
+  },[camOpen]);
+  const snap=async()=>{
+    const v=videoRef.current;if(!v||!v.videoWidth||snapping)return;
+    setSnapping(true);setFlash(true);setTimeout(()=>setFlash(false),140);
+    try{
+      const cv=document.createElement('canvas');cv.width=v.videoWidth;cv.height=v.videoHeight;
+      cv.getContext('2d').drawImage(v,0,0);
+      const dataUrl=cv.toDataURL('image/jpeg',0.85);
+      const fname='ביקור - '+f.caseNum+' - '+Date.now()+'.jpg';
+      await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'visitPhoto',tikNum:f.caseNum,folderId:driveFolderId,name:fname,dataUrl})});
+      setShotCount(c=>c+1);
+    }catch(_){}
+    setSnapping(false);
+  };
+  const closeCam=()=>{setCamOpen(false);if(shotCount>0){setCamMsg('✓ '+shotCount+' תמונות נשמרו לתיקייה');setTimeout(()=>setCamMsg(''),4000);}};
 
   const loadHist=React.useCallback(async()=>{
     try{const rows=await api.get("'ביקורים'!A2:AH",MAAGAR_ID);
@@ -4782,11 +4802,23 @@ function VisitFormView({managed,user,isMobile}){
 
   return(
     <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:760,margin:'0 auto'}}>
-      {/* כפתור מצלמה מרחף — צילום ישיר לתת-תיקיית "ביקור בנכס" */}
-      <input ref={camRef} type="file" accept="image/*" capture="environment" multiple onChange={onPhotos} style={{display:'none'}}/>
-      <button onClick={()=>camRef.current&&camRef.current.click()} title="צילום תמונות לתיקייה"
+      {/* כפתור מצלמה מרחף — פותח מצלמה מובנית */}
+      <button onClick={openCam} title="צילום תמונות לתיקייה"
         style={{position:'fixed',top:isMobile?64:78,left:14,zIndex:460,width:56,height:56,borderRadius:'50%',border:'none',background:`linear-gradient(135deg,${GOLD} 0%,${GOLD2} 100%)`,color:'#fff',cursor:'pointer',boxShadow:'0 5px 18px rgba(0,0,0,0.3)',fontSize:24,display:'flex',alignItems:'center',justifyContent:'center'}}>📷</button>
       {camMsg&&<div style={{position:'fixed',top:isMobile?126:140,left:14,zIndex:460,background:'#1a1510',color:'#fff',padding:'8px 12px',borderRadius:9,fontSize:12,maxWidth:230,boxShadow:'0 4px 14px rgba(0,0,0,0.25)'}}>{camMsg}</div>}
+      {/* מצלמה מובנית במסך מלא */}
+      {camOpen&&<div style={{position:'fixed',inset:0,zIndex:2000,background:'#000',display:'flex',flexDirection:'column'}}>
+        <video ref={videoRef} autoPlay playsInline muted style={{flex:1,width:'100%',height:'100%',objectFit:'cover',background:'#000'}}/>
+        {flash&&<div style={{position:'absolute',inset:0,background:'#fff',opacity:0.8}}/>}
+        <div style={{position:'absolute',top:14,right:14,left:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <button onClick={closeCam} style={{background:'rgba(0,0,0,0.55)',color:'#fff',border:'none',borderRadius:22,padding:'9px 18px',fontSize:15,fontWeight:600,fontFamily:'inherit',cursor:'pointer'}}>✓ סיום</button>
+          <div style={{background:'rgba(0,0,0,0.55)',color:'#fff',borderRadius:22,padding:'7px 15px',fontSize:13,fontFamily:'inherit'}}>{shotCount>0?shotCount+' נשמרו ✓':'תיק '+f.caseNum}</div>
+        </div>
+        <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'22px 0 36px',display:'flex',justifyContent:'center',alignItems:'center',background:'linear-gradient(transparent,rgba(0,0,0,0.55))'}}>
+          <button onClick={snap} disabled={snapping} aria-label="צלם"
+            style={{width:76,height:76,borderRadius:'50%',border:'5px solid rgba(255,255,255,0.9)',background:snapping?'#c9a24b':'#fff',cursor:'pointer',boxShadow:'0 0 0 3px rgba(0,0,0,0.35)',transition:'transform 0.08s',transform:snapping?'scale(0.92)':'scale(1)'}}/>
+        </div>
+      </div>}
       <div style={{marginBottom:18}}>
         <h2 style={{fontSize:isMobile?19:23,fontWeight:500,color:'#1a1510'}}>🏠 ביקור בנכס</h2>
         <div style={{fontSize:13,color:'#9a8e84',marginTop:4}}>מילוי דף ביקור ושמירתו לגיליון הביקורים</div>
