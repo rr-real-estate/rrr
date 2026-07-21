@@ -3,7 +3,7 @@
 //  אסטרטגיה: Cache-First לקבצים סטטיים, Network-First לשאר
 // ═══════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'rr-v25';
+const CACHE_NAME = 'rr-v26';
 
 // קבצים שיישמרו בcache בעת ההתקנה
 const STATIC_ASSETS = [
@@ -15,13 +15,18 @@ const STATIC_ASSETS = [
   '/rrr/manifest.json',
 ];
 
+// ספריות חיצוניות (React/Babel/פונטים) — נשמרות בcache כדי שהאפליקציה תיטען גם ללא אינטרנט
+const CDN_ORIGINS = [
+  'cdnjs.cloudflare.com',
+  'fonts.googleapis.com',
+  'fonts.gstatic.com',
+  'unpkg.com',
+];
+
 // דומיינים שתמיד יעברו ברשת (Google APIs)
 const NETWORK_ONLY_ORIGINS = [
   'googleapis.com',
   'accounts.google.com',
-  'fonts.googleapis.com',
-  'fonts.gstatic.com',
-  'cdnjs.cloudflare.com',
   'script.google.com',
   'drive.google.com',
 ];
@@ -54,6 +59,24 @@ self.addEventListener('activate', (event) => {
 // ─── בקשות: Network-First לAPI, Cache-First לסטטי ────────
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+
+  // ספריות CDN — Cache-First (חיוני לטעינה ללא אינטרנט)
+  if (CDN_ORIGINS.some((o) => url.hostname.includes(o))) {
+    event.respondWith(
+      caches.match(event.request).then((cached) =>
+        cached ||
+        fetch(event.request).then((response) => {
+          // opaque (status 0) נשמר גם הוא — סקריפטים חוצי-דומיין
+          if (response && (response.ok || response.type === 'opaque')) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+      )
+    );
+    return;
+  }
 
   // בקשות לGoogle APIs — תמיד ברשת, לא נגע בהן
   const isNetworkOnly = NETWORK_ONLY_ORIGINS.some((origin) =>
