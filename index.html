@@ -4584,6 +4584,35 @@ const VISIT_COLS=[
   'חריגות בניה',
   'פירוט חריגות',
 ];
+// ═══ תור ביקורים ממתינים — עבודה ללא אינטרנט ═══
+const VQ_KEY='rrVisitQueue';
+const CASES_KEY='rrCasesCache';
+function vqGet(){try{return JSON.parse(localStorage.getItem(VQ_KEY)||'[]');}catch(_){return[];}}
+function vqSet(a){try{localStorage.setItem(VQ_KEY,JSON.stringify(a));}catch(_){}}
+function vqAdd(it){const a=vqGet();a.push(it);vqSet(a);return a.length;}
+function isNetErr(e){return !navigator.onLine||/failed to fetch|networkerror|network request|load failed|timeout/i.test(String(e&&e.message||''));}
+// שליחת פריט בודד לגיליון + הפקת הדוח
+async function vqSend(it){
+  let target=it.editRow;
+  if(!target){ // השורה הפנויה הראשונה
+    const colA=await api.get("'ביקורים'!A:A",MAAGAR_ID);target=colA.length+1;
+    for(let i=1;i<colA.length;i++){if(!(colA[i]&&String(colA[i][0]||'').trim())){target=i+1;break;}}
+  }
+  await api.put(`'ביקורים'!A${target}`,[it.fullRow],MAAGAR_ID);
+  try{fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'visitReport',tikNum:it.tikNum,dateStr:it.dateStr,oldDateStr:it.oldDateStr||'',pairs:it.pairs})}).catch(()=>{});}catch(_){}
+}
+let _vqBusy=false;
+async function flushVisitQueue(){
+  if(_vqBusy||!navigator.onLine||!api.token)return 0;
+  const q=vqGet();if(!q.length)return 0;
+  _vqBusy=true;
+  const rest=[];let sent=0;
+  for(const it of q){try{await vqSend(it);sent++;}catch(e){rest.push(it);}}
+  vqSet(rest);_vqBusy=false;
+  if(sent)window.dispatchEvent(new CustomEvent('RRR_VQ_SYNCED',{detail:{sent,left:rest.length}}));
+  return sent;
+}
+
 function VisitFormView({managed,user,isMobile}){
   const me=USER_BY_EMAIL[(user?.email||'').toLowerCase()]||'';
   const p2=n=>String(n).padStart(2,'0');
@@ -4600,7 +4629,19 @@ function VisitFormView({managed,user,isMobile}){
   const toggleMulti=(k,opt)=>setF(o=>{const cur=o[k]||[];return {...o,[k]:cur.includes(opt)?cur.filter(x=>x!==opt):[...cur,opt]};});
   const toISO=v=>{const m=(v||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:'';};
   const fromISO=v=>{const m=(v||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:'';};
-  const caseNums=[...new Set((managed||[]).map(c=>String(c.caseNum||'').trim()).filter(Boolean))];
+  // ── רשימת תיקים זמינה גם ללא אינטרנט (מטמון מקומי) ──
+  const cachedCases=React.useMemo(()=>{try{return JSON.parse(localStorage.getItem(CASES_KEY)||'[]');}catch(_){return[];}},[]);
+  React.useEffect(()=>{
+    if(managed&&managed.length){
+      try{localStorage.setItem(CASES_KEY,JSON.stringify(managed.map(c=>({caseNum:c.caseNum,folder:c.folder,driveFolderLink:c.driveFolderLink}))));}catch(_){}
+    }
+  },[managed]);
+  const casesSrc=(managed&&managed.length)?managed:cachedCases;
+  const caseNums=[...new Set(casesSrc.map(c=>String(c.caseNum||'').trim()).filter(Boolean))];
+  // ── מצב חיבור ותור ממתינים ──
+  const [pending,setPending]=React.useState(()=>vqGet().length);
+  const [online,setOnline]=React.useState(()=>navigator.onLine);
+  const [syncing,setSyncing]=React.useState(false);
 
   // ── מצלמה מובנית: צילום ושמירה מיידית לתת-תיקיית "ביקור בנכס" ──
   const [camMsg,setCamMsg]=React.useState('');
@@ -4617,7 +4658,7 @@ function VisitFormView({managed,user,isMobile}){
   const streamRef=React.useRef(null);
   const trackRef=React.useRef(null);
   const nativeRef=React.useRef(null);
-  const matchedCase=(managed||[]).find(c=>String(c.caseNum||'').trim()===String(f.caseNum||'').trim());
+  const matchedCase=casesSrc.find(c=>String(c.caseNum||'').trim()===String(f.caseNum||'').trim());
   const driveFolderId=(()=>{const m=String(matchedCase?.driveFolderLink||'').match(/[-\w]{25,}/);return m?m[0]:'';})();
   const photoName=()=>{const d=new Date();return 'ביקור - '+f.caseNum+' - '+p2(d.getDate())+'-'+p2(d.getMonth()+1)+'-'+d.getFullYear()+' '+p2(d.getHours())+'-'+p2(d.getMinutes())+'-'+p2(d.getSeconds())+'.jpg';};
   const sendPhoto=async(dataUrl)=>{
@@ -4638,6 +4679,7 @@ function VisitFormView({managed,user,isMobile}){
   });
   const openCam=()=>{
     if(!String(f.caseNum||'').trim()){setCamMsg('בחר תיק לפני צילום');setTimeout(()=>setCamMsg(''),3500);return;}
+    if(!navigator.onLine){setCamMsg('צילום דורש חיבור לאינטרנט');setTimeout(()=>setCamMsg(''),3500);return;}
     setShotCount(0);setCamOpen(true);
   };
   React.useEffect(()=>{
@@ -4742,6 +4784,27 @@ function VisitFormView({managed,user,isMobile}){
       setHist(arr.reverse().slice(0,50));
     }catch(e){/* שקט */}
   },[]);
+  // ── סנכרון אוטומטי של ביקורים ממתינים ──
+  const doSync=React.useCallback(async()=>{
+    if(!navigator.onLine){setErr('אין חיבור לאינטרנט');setTimeout(()=>setErr(''),3000);return;}
+    setSyncing(true);await flushVisitQueue();setPending(vqGet().length);setSyncing(false);
+  },[]);
+  React.useEffect(()=>{
+    const goOn=()=>{setOnline(true);flushVisitQueue().then(()=>setPending(vqGet().length));};
+    const goOff=()=>setOnline(false);
+    const onSynced=e=>{
+      setPending(vqGet().length);
+      setMsg('✓ '+e.detail.sent+' ביקורים סונכרנו לגיליון');
+      setTimeout(()=>setMsg(''),4500);
+      loadHist();
+    };
+    window.addEventListener('online',goOn);
+    window.addEventListener('offline',goOff);
+    window.addEventListener('RRR_VQ_SYNCED',onSynced);
+    flushVisitQueue().then(()=>setPending(vqGet().length));
+    const id=setInterval(()=>{flushVisitQueue().then(()=>setPending(vqGet().length));},60000);
+    return()=>{window.removeEventListener('online',goOn);window.removeEventListener('offline',goOff);window.removeEventListener('RRR_VQ_SYNCED',onSynced);clearInterval(id);};
+  },[loadHist]);
   // פענוח שדה החלוקה (עמודה O) חזרה לקומות: "קומה: פריט, פריט, קומה2: פריט"
   const parseDivision=(o)=>{
     o=String(o||'').trim();if(!o)return [{name:'',items:[]}];
@@ -4872,22 +4935,27 @@ function VisitFormView({managed,user,isMobile}){
         f.windows||'',f.interiorDoors||'',jm('ac'),f.physical||'',f.maintenance||'',f.locationMatch||'',
         f.internalDivision||'',f.internalDims||'',f.buildingViolations||'',f.violationsDetail||''];
       const fullRow=[...row,'אתר']; // עמודה AH = סימון "ביקור מהאתר"
-      let target=editRow;
-      if(!target){ // כתיבה לשורה הפנויה הראשונה (append של Google מדלג שורות בגלל עיצוב)
-        const colA=await api.get("'ביקורים'!A:A",MAAGAR_ID);target=colA.length+1;
-        for(let i=1;i<colA.length;i++){if(!(colA[i]&&String(colA[i][0]||'').trim())){target=i+1;break;}}
-      }
-      await api.put(`'ביקורים'!A${target}`,[fullRow],MAAGAR_ID);
-      // הפקת דוח PDF ושמירה לתיקיית "ביקור בנכס" דרך Apps Script (לו יש הרשאת Drive)
-      try{
+      {
         const pairs=[['מספר תיק',f.caseNum||''],['שמאי מבקר',f.appraiser||''],['שם שמאי',f.appraiser==='אחר'?(f.appraiserName||''):''],['אימות גוש/חלקה',f.gushVerify?'בוצע':''],['תאריך ביקור',f.visitDate||''],['מעלית',f.elevator||''],['קומה',f.floor||''],['מספר קומות',f.numFloors||''],['מספר דירה',f.aptNum||''],['מציג הנכס',f.presenter||''],['ת.ז. מציג הנכס',f.presenterId||''],['שייכות מציג הנכס',f.presenterRelation||''],['מתגוררים בנכס',residentsOut],['חלוקה - בחירה',oVal],['פירוט חלוקה חופשי',pVal],['מספר חדרים',f.numRooms||''],['סוג ריצוף',jm('floorType')],['גודל ריצוף',jm('floorSize')],['ארונות מטבח',f.kitchenCabinets||''],['כלים סניטריים',f.sanitary||''],['אריחי קרמיקה בקירות חדרי רחצה',f.ceramicWalls||''],['חלונות',f.windows||''],['דלתות פנים',f.interiorDoors||''],['מיזוג',jm('ac')],['מצב פיזי',f.physical||''],['מצב תחזוקתי',f.maintenance||''],['מיקום דירה תואם ל',f.locationMatch||''],['חלוקה פנימית של הדירה',f.internalDivision||''],['מידות פנימיות',f.internalDims||''],['חריגות בניה',f.buildingViolations||''],['פירוט חריגות',f.buildingViolations==='יש'?(f.violationsDetail||''):'']].filter(pr=>String(pr[1]).trim()!=='');
-        fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'visitReport',tikNum:f.caseNum,dateStr:f.visitDate,oldDateStr:editRow?editOldDate:'',pairs})}).catch(()=>{});
-      }catch(_){}
-      setMsg((editRow?'הביקור עודכן ✓':'הביקור נשמר ✓')+' · הדוח מופק ונשמר לתיקיית "ביקור בנכס"');
-      clearDraft();setF(blankForm());setEditRow(null);setEditOldDate('');
-      window.scrollTo({top:0,behavior:'smooth'});
-      setTimeout(()=>setMsg(''),3500);
-      loadHist();
+        const item={fullRow,pairs,tikNum:f.caseNum||'',dateStr:f.visitDate||'',editRow:editRow||null,oldDateStr:editRow?editOldDate:'',queuedAt:Date.now()};
+        let queued=false;
+        if(!navigator.onLine){
+          setPending(vqAdd(item));queued=true;
+        }else{
+          try{await vqSend(item);}
+          catch(e){
+            if(isNetErr(e)){setPending(vqAdd(item));queued=true;}
+            else throw e;
+          }
+        }
+        setMsg(queued
+          ?'📴 נשמר במכשיר — יסונכרן אוטומטית כשיחזור האינטרנט'
+          :((editRow?'הביקור עודכן ✓':'הביקור נשמר ✓')+' · הדוח מופק ונשמר לתיקיית "ביקור בנכס"'));
+        clearDraft();setF(blankForm());setEditRow(null);setEditOldDate('');
+        window.scrollTo({top:0,behavior:'smooth'});
+        setTimeout(()=>setMsg(''),4500);
+        if(!queued)loadHist();
+      }
     }catch(e){console.error('שמירת ביקור נכשלה:',e);setErr('שגיאה בשמירה: '+e.message);}
     finally{setBusy(false);}
   };
@@ -4935,6 +5003,12 @@ function VisitFormView({managed,user,isMobile}){
         <h2 style={{fontSize:isMobile?19:23,fontWeight:500,color:'#1a1510'}}>🏠 ביקור בנכס</h2>
         <div style={{fontSize:13,color:'#9a8e84',marginTop:4}}>מילוי דף ביקור ושמירתו לגיליון הביקורים</div>
         {draftAt&&<div style={{marginTop:10,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:9,padding:'8px 13px',fontSize:12.5,color:'#166534'}}>💾 {draftAt}</div>}
+        {(!online||pending>0)&&<div style={{marginTop:10,background:online?'#fffbeb':'#fef2f2',border:'1px solid '+(online?'#fde68a':'#fecaca'),borderRadius:9,padding:'9px 13px',fontSize:12.5,color:online?'#92400e':'#991b1b',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          {!online&&<span>📴 אין חיבור — הביקור יישמר במכשיר ויסונכרן אוטומטית. צילום תמונות דורש חיבור.</span>}
+          {pending>0&&<span>⏳ {pending} ביקורים ממתינים לסנכרון</span>}
+          {pending>0&&online&&<button onClick={doSync} disabled={syncing}
+            style={{background:'#fff',border:'1px solid #fbbf24',color:'#92400e',borderRadius:8,padding:'5px 12px',fontSize:12.5,fontWeight:600,fontFamily:'inherit',cursor:syncing?'default':'pointer'}}>{syncing?'מסנכרן…':'🔄 סנכרן עכשיו'}</button>}
+        </div>}
         {editRow&&<div style={{marginTop:12,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'9px 14px',fontSize:13,color:'#1e40af',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
           ✏️ עריכת ביקור קיים (שורה {editRow}) — שמירה תעדכן את השורה ותפיק את הדוח מחדש.
           <button onClick={cancelEdit} style={{background:'none',border:'none',color:'#1e40af',textDecoration:'underline',cursor:'pointer',fontSize:13,fontFamily:'inherit'}}>ביטול עריכה</button>
@@ -5205,6 +5279,19 @@ function App(){
     return()=>{done=true;clearTimeout(t);};
   },[]);// eslint-disable-line
 
+  // ── סנכרון ביקורים ממתינים ברקע (בכל מסך באפליקציה) ──
+  const [syncToast,setSyncToast]=React.useState('');
+  React.useEffect(()=>{
+    if(!token)return;
+    const goOn=()=>{flushVisitQueue();};
+    const onSynced=e=>{setSyncToast('✓ '+e.detail.sent+' ביקורים סונכרנו לגיליון');setTimeout(()=>setSyncToast(''),5000);};
+    window.addEventListener('online',goOn);
+    window.addEventListener('RRR_VQ_SYNCED',onSynced);
+    flushVisitQueue();
+    const id=setInterval(()=>{flushVisitQueue();},60000);
+    return()=>{window.removeEventListener('online',goOn);window.removeEventListener('RRR_VQ_SYNCED',onSynced);clearInterval(id);};
+  },[token]);
+
   if(!token){return <LoginScreen onLogin={handleLogin} autoLogging={autoLogging}/>;}
   const onLogout=()=>{_stopTokenRefresh();api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);localStorage.removeItem('rrUserHint');};
   return(
@@ -5229,6 +5316,7 @@ function App(){
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
         {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user} managed={managed} onUpdateFolderLinks={handleUpdateFolderLinks}/>}
       </div>
+      {syncToast&&view!=='visit'&&<div style={{position:'fixed',bottom:isMobile?84:24,right:'50%',transform:'translateX(50%)',zIndex:900,background:'#166534',color:'#fff',padding:'11px 20px',borderRadius:11,fontSize:13.5,fontWeight:600,boxShadow:'0 6px 20px rgba(0,0,0,0.3)'}}>{syncToast}</div>}
       {/* כפתורים מרחפים — משימה / ביקור בנכס (מוסתרים גם בתוך המסכים עצמם) */}
       {!['projects','clients','managed','tasks','visit'].includes(view)&&(
         <div style={{position:'fixed',left:16,bottom:isMobile?84:24,zIndex:450,display:'flex',flexDirection:'column',gap:12,alignItems:'flex-start'}}>
