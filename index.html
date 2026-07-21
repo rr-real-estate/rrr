@@ -4711,6 +4711,31 @@ function VisitFormView({managed,user,isMobile}){
   };
   const closeCam=()=>{setCamOpen(false);if(shotCount>0){setCamMsg('✓ '+shotCount+' תמונות נשמרו לתיקייה');setTimeout(()=>setCamMsg(''),4000);}};
 
+  // ── טיוטה מקומית: שמירה אוטומטית של הטופס בזמן מילוי ──
+  const DRAFT_KEY='rrVisitDraft';
+  const [draftAt,setDraftAt]=React.useState('');
+  const skipFirstDraft=React.useRef(true);
+  React.useEffect(()=>{
+    try{
+      const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');
+      if(d&&d.f&&Object.keys(d.f).length){
+        setF(d.f);
+        if(d.editRow){setEditRow(d.editRow);setEditOldDate(d.editOldDate||'');}
+        if(d.t)setDraftAt('שוחזרה טיוטה מ-'+new Date(d.t).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}));
+        setTimeout(()=>setDraftAt(''),6000);
+      }
+    }catch(_){}
+  },[]);
+  React.useEffect(()=>{
+    if(skipFirstDraft.current){skipFirstDraft.current=false;return;}
+    try{localStorage.setItem(DRAFT_KEY,JSON.stringify({f,editRow,editOldDate,t:Date.now()}));}catch(_){}
+  },[f,editRow,editOldDate]);
+  const clearDraft=()=>{try{localStorage.removeItem(DRAFT_KEY);}catch(_){}};
+  const resetForm=()=>{
+    if(!window.confirm('לנקות את הטופס? כל הנתונים שהוזנו יימחקו.'))return;
+    clearDraft();setF(blankForm());setEditRow(null);setEditOldDate('');setMsg('');setErr('');
+  };
+
   const loadHist=React.useCallback(async()=>{
     try{const rows=await api.get("'ביקורים'!A2:AH",MAAGAR_ID);
       const arr=(rows||[]).map((r,i)=>({rowNum:i+2,row:r,ts:r[0]||'',caseNum:r[1]||'',appraiser:r[2]||'',date:r[5]||'',web:(r[33]||'')==='אתר'})).filter(x=>x.web);
@@ -4859,7 +4884,7 @@ function VisitFormView({managed,user,isMobile}){
         fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'visitReport',tikNum:f.caseNum,dateStr:f.visitDate,oldDateStr:editRow?editOldDate:'',pairs})}).catch(()=>{});
       }catch(_){}
       setMsg((editRow?'הביקור עודכן ✓':'הביקור נשמר ✓')+' · הדוח מופק ונשמר לתיקיית "ביקור בנכס"');
-      setF(blankForm());setEditRow(null);setEditOldDate('');
+      clearDraft();setF(blankForm());setEditRow(null);setEditOldDate('');
       window.scrollTo({top:0,behavior:'smooth'});
       setTimeout(()=>setMsg(''),3500);
       loadHist();
@@ -4909,6 +4934,7 @@ function VisitFormView({managed,user,isMobile}){
       <div style={{marginBottom:18}}>
         <h2 style={{fontSize:isMobile?19:23,fontWeight:500,color:'#1a1510'}}>🏠 ביקור בנכס</h2>
         <div style={{fontSize:13,color:'#9a8e84',marginTop:4}}>מילוי דף ביקור ושמירתו לגיליון הביקורים</div>
+        {draftAt&&<div style={{marginTop:10,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:9,padding:'8px 13px',fontSize:12.5,color:'#166534'}}>💾 {draftAt}</div>}
         {editRow&&<div style={{marginTop:12,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'9px 14px',fontSize:13,color:'#1e40af',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
           ✏️ עריכת ביקור קיים (שורה {editRow}) — שמירה תעדכן את השורה ותפיק את הדוח מחדש.
           <button onClick={cancelEdit} style={{background:'none',border:'none',color:'#1e40af',textDecoration:'underline',cursor:'pointer',fontSize:13,fontFamily:'inherit'}}>ביטול עריכה</button>
@@ -4921,8 +4947,11 @@ function VisitFormView({managed,user,isMobile}){
             style={{background:busy?'#c8bfb5':GOLD,color:'#fff',border:'none',borderRadius:10,padding:'12px 30px',cursor:busy?'default':'pointer',fontSize:15,fontWeight:600,fontFamily:'inherit'}}>
             {busy?'שומר…':(editRow?'✔ עדכן ביקור':'💾 שמור ביקור')}</button>
           {editRow&&<button onClick={cancelEdit} disabled={busy} style={{background:'#fff',color:'#6b5e50',border:'1px solid #ddd0bb',borderRadius:10,padding:'12px 20px',cursor:'pointer',fontSize:14,fontFamily:'inherit'}}>ביטול</button>}
+          <button onClick={resetForm} disabled={busy} title="ניקוי הטופס והטיוטה השמורה"
+            style={{background:'#fff',color:'#6b5e50',border:'1px solid #ddd0bb',borderRadius:10,padding:'12px 18px',cursor:'pointer',fontSize:14,fontFamily:'inherit'}}>🗑 נקה טופס</button>
           {msg&&<span style={{fontSize:14,color:'#16a34a',fontWeight:600}}>{msg}</span>}
           {err&&<span style={{fontSize:14,color:'#dc2626',fontWeight:600}}>{err}</span>}
+          <span style={{fontSize:12,color:'#a89c90',marginRight:'auto'}}>💾 נשמר אוטומטית במכשיר</span>
         </div>
       </div>
       <div style={{...card,padding:0,overflow:'hidden'}}>
