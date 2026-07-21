@@ -4613,7 +4613,7 @@ async function flushVisitQueue(){
   return sent;
 }
 
-function VisitFormView({managed,user,isMobile}){
+function VisitFormView({managed,user,isMobile,offline}){
   const me=USER_BY_EMAIL[(user?.email||'').toLowerCase()]||'';
   const p2=n=>String(n).padStart(2,'0');
   const today=()=>{const d=new Date();return `${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`;};
@@ -4835,7 +4835,7 @@ function VisitFormView({managed,user,isMobile}){
     fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'visitReport',tikNum:h.caseNum,dateStr:h.date,oldDateStr:h.date,pairs})}).catch(()=>{});
     setMsg('הדוח מופק מחדש ונשמר לתיקיית "ביקור בנכס" ✓');setTimeout(()=>setMsg(''),3500);
   };
-  React.useEffect(()=>{loadHist();},[loadHist]);
+  React.useEffect(()=>{if(offline)return;loadHist();},[loadHist,offline]);
 
   const iS={width:'100%',padding:'9px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:15,background:'#fffdf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
   const card={background:'#fff',borderRadius:16,padding:isMobile?'16px 14px':'20px 22px',marginBottom:16,boxShadow:'0 2px 10px rgba(0,0,0,0.06)',border:'1px solid #e8e0d4'};
@@ -5028,7 +5028,7 @@ function VisitFormView({managed,user,isMobile}){
           <span style={{fontSize:12,color:'#a89c90',marginRight:'auto'}}>💾 נשמר אוטומטית במכשיר</span>
         </div>
       </div>
-      <div style={{...card,padding:0,overflow:'hidden'}}>
+      {!offline&&<div style={{...card,padding:0,overflow:'hidden'}}>
         <div style={{padding:'14px 18px',borderBottom:'1px solid #ede8e0',fontSize:14,fontWeight:600,color:'#3a2a00',background:'#fdfaf5'}}>🗂️ היסטוריית ביקורים {hist.length?`(${hist.length})`:''}</div>
         {hist.length===0?(
           <div style={{padding:30,textAlign:'center',color:'#9a8e84',fontSize:14}}>אין ביקורים להצגה</div>
@@ -5043,7 +5043,35 @@ function VisitFormView({managed,user,isMobile}){
             </div>
           </div>
         ))}
+      </div>}
+    </div>
+  );
+}
+
+// ═══ מסך ללא אינטרנט — מילוי ביקור ללא צורך בהתחברות ═══
+function OfflineVisitScreen({onWantLogin,isMobile,online}){
+  const [pending,setPending]=React.useState(()=>vqGet().length);
+  React.useEffect(()=>{const id=setInterval(()=>setPending(vqGet().length),2000);return()=>clearInterval(id);},[]);
+  return(
+    <div style={{height:'100vh',overflowY:'auto',background:'#f7f3ee',fontFamily:'Rubik,sans-serif',direction:'rtl'}}>
+      <div style={{background:'#0d0d0d',color:'#fff',padding:'13px 18px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <img src={CONFIG.LOGO_URL} alt="" style={{height:24}} onError={e=>{e.target.style.display='none';}}/>
+          <span style={{fontSize:13.5,fontWeight:600}}>📴 מצב לא מקוון</span>
+        </div>
+        {pending>0&&<span style={{fontSize:12,opacity:0.85}}>⏳ {pending} ממתינים</span>}
       </div>
+      {online?(
+        <div style={{background:'#dcfce7',borderBottom:'1px solid #86efac',padding:'11px 16px',fontSize:13,color:'#166534',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          <span>✅ החיבור חזר{pending>0?` — ${pending} ביקורים ממתינים לשליחה`:''}</span>
+          <button onClick={onWantLogin} style={{background:'#166534',color:'#fff',border:'none',borderRadius:9,padding:'8px 16px',fontSize:13,fontWeight:600,fontFamily:'inherit',cursor:'pointer'}}>🔓 התחבר וסנכרן</button>
+        </div>
+      ):(
+        <div style={{background:'#fef2f2',borderBottom:'1px solid #fecaca',padding:'11px 16px',fontSize:13,color:'#991b1b'}}>
+          אין חיבור לאינטרנט. אפשר למלא ביקור כרגיל — הנתונים נשמרים במכשיר ויישלחו לגיליון אוטומטית לאחר ההתחברות הבאה. צילום תמונות דורש חיבור.
+        </div>
+      )}
+      <VisitFormView managed={[]} user={null} isMobile={isMobile} offline/>
     </div>
   );
 }
@@ -5292,6 +5320,21 @@ function App(){
     return()=>{window.removeEventListener('online',goOn);window.removeEventListener('RRR_VQ_SYNCED',onSynced);clearInterval(id);};
   },[token]);
 
+  // ── פתיחה ללא אינטרנט: ישר למסך ביקור בנכס, בלי מסך התחברות ──
+  const [netOnline,setNetOnline]=React.useState(()=>navigator.onLine);
+  const [offlineMode,setOfflineMode]=React.useState(()=>{
+    if(navigator.onLine)return false;
+    try{return (JSON.parse(localStorage.getItem(CASES_KEY)||'[]')).length>0;}catch(_){return false;}
+  });
+  React.useEffect(()=>{
+    const on=()=>setNetOnline(true),off=()=>setNetOnline(false);
+    window.addEventListener('online',on);window.addEventListener('offline',off);
+    return()=>{window.removeEventListener('online',on);window.removeEventListener('offline',off);};
+  },[]);
+
+  if(!token&&offlineMode){
+    return <OfflineVisitScreen isMobile={isMobile} online={netOnline} onWantLogin={()=>setOfflineMode(false)}/>;
+  }
   if(!token){return <LoginScreen onLogin={handleLogin} autoLogging={autoLogging}/>;}
   const onLogout=()=>{_stopTokenRefresh();api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);localStorage.removeItem('rrUserHint');};
   return(
