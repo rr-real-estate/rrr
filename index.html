@@ -4608,10 +4608,34 @@ function VisitFormView({managed,user,isMobile}){
   const [shotCount,setShotCount]=React.useState(0);
   const [snapping,setSnapping]=React.useState(false);
   const [flash,setFlash]=React.useState(false);
+  const [facing,setFacing]=React.useState('environment');
+  const [caps,setCaps]=React.useState({});
+  const [zoom,setZoom]=React.useState(null);
+  const [torch,setTorch]=React.useState(false);
+  const [camRes,setCamRes]=React.useState('');
   const videoRef=React.useRef(null);
   const streamRef=React.useRef(null);
+  const trackRef=React.useRef(null);
+  const nativeRef=React.useRef(null);
   const matchedCase=(managed||[]).find(c=>String(c.caseNum||'').trim()===String(f.caseNum||'').trim());
   const driveFolderId=(()=>{const m=String(matchedCase?.driveFolderLink||'').match(/[-\w]{25,}/);return m?m[0]:'';})();
+  const photoName=()=>{const d=new Date();return 'ביקור - '+f.caseNum+' - '+p2(d.getDate())+'-'+p2(d.getMonth()+1)+'-'+d.getFullYear()+' '+p2(d.getHours())+'-'+p2(d.getMinutes())+'-'+p2(d.getSeconds())+'.jpg';};
+  const sendPhoto=async(dataUrl)=>{
+    if(!dataUrl)return false;
+    try{await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'visitPhoto',tikNum:f.caseNum,folderId:driveFolderId,name:photoName(),dataUrl})});return true;}
+    catch(_){return false;}
+  };
+  // דחיסה חכמה — חדות גבוהה בגודל קובץ סביר
+  const toJpeg=(src)=>new Promise(res=>{
+    const img=new Image();
+    img.onload=()=>{const MAX=2560;let w=img.width,h=img.height;const sc=Math.min(1,MAX/Math.max(w,h));
+      w=Math.round(w*sc);h=Math.round(h*sc);
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      const cx=cv.getContext('2d');cx.imageSmoothingQuality='high';cx.drawImage(img,0,0,w,h);
+      res(cv.toDataURL('image/jpeg',0.92));};
+    img.onerror=()=>res('');
+    img.src=src;
+  });
   const openCam=()=>{
     if(!String(f.caseNum||'').trim()){setCamMsg('בחר תיק לפני צילום');setTimeout(()=>setCamMsg(''),3500);return;}
     setShotCount(0);setCamOpen(true);
@@ -4621,26 +4645,69 @@ function VisitFormView({managed,user,isMobile}){
     let active=true;
     (async()=>{
       try{
-        const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+        // בקשת הרזולוציה הגבוהה ביותר שהמכשיר תומך בה
+        const stream=await navigator.mediaDevices.getUserMedia({
+          video:{facingMode:{ideal:facing},width:{ideal:4096},height:{ideal:2160}},audio:false});
         if(!active){stream.getTracks().forEach(t=>t.stop());return;}
         streamRef.current=stream;
+        const track=stream.getVideoTracks()[0];trackRef.current=track;
+        const c=(track.getCapabilities&&track.getCapabilities())||{};
+        try{
+          const adv=[];
+          if(c.focusMode&&c.focusMode.indexOf('continuous')>-1)adv.push({focusMode:'continuous'});
+          const con={};
+          if(c.width&&c.height){con.width={ideal:c.width.max};con.height={ideal:c.height.max};}
+          if(adv.length)con.advanced=adv;
+          if(Object.keys(con).length)await track.applyConstraints(con);
+        }catch(_){}
+        const st=(track.getSettings&&track.getSettings())||{};
+        setCaps(c);setTorch(false);
+        setCamRes(st.width&&st.height?st.width+'×'+st.height:'');
+        setZoom(c.zoom?(st.zoom||c.zoom.min):null);
         if(videoRef.current){videoRef.current.srcObject=stream;videoRef.current.play().catch(()=>{});}
       }catch(e){setCamMsg('אין גישה למצלמה');setCamOpen(false);setTimeout(()=>setCamMsg(''),3500);}
     })();
-    return()=>{active=false;if(streamRef.current){streamRef.current.getTracks().forEach(t=>t.stop());streamRef.current=null;}};
-  },[camOpen]);
+    return()=>{active=false;trackRef.current=null;if(streamRef.current){streamRef.current.getTracks().forEach(t=>t.stop());streamRef.current=null;}};
+  },[camOpen,facing]);
+  const applyZoom=async(v)=>{setZoom(v);try{await trackRef.current.applyConstraints({advanced:[{zoom:v}]});}catch(_){}};
+  const toggleTorch=async()=>{const n=!torch;setTorch(n);try{await trackRef.current.applyConstraints({advanced:[{torch:n}]});}catch(_){}};
   const snap=async()=>{
-    const v=videoRef.current;if(!v||!v.videoWidth||snapping)return;
+    if(snapping)return;
+    const v=videoRef.current,track=trackRef.current;
     setSnapping(true);setFlash(true);setTimeout(()=>setFlash(false),140);
     try{
-      const cv=document.createElement('canvas');cv.width=v.videoWidth;cv.height=v.videoHeight;
-      cv.getContext('2d').drawImage(v,0,0);
-      const dataUrl=cv.toDataURL('image/jpeg',0.85);
-      const fname='ביקור - '+f.caseNum+' - '+Date.now()+'.jpg';
-      await fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'visitPhoto',tikNum:f.caseNum,folderId:driveFolderId,name:fname,dataUrl})});
-      setShotCount(c=>c+1);
+      let raw='';
+      // ImageCapture — תמונת סטילס ברזולוציה המלאה של החיישן (חד בהרבה מפריים וידאו)
+      if(track&&window.ImageCapture){
+        try{
+          const blob=await new window.ImageCapture(track).takePhoto();
+          raw=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(blob);});
+        }catch(_){}
+      }
+      if(!raw&&v&&v.videoWidth){
+        const cv=document.createElement('canvas');cv.width=v.videoWidth;cv.height=v.videoHeight;
+        const cx=cv.getContext('2d');cx.imageSmoothingQuality='high';cx.drawImage(v,0,0);
+        raw=cv.toDataURL('image/jpeg',0.95);
+      }
+      const dataUrl=raw?await toJpeg(raw):'';
+      if(await sendPhoto(dataUrl))setShotCount(c=>c+1);
     }catch(_){}
     setSnapping(false);
+  };
+  // מצלמת הטלפון המקורית (כל התכונות, עם מסך אישור)
+  const onNativePhotos=async(e)=>{
+    const files=[...(e.target.files||[])];e.target.value='';
+    if(!files.length)return;
+    setCamMsg('שולח '+files.length+' תמונות...');
+    let ok=0;
+    for(const file of files){
+      try{
+        const raw=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});
+        if(await sendPhoto(await toJpeg(raw)))ok++;
+      }catch(_){}
+    }
+    setShotCount(c=>c+ok);
+    setCamMsg('✓ '+ok+' תמונות נשמרו לתיקייה');setTimeout(()=>setCamMsg(''),4000);
   };
   const closeCam=()=>{setCamOpen(false);if(shotCount>0){setCamMsg('✓ '+shotCount+' תמונות נשמרו לתיקייה');setTimeout(()=>setCamMsg(''),4000);}};
 
@@ -4807,16 +4874,36 @@ function VisitFormView({managed,user,isMobile}){
         style={{position:'fixed',top:isMobile?64:78,left:14,zIndex:460,width:56,height:56,borderRadius:'50%',border:'none',background:`linear-gradient(135deg,${GOLD} 0%,${GOLD2} 100%)`,color:'#fff',cursor:'pointer',boxShadow:'0 5px 18px rgba(0,0,0,0.3)',fontSize:24,display:'flex',alignItems:'center',justifyContent:'center'}}>📷</button>
       {camMsg&&<div style={{position:'fixed',top:isMobile?126:140,left:14,zIndex:460,background:'#1a1510',color:'#fff',padding:'8px 12px',borderRadius:9,fontSize:12,maxWidth:230,boxShadow:'0 4px 14px rgba(0,0,0,0.25)'}}>{camMsg}</div>}
       {/* מצלמה מובנית במסך מלא */}
+      <input ref={nativeRef} type="file" accept="image/*" capture="environment" multiple onChange={onNativePhotos} style={{display:'none'}}/>
       {camOpen&&<div style={{position:'fixed',inset:0,zIndex:2000,background:'#000',display:'flex',flexDirection:'column'}}>
         <video ref={videoRef} autoPlay playsInline muted style={{flex:1,width:'100%',height:'100%',objectFit:'cover',background:'#000'}}/>
         {flash&&<div style={{position:'absolute',inset:0,background:'#fff',opacity:0.8}}/>}
-        <div style={{position:'absolute',top:14,right:14,left:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div style={{position:'absolute',top:14,right:14,left:14,display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
           <button onClick={closeCam} style={{background:'rgba(0,0,0,0.55)',color:'#fff',border:'none',borderRadius:22,padding:'9px 18px',fontSize:15,fontWeight:600,fontFamily:'inherit',cursor:'pointer'}}>✓ סיום</button>
-          <div style={{background:'rgba(0,0,0,0.55)',color:'#fff',borderRadius:22,padding:'7px 15px',fontSize:13,fontFamily:'inherit'}}>{shotCount>0?shotCount+' נשמרו ✓':'תיק '+f.caseNum}</div>
+          <div style={{background:'rgba(0,0,0,0.55)',color:'#fff',borderRadius:22,padding:'7px 15px',fontSize:13,fontFamily:'inherit',textAlign:'center'}}>
+            {shotCount>0?shotCount+' נשמרו ✓':'תיק '+f.caseNum}
+            {camRes&&<div style={{fontSize:10,opacity:0.7}}>{camRes}</div>}
+          </div>
         </div>
-        <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'22px 0 36px',display:'flex',justifyContent:'center',alignItems:'center',background:'linear-gradient(transparent,rgba(0,0,0,0.55))'}}>
+        {/* זום */}
+        {caps.zoom&&zoom!==null&&<div style={{position:'absolute',bottom:132,left:24,right:24,display:'flex',alignItems:'center',gap:10}}>
+          <span style={{color:'#fff',fontSize:12,textShadow:'0 1px 3px #000'}}>×{Number(zoom).toFixed(1)}</span>
+          <input type="range" min={caps.zoom.min} max={caps.zoom.max} step={caps.zoom.step||0.1} value={zoom}
+            onChange={e=>applyZoom(Number(e.target.value))} style={{flex:1,accentColor:GOLD}}/>
+        </div>}
+        <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'22px 22px 34px',display:'flex',justifyContent:'space-between',alignItems:'center',background:'linear-gradient(transparent,rgba(0,0,0,0.6))'}}>
+          <div style={{display:'flex',flexDirection:'column',gap:10,width:64}}>
+            <button onClick={()=>nativeRef.current&&nativeRef.current.click()} title="מצלמת הטלפון"
+              style={{width:46,height:46,borderRadius:'50%',border:'none',background:'rgba(255,255,255,0.2)',color:'#fff',fontSize:20,cursor:'pointer'}}>📱</button>
+            {caps.torch&&<button onClick={toggleTorch} title="פנס"
+              style={{width:46,height:46,borderRadius:'50%',border:'none',background:torch?GOLD:'rgba(255,255,255,0.2)',color:'#fff',fontSize:20,cursor:'pointer'}}>🔦</button>}
+          </div>
           <button onClick={snap} disabled={snapping} aria-label="צלם"
             style={{width:76,height:76,borderRadius:'50%',border:'5px solid rgba(255,255,255,0.9)',background:snapping?'#c9a24b':'#fff',cursor:'pointer',boxShadow:'0 0 0 3px rgba(0,0,0,0.35)',transition:'transform 0.08s',transform:snapping?'scale(0.92)':'scale(1)'}}/>
+          <div style={{width:64,display:'flex',justifyContent:'flex-end'}}>
+            <button onClick={()=>setFacing(x=>x==='environment'?'user':'environment')} title="החלף מצלמה"
+              style={{width:46,height:46,borderRadius:'50%',border:'none',background:'rgba(255,255,255,0.2)',color:'#fff',fontSize:19,cursor:'pointer'}}>🔄</button>
+          </div>
         </div>
       </div>}
       <div style={{marginBottom:18}}>
