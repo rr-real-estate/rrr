@@ -1411,7 +1411,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
     autoSave();
   };
   return(
-    <div style={{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:isMobile?'flex-end':'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(8px)'}} onClick={handleClose}>
+    <div style={{position:'fixed',top:0,left:0,right:0,height:'100dvh',zIndex:600,display:'flex',alignItems:isMobile?'flex-end':'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(8px)'}} onClick={handleClose}>
       {/* דיאלוג תזכורת שכ"ט ליוסי */}
       {feeReminder&&(
         <div style={{position:'absolute',inset:0,zIndex:700,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
@@ -1461,7 +1461,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
           </div>
         </div>
       )}
-      <div style={{background:'#f0ede8',width:isMobile?'100vw':'min(940px,96vw)',height:isMobile?'96vh':'94vh',margin:isMobile?'0':'auto',borderRadius:isMobile?'16px 16px 0 0':20,overflow:'hidden',boxShadow:'0 32px 100px rgba(0,0,0,0.45)',animation:isMobile?'slideUp 0.25s ease':'zoomIn 0.2s cubic-bezier(0.4,0,0.2,1)',display:'flex',flexDirection:'column',maxWidth:'100vw',boxSizing:'border-box'}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:'#f0ede8',width:isMobile?'100vw':'min(940px,96vw)',height:isMobile?'96dvh':'94dvh',maxHeight:'100dvh',margin:isMobile?'0':'auto',borderRadius:isMobile?'16px 16px 0 0':20,overflow:'hidden',boxShadow:'0 32px 100px rgba(0,0,0,0.45)',animation:isMobile?'slideUp 0.25s ease':'zoomIn 0.2s cubic-bezier(0.4,0,0.2,1)',display:'flex',flexDirection:'column',maxWidth:'100vw',boxSizing:'border-box'}} onClick={e=>e.stopPropagation()}>
         {/* Header */}
         <div style={{background:`linear-gradient(135deg, #0f0f0f 0%, #1a1410 100%)`,padding:isMobile?'14px 16px':'20px 26px',flexShrink:0,borderBottom:`3px solid ${dot}`}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
@@ -2374,8 +2374,8 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
   const tabs=[{label:'📦 תיק'},{label:'👤 לקוח ויועץ'},{label:'🏠 נכס'}];
 
   return(
-    <div style={{position:'fixed',inset:0,zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(8px)'}} onClick={onClose}>
-      <div style={{background:'#f5f3ef',width:'min(680px,96vw)',height:'min(680px,90vh)',borderRadius:18,overflow:'hidden',boxShadow:'0 32px 80px rgba(0,0,0,0.35)',display:'flex',flexDirection:'column',animation:'fadeIn 0.2s ease'}} onClick={e=>e.stopPropagation()}>
+    <div style={{position:'fixed',top:0,left:0,right:0,height:'100dvh',zIndex:600,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.55)',backdropFilter:'blur(8px)'}} onClick={onClose}>
+      <div style={{background:'#f5f3ef',width:'min(680px,96vw)',height:'min(680px,90dvh)',maxHeight:'100dvh',borderRadius:18,overflow:'hidden',boxShadow:'0 32px 80px rgba(0,0,0,0.35)',display:'flex',flexDirection:'column',animation:'fadeIn 0.2s ease'}} onClick={e=>e.stopPropagation()}>
 
         {/* Header */}
         <div style={{background:BLACK,padding:'18px 22px',flexShrink:0}}>
