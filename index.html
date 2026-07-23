@@ -40,9 +40,20 @@ button{font-family:'Rubik',sans-serif}
 @supports(padding-bottom:env(safe-area-inset-bottom)){
   .bottom-nav-bar{padding-bottom:env(safe-area-inset-bottom);}
 }
+/* ═══ Boot splash — מסך טעינה אחיד (לוגו + טבעת מסתובבת) ═══ */
+#boot-splash{position:fixed;inset:0;z-index:100000;background:#f0ede8;display:flex;align-items:center;justify-content:center;opacity:1;transition:opacity .5s ease;}
+#boot-splash.bs-hide{opacity:0;pointer-events:none;}
+#boot-splash .bs-wrap{position:relative;width:140px;height:140px;display:flex;align-items:center;justify-content:center;}
+#boot-splash .bs-wrap::before{content:'';position:absolute;inset:0;border-radius:50%;border:3px solid rgba(217,175,52,.16);border-top-color:#d9af34;animation:spin .9s linear infinite;}
+#boot-splash .bs-logo{width:84px;height:84px;object-fit:contain;border-radius:18px;background:#fff;box-shadow:0 6px 22px rgba(0,0,0,.10);}
 </style>
 </head>
 <body>
+<div id="boot-splash"><div class="bs-wrap"><img class="bs-logo" src="Logo_smol_512.png" alt=""/></div></div>
+<script>
+window.__hideBootSplash=function(){var el=document.getElementById('boot-splash');if(!el||el.classList.contains('bs-hide'))return;el.classList.add('bs-hide');setTimeout(function(){if(el&&el.parentNode)el.parentNode.removeChild(el);},650);};
+setTimeout(function(){try{window.__hideBootSplash();}catch(e){}},13000);
+</script>
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useEffect, useCallback, useRef, useMemo } = React;
@@ -5331,6 +5342,13 @@ function App(){
     window.addEventListener('online',on);window.addEventListener('offline',off);
     return()=>{window.removeEventListener('online',on);window.removeEventListener('offline',off);};
   },[]);
+
+  // ── הסתרת מסך הטעינה ברגע שהאפליקציה מוכנה (דשבורד / התחברות ידנית / מצב לא-מקוון) ──
+  React.useEffect(()=>{
+    if(token || offlineMode || !autoLogging){
+      if(window.__hideBootSplash) window.__hideBootSplash();
+    }
+  },[token,offlineMode,autoLogging]);
 
   if(!token&&offlineMode){
     return <OfflineVisitScreen isMobile={isMobile} online={netOnline} onWantLogin={()=>setOfflineMode(false)}/>;
