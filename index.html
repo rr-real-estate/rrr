@@ -3169,13 +3169,7 @@ function LoginScreen({onLogin,autoLogging}){
     }catch(e){setBusy(false);alert(e.message);}
   };
   return(
-    <div style={{height:'100vh',display:'flex',alignItems:'flex-end',justifyContent:'center',padding:20,paddingBottom:100,overflow:'hidden',position:'relative'}}>
-      {/* Video background */}
-      <video autoPlay loop muted playsInline style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',zIndex:0}}>
-        <source src="RR_logo.mp4" type="video/mp4"/>
-      </video>
-      {/* Dark overlay for readability */}
-      <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.45)',pointerEvents:'none',zIndex:1}}/>
+    <div style={{height:'100vh',display:'flex',alignItems:'flex-end',justifyContent:'center',padding:20,paddingBottom:100,overflow:'hidden',position:'relative',background:'linear-gradient(160deg,#1c1c1c 0%,#0d0d0d 55%,#000 100%)'}}>
       <div style={{background:'rgba(255,255,255,0.03)',backdropFilter:'blur(32px)',border:`1px solid ${GOLD}1a`,borderRadius:28,padding:'52px 46px',maxWidth:430,width:'100%',textAlign:'center',boxShadow:`0 40px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)`,animation:'fadeIn 0.5s ease',position:'relative',zIndex:2}}>
         <div style={{marginBottom:30,display:'flex',justifyContent:'center'}}>
           {!logoErr?(
