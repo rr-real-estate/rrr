@@ -40,19 +40,25 @@ button{font-family:'Rubik',sans-serif}
 @supports(padding-bottom:env(safe-area-inset-bottom)){
   .bottom-nav-bar{padding-bottom:env(safe-area-inset-bottom);}
 }
-/* ═══ Boot splash — מסך טעינה אחיד (לוגו + טבעת מסתובבת) ═══ */
+/* ═══ Boot splash — מסך טעינה אחיד (ממשיך ממסך הפתיחה של האפליקציה) ═══ */
 #boot-splash{position:fixed;inset:0;z-index:100000;background:#f0ede8;display:flex;align-items:center;justify-content:center;opacity:1;transition:opacity .5s ease;}
 #boot-splash.bs-hide{opacity:0;pointer-events:none;}
-#boot-splash .bs-wrap{position:relative;width:140px;height:140px;display:flex;align-items:center;justify-content:center;}
-#boot-splash .bs-wrap::before{content:'';position:absolute;inset:0;border-radius:50%;border:3px solid rgba(217,175,52,.16);border-top-color:#d9af34;animation:spin .9s linear infinite;}
-#boot-splash .bs-logo{width:84px;height:84px;object-fit:contain;border-radius:18px;background:#fff;box-shadow:0 6px 22px rgba(0,0,0,.10);}
+#boot-splash .bs-wrap{position:relative;display:flex;align-items:center;justify-content:center;}
+#boot-splash .bs-ring{position:absolute;width:132px;height:132px;border-radius:50%;border:3px solid rgba(217,175,52,.16);border-top-color:#d9af34;opacity:0;animation:spin .9s linear infinite;transition:opacity .45s ease;}
+#boot-splash.bs-morph .bs-ring{opacity:1;}
+#boot-splash .bs-logo{width:74vw;max-width:330px;height:auto;border-radius:8px;transition:width .6s cubic-bezier(.4,0,.2,1),border-radius .6s ease;}
+#boot-splash.bs-morph .bs-logo{width:78px;border-radius:16px;}
 </style>
 </head>
 <body>
-<div id="boot-splash"><div class="bs-wrap"><img class="bs-logo" src="Logo_smol_512.png" alt=""/></div></div>
+<div id="boot-splash"><div class="bs-wrap"><div class="bs-ring"></div><img class="bs-logo" src="Logo_smol_512.png" alt=""/></div></div>
 <script>
-window.__hideBootSplash=function(){var el=document.getElementById('boot-splash');if(!el||el.classList.contains('bs-hide'))return;el.classList.add('bs-hide');setTimeout(function(){if(el&&el.parentNode)el.parentNode.removeChild(el);},650);};
-setTimeout(function(){try{window.__hideBootSplash();}catch(e){}},13000);
+(function(){
+  window.__hideBootSplash=function(){var el=document.getElementById('boot-splash');if(!el||el.classList.contains('bs-hide'))return;el.classList.add('bs-hide');setTimeout(function(){if(el&&el.parentNode)el.parentNode.removeChild(el);},650);};
+  // המשך רציף ממסך הפתיחה של האפליקציה: אחרי רגע קצר הלוגו מתכווץ וטבעת הטעינה מופיעה סביבו
+  setTimeout(function(){var el=document.getElementById('boot-splash');if(el)el.classList.add('bs-morph');},550);
+  setTimeout(function(){try{window.__hideBootSplash();}catch(e){}},13000);
+})();
 </script>
 <div id="root"></div>
 <script type="text/babel">
