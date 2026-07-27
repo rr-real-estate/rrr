@@ -867,7 +867,7 @@ function parseQuote(text){
   if(m)return{quote:m[1],body:m[2]};
   return{quote:'',body:String(text||'')};
 }
-function TeamFeed({form,meta,currentUser,onAdd,onComplete,onEdit,style}){
+function TeamFeed({form,meta,currentUser,onAdd,onComplete,onEdit,onReplyComplete,style}){
   const myKey=_UF_KEY[currentUser]||'';
   const colorByKey=k=>(meta.find(m=>m[1]===k)||[])[2]||'#7a6a58';
   const feed=[];
@@ -878,18 +878,18 @@ function TeamFeed({form,meta,currentUser,onAdd,onComplete,onEdit,style}){
   });
   feed.sort((a,b)=>a.t-b.t);
 
-  const defaultTarget=((meta.find(m=>m[1]!==myKey)||meta[0])||['','yossi'])[1];
   const [msg,setMsg]=React.useState('');
   const [quote,setQuote]=React.useState('');
-  const [target,setTarget]=React.useState(defaultTarget);
+  const [replyTo,setReplyTo]=React.useState(null);
+  const [target,setTarget]=React.useState('');
   const [editKey,setEditKey]=React.useState(null);
   const [editVal,setEditVal]=React.useState('');
   const feedRef=React.useRef(null);
   const composerRef=React.useRef(null);
   React.useEffect(()=>{const el=feedRef.current;if(el)el.scrollTop=el.scrollHeight;},[feed.length]);
 
-  const send=()=>{const t=msg.trim();if(!t)return;const full=quote?(QUOTE_OPEN+quote+QUOTE_CLOSE+'\n'+t):t;onAdd(target,full);setMsg('');setQuote('');};
-  const reply=(it)=>{const k=_UF_KEY[it.user];if(k)setTarget(k);const flat=String(parseQuote(it.text).body||'').replace(/\s+/g,' ').trim();const snip=flat.slice(0,90)+(flat.length>90?'…':'');setQuote((it.user?it.user+': ':'')+snip);if(composerRef.current)composerRef.current.scrollIntoView({behavior:'smooth',block:'nearest'});};
+  const send=(alsoComplete)=>{const t=msg.trim();if(!t||!target)return;const full=quote?(QUOTE_OPEN+quote+QUOTE_CLOSE+'\n'+t):t;if(alsoComplete&&replyTo)onReplyComplete(target,full,replyTo.key,replyTo.line);else onAdd(target,full);setMsg('');setQuote('');setReplyTo(null);};
+  const reply=(it)=>{const k=_UF_KEY[it.user];if(k)setTarget(k);const flat=String(parseQuote(it.text).body||'').replace(/\s+/g,' ').trim();const snip=flat.slice(0,90)+(flat.length>90?'…':'');setQuote((it.user?it.user+': ':'')+snip);setReplyTo({key:it.key,line:it.line});if(composerRef.current)composerRef.current.scrollIntoView({behavior:'smooth',block:'nearest'});};
   const saveEdit=(it,q)=>{const newText=q?(QUOTE_OPEN+q+QUOTE_CLOSE+'\n'+editVal):editVal;const nl=buildStampedLine(it,newText);if(nl&&nl!==it.line&&onEdit)onEdit(it.key,it.line,nl);setEditKey(null);setEditVal('');};
 
   return(
@@ -922,11 +922,12 @@ function TeamFeed({form,meta,currentUser,onAdd,onComplete,onEdit,style}){
       <div ref={composerRef} style={{border:'1px solid #ddd0bb',borderRadius:9,background:'#fff',padding:'9px 11px'}}>
         {quote&&<div style={{display:'flex',alignItems:'flex-start',gap:8,background:'#f5f0e6',borderRight:'3px solid #d8cdbb',borderRadius:'0 6px 6px 0',padding:'5px 9px',marginBottom:7,fontSize:12,color:'#8a7a68'}}>
           <span style={{flex:1,minWidth:0,lineHeight:1.4,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>↩ {quote}</span>
-          <button onClick={()=>setQuote('')} title="הסר ציטוט" style={{background:'none',border:'none',cursor:'pointer',color:'#9a8e84',fontSize:14,padding:0,lineHeight:1,flexShrink:0}}>✕</button>
+          <button onClick={()=>{setQuote('');setReplyTo(null);}} title="הסר ציטוט" style={{background:'none',border:'none',cursor:'pointer',color:'#9a8e84',fontSize:14,padding:0,lineHeight:1,flexShrink:0}}>✕</button>
         </div>}
         <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:7,fontSize:12,color:'#7a6a58'}}>
           <span>מיועד ל:</span>
-          <select value={target} onChange={e=>setTarget(e.target.value)} style={{fontFamily:'inherit',fontSize:13,padding:'4px 8px',borderRadius:7,border:'1px solid #ddd0bb',background:'#fdfbf6',color:'#3a3228',cursor:'pointer'}}>
+          <select value={target} onChange={e=>setTarget(e.target.value)} style={{fontFamily:'inherit',fontSize:13,padding:'4px 8px',borderRadius:7,border:'1px solid #ddd0bb',background:'#fdfbf6',color:target?'#3a3228':'#9a8e84',cursor:'pointer'}}>
+            <option value="">— בחר —</option>
             {meta.map(([l,k])=><option key={k} value={k}>{l}</option>)}
           </select>
         </div>
@@ -934,7 +935,13 @@ function TeamFeed({form,meta,currentUser,onAdd,onComplete,onEdit,style}){
           <div style={{flex:1,minWidth:0}}>
             <RichEditor value={msg} onChange={setMsg} placeholder="כתוב הודעה..." style={{border:'1px solid #e6ddcd',borderRadius:8,background:'#fdfbf6',padding:'8px 10px',fontSize:13,color:'#1a1510',width:'100%'}}/>
           </div>
-          <button onClick={send} disabled={!msg.trim()} style={{flexShrink:0,background:msg.trim()?GOLD:'#e6ddcd',color:msg.trim()?'#1a0e00':'#b3a898',border:'none',borderRadius:8,padding:'9px 18px',fontSize:13,fontWeight:600,cursor:msg.trim()?'pointer':'not-allowed',fontFamily:'inherit'}}>שלח</button>
+          {(quote&&replyTo)
+            ? (()=>{const ok=msg.trim()&&target;return(
+                <div style={{display:'flex',gap:6,flexShrink:0}}>
+                  <button onClick={()=>send(false)} disabled={!ok} style={{background:'#fff',color:ok?'#7a6a58':'#c4b8a6',border:`1px solid ${ok?'#ddd0bb':'#ece4d6'}`,borderRadius:8,padding:'9px 14px',fontSize:13,fontWeight:600,cursor:ok?'pointer':'not-allowed',fontFamily:'inherit',whiteSpace:'nowrap'}}>הגב</button>
+                  <button onClick={()=>send(true)} disabled={!ok} style={{background:ok?GOLD:'#e6ddcd',color:ok?'#1a0e00':'#b3a898',border:'none',borderRadius:8,padding:'9px 14px',fontSize:13,fontWeight:600,cursor:ok?'pointer':'not-allowed',fontFamily:'inherit',whiteSpace:'nowrap'}}>הגב וסמן בוצע</button>
+                </div>);})()
+            : <button onClick={()=>send(false)} disabled={!msg.trim()||!target} style={{flexShrink:0,background:(msg.trim()&&target)?GOLD:'#e6ddcd',color:(msg.trim()&&target)?'#1a0e00':'#b3a898',border:'none',borderRadius:8,padding:'9px 18px',fontSize:13,fontWeight:600,cursor:(msg.trim()&&target)?'pointer':'not-allowed',fontFamily:'inherit'}}>שלח</button>}
         </div>
       </div>
     </div>
@@ -1210,14 +1217,12 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,task
   const parts=project.name.replace(/\s*-\s*\d{5}\s*$/,'').split(' - ');
   const city=parts[0]||'';
 
-  // תצוגת משימות בכרטיס — לפי הגדרה (שלי בלבד / כל הצוות)
-  const _myKey={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'}[_currentUserName];
-  const _showAllTasks=taskScope==='team';
+  // תצוגת משימות בכרטיס — כל הצוות רואה את הכל
   const tasks=[
     {n:'יוסי',v:splitTasks(project.yossi).map(t=>t.text).join(' · '),c:'#607060',k:'yossi'},
     {n:'מיכאל',v:splitTasks(project.michael).map(t=>t.text).join(' · '),c:GOLD,k:'michael'},
     {n:'פייגי',v:splitTasks(project.feigi).map(t=>t.text).join(' · '),c:'#8c6239',k:'feigi'},
-  ].filter(t=>t.v&&(_showAllTasks||!_myKey||t.k===_myKey));
+  ].filter(t=>t.v);
 
   const checks=[
     {l:'מקדמה',v:project.advance},{l:'מסמכים',v:project.docs},{l:'דף ביקור',v:project.visitSheet},
@@ -1351,7 +1356,6 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const [visitDateErr,setVisitDateErr]=useState(false);
   const [confirmKtiva,setConfirmKtiva]=useState(false);
   const [feigaReminder,setFeigaReminder]=useState(false);
-  const [tasksExpanded,setTasksExpanded]=useState((taskScope||'mine')==='team');
   const [histOpen,setHistOpen]=useState(false);
   const pendingStatusRef=useRef(null);
   const savingRef=useRef(false);
@@ -1493,6 +1497,23 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
       if(idx>=0)lines[idx]=newLine;
       const next={...f,[field]:lines.map(l=>l.trim()).filter(Boolean).join('\n')};
       formRef.current=next;return next;
+    });
+    autoSave();
+  };
+  // הגב וסמן בוצע: מוסיף תגובה לנמען ומסמן את המשימה המקורית כבוצעה — בעדכון state יחיד
+  const doReplyComplete=(targetField,text,completeField,completeLine)=>{
+    if(!text||!text.trim())return;
+    const stamped=stampTask(text,_currentUserName);
+    dirtyRef.current=true;
+    setForm(f=>{
+      const next={...f};
+      const ex=String(next[targetField]||'').trim();
+      next[targetField]=ex?ex+'\n'+stamped:stamped;
+      const {newField,historyEntry}=computeCompletion(next,completeField,completeLine,_currentUserName);
+      next[completeField]=newField;
+      next.taskHistory=appendHistory(next.taskHistory,historyEntry);
+      formRef.current=next;
+      return next;
     });
     autoSave();
   };
@@ -1656,29 +1677,18 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             </div>
             <div style={sec}>
               {(()=>{
-                const _uf={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'};
-                const myKey=_uf[_currentUserName];
                 const meta=[['יוסי','yossi','#607060'],['מיכאל','michael',GOLD],['פייגי','feigi','#8c6239']];
                 return(<>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
-                    <SectionTitle icon="📋">{tasksExpanded?'משימות — כל הצוות':'המשימות שלי'}</SectionTitle>
-                    <button onClick={()=>setTasksExpanded(x=>!x)}
-                      style={{background:'none',border:'1px solid #ddd0bb',borderRadius:8,cursor:'pointer',fontSize:12,padding:'4px 11px',color:'#7a6a58',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                      {tasksExpanded?'▲ הצג רק את שלי':'▼ הצג את כל הצוות'}</button>
+                  <div style={{marginBottom:6}}>
+                    <SectionTitle icon="📋">משימות</SectionTitle>
                   </div>
-                  {!tasksExpanded
-                    ? (myKey
-                        ? (isGeneralTask
-                            ? <TaskWidget value={form[myKey]||''} onChange={v=>set(myKey,v)} onBlur={autoSave} style={iS}/>
-                            : <TaskChecklist value={form[myKey]||''} onComplete={line=>doCompleteTask(myKey,line)} onAdd={(t,d)=>doAddTask(myKey,t,d)} onEdit={(o,n)=>doEditTask(myKey,o,n)} style={iS}/>)
-                        : <div style={{fontSize:13,color:'#9a8e84'}}>לא זוהה משתמש מוכר — לחץ "הצג את כל הצוות"</div>)
-                    : (isGeneralTask
-                        ? meta.map(([l,k,c])=>(
-                            <div key={k} style={{marginBottom:14}}><FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
-                              <TaskWidget value={form[k]||''} onChange={v=>set(k,v)} onBlur={autoSave} style={iS}/>
-                            </div>
-                          ))
-                        : <TeamFeed form={form} meta={meta} currentUser={_currentUserName} onAdd={doAddTask} onComplete={doCompleteTask} onEdit={doEditTask} style={iS}/>)}
+                  {isGeneralTask
+                    ? meta.map(([l,k,c])=>(
+                        <div key={k} style={{marginBottom:14}}><FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
+                          <TaskWidget value={form[k]||''} onChange={v=>set(k,v)} onBlur={autoSave} style={iS}/>
+                        </div>
+                      ))
+                    : <TeamFeed form={form} meta={meta} currentUser={_currentUserName} onAdd={doAddTask} onComplete={doCompleteTask} onEdit={doEditTask} onReplyComplete={doReplyComplete} style={iS}/>}
                 </>);
               })()}
             </div>
@@ -4064,24 +4074,6 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
         </div>
       </div>
       <div style={sec}>
-        {secTitle('✅','משימות')}
-        <div style={{fontSize:12,color:'#9a8e84',marginBottom:12}}>בחר אילו משימות יוצגו כברירת מחדל — שלך בלבד או של כל הצוות</div>
-        <div style={row}><span style={lbl}>בפאנל התיק</span>
-          <div style={{display:'flex',gap:6}}>
-            {[['mine','שלי בלבד'],['team','כל הצוות']].map(([val,label])=>(
-              <button key={val} onClick={()=>onSetting('taskDetailScope',val)} style={{padding:'5px 14px',borderRadius:20,border:`1.5px solid ${(settings?.taskDetailScope??'mine')===val?GOLD:'#ddd0bb'}`,background:(settings?.taskDetailScope??'mine')===val?'#fef9e8':'#fff',color:(settings?.taskDetailScope??'mine')===val?GOLD3:'#6b5e50',cursor:'pointer',fontSize:13,fontWeight:(settings?.taskDetailScope??'mine')===val?700:400,transition:'all 0.15s',fontFamily:'Rubik,sans-serif'}}>{label}</button>
-            ))}
-          </div>
-        </div>
-        <div style={{...row,marginBottom:0}}><span style={lbl}>בכרטיס (תצוגה חיצונית)</span>
-          <div style={{display:'flex',gap:6}}>
-            {[['mine','שלי בלבד'],['team','כל הצוות']].map(([val,label])=>(
-              <button key={val} onClick={()=>onSetting('taskCardScope',val)} style={{padding:'5px 14px',borderRadius:20,border:`1.5px solid ${(settings?.taskCardScope??'mine')===val?GOLD:'#ddd0bb'}`,background:(settings?.taskCardScope??'mine')===val?'#fef9e8':'#fff',color:(settings?.taskCardScope??'mine')===val?GOLD3:'#6b5e50',cursor:'pointer',fontSize:13,fontWeight:(settings?.taskCardScope??'mine')===val?700:400,transition:'all 0.15s',fontFamily:'Rubik,sans-serif'}}>{label}</button>
-            ))}
-          </div>
-        </div>
-      </div>
-      <div style={sec}>
         {secTitle('👤','נציג ברירת מחדל')}
         <div style={{fontSize:12,color:'#9a8e84',marginBottom:10}}>בעת כניסה, סנן אוטומטית לפי נציג זה</div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
@@ -4408,7 +4400,6 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
   const me=USER_BY_EMAIL[(user?.email||'').toLowerCase()]||_currentUserName||'';
   const USERS=['יוסי','מיכאל','פייגי'];
   const UF={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'};
-  const [showAll,setShowAll]=React.useState(false);
   const [showForm,setShowForm]=React.useState(false);
   const [assignee,setAssignee]=React.useState('');
   const [mode,setMode]=React.useState('case'); // 'case' | 'general'
@@ -4442,7 +4433,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
     return out;
   },[projects]);
 
-  const shown=entries.filter(e=>showAll||e.assignee===me);
+  const shown=entries;
   const sorted=[...shown].sort((a,b)=>{
     const da=a._dueD?a._dueD.getTime():Infinity,db=b._dueD?b._dueD.getTime():Infinity;
     if(da!==db)return da-db;
@@ -4493,16 +4484,12 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
       <div style={{marginBottom:20,display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
         <div>
           <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:'#1a1510'}}>✅ משימות</h2>
-          <div style={{fontSize:13,color:'#9a8e84',marginTop:4}}>{showAll?'כל הצוות':'המשימות שלי'} · {sorted.length} משימות</div>
+          <div style={{fontSize:13,color:'#9a8e84',marginTop:4}}>{sorted.length} משימות</div>
         </div>
         <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
           <button onClick={()=>setShowForm(s=>!s)}
             style={{background:showForm?'#fff':GOLD,color:showForm?GOLD3:'#fff',border:`1px solid ${GOLD}`,borderRadius:10,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>
             {showForm?'✕ סגור':'➕ פתיחת משימה חדשה'}</button>
-          <div style={{display:'flex',gap:6,background:'#f0ebe2',borderRadius:10,padding:3}}>
-            <button onClick={()=>setShowAll(false)} style={{border:'none',borderRadius:8,padding:'7px 14px',cursor:'pointer',fontSize:13,fontFamily:'inherit',fontWeight:500,background:!showAll?'#fff':'transparent',color:!showAll?GOLD3:'#7a6a58',boxShadow:!showAll?'0 1px 3px rgba(0,0,0,0.1)':'none'}}>שלי</button>
-            <button onClick={()=>setShowAll(true)} style={{border:'none',borderRadius:8,padding:'7px 14px',cursor:'pointer',fontSize:13,fontFamily:'inherit',fontWeight:500,background:showAll?'#fff':'transparent',color:showAll?GOLD3:'#7a6a58',boxShadow:showAll?'0 1px 3px rgba(0,0,0,0.1)':'none'}}>כל הצוות</button>
-          </div>
         </div>
       </div>
 
