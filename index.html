@@ -876,7 +876,12 @@ function TeamFeed({form,meta,currentUser,onAdd,onComplete,onEdit,onReplyComplete
       feed.push({...it,key,target:label,color:colorByKey(key),t:parseStampMs(it.stamp)});
     });
   });
-  feed.sort((a,b)=>a.t-b.t);
+  // מיון אישי: קודם המשימות שמיועדות למשתמש הנוכחי, אחר כך היתר — בכל קבוצה לפי זמן
+  feed.sort((a,b)=>{
+    const am=a.key===myKey?0:1, bm=b.key===myKey?0:1;
+    if(am!==bm)return am-bm;
+    return a.t-b.t;
+  });
 
   const [msg,setMsg]=React.useState('');
   const [quote,setQuote]=React.useState('');
@@ -886,7 +891,6 @@ function TeamFeed({form,meta,currentUser,onAdd,onComplete,onEdit,onReplyComplete
   const [editVal,setEditVal]=React.useState('');
   const feedRef=React.useRef(null);
   const composerRef=React.useRef(null);
-  React.useEffect(()=>{const el=feedRef.current;if(el)el.scrollTop=el.scrollHeight;},[feed.length]);
 
   const send=(alsoComplete)=>{const t=msg.trim();if(!t||!target)return;const full=quote?(QUOTE_OPEN+quote+QUOTE_CLOSE+'\n'+t):t;if(alsoComplete&&replyTo)onReplyComplete(target,full,replyTo.key,replyTo.line);else onAdd(target,full);setMsg('');setQuote('');setReplyTo(null);};
   const reply=(it)=>{const k=_UF_KEY[it.user];if(k)setTarget(k);const flat=String(parseQuote(it.text).body||'').replace(/\s+/g,' ').trim();const snip=flat.slice(0,90)+(flat.length>90?'…':'');setQuote((it.user?it.user+': ':'')+snip);setReplyTo({key:it.key,line:it.line});if(composerRef.current)composerRef.current.scrollIntoView({behavior:'smooth',block:'nearest'});};
@@ -897,13 +901,13 @@ function TeamFeed({form,meta,currentUser,onAdd,onComplete,onEdit,onReplyComplete
       <div ref={feedRef} style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto',marginBottom:12,paddingLeft:2}}>
         {feed.length===0&&<div style={{fontSize:13,color:'#9a8e84',textAlign:'center',padding:'14px 0'}}>אין עדיין הודעות בתיק זה — כתוב הודעה ראשונה למטה</div>}
         {feed.map((it,i)=>{
-          const mine=it.user===currentUser;
+          const isMine=it.key===myKey;
           const editing=editKey===(it.key+'|'+i);
           return(
-            <div key={it.key+'|'+i} style={{background:mine?'#fbf7ec':'#fffdf8',border:'1px solid #ece4d6',borderRight:`3px solid ${it.color}`,borderRadius:9,padding:'8px 11px'}}>
+            <div key={it.key+'|'+i} style={{background:isMine?'#fdf1cf':'#fffdf8',border:isMine?'1px solid #e6c65a':'1px solid #ece4d6',borderRight:`3px solid ${it.color}`,borderRadius:9,padding:'8px 11px',boxShadow:isMine?'0 1px 4px rgba(217,175,52,0.18)':'none'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,marginBottom:4,fontSize:11}}>
-                <span style={{fontWeight:600,color:it.color}}>{it.user||'—'}<span style={{color:'#b3a898',fontWeight:400}}> ‹ {it.target} ›</span></span>
-                <span style={{color:'#9a8e84',whiteSpace:'nowrap'}}>{it.stamp}</span>
+                <span style={{fontWeight:700,color:it.color}}>{it.target}</span>
+                <span style={{color:'#9a8e84',whiteSpace:'nowrap'}}>{it.user||'—'}{it.stamp?' · '+it.stamp:''}</span>
               </div>
               {(()=>{const pq=parseQuote(it.text);return editing
                 ? <RichEditor value={editVal} onChange={setEditVal} onBlur={()=>saveEdit(it,pq.quote)} autoFocus style={{border:'1px solid #ddd0bb',borderRadius:6,background:'#fff',padding:'6px 8px',fontSize:13,width:'100%'}}/>
