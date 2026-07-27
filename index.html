@@ -842,6 +842,90 @@ function TaskChecklist({value,onComplete,onAdd,onEdit,style}){
   );
 }
 
+// ═══════════════ TEAM FEED — פיד שיחה אחד לכל התיק ══════════════
+// ממזג את שלוש עמודות המשימות (יוסי/מיכאל/פייגי) לזרם כרונולוגי אחד,
+// כך שהודעה ותגובה עליה מופיעות יחד — עם ציון "מי → למי", הגבה וסימון בוצע.
+const _UF_KEY={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'};
+function parseStampMs(s){
+  const m=String(s||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+  if(!m)return 0;
+  return new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0)).getTime();
+}
+function buildStampedLine(it,newText){
+  const t=String(newText||'').trim();
+  if(!t)return null;
+  if(!it.stamp)return encodeTaskText(t);
+  let inner=it.stamp;
+  if(it.user)inner+=' | '+it.user;
+  if(it.due)inner+=' | 🎯'+it.due;
+  return encodeTaskText(t)+' ('+inner+')';
+}
+function TeamFeed({form,meta,currentUser,onAdd,onComplete,onEdit,style}){
+  const myKey=_UF_KEY[currentUser]||'';
+  const colorByKey=k=>(meta.find(m=>m[1]===k)||[])[2]||'#7a6a58';
+  const feed=[];
+  meta.forEach(([label,key])=>{
+    splitTasks(form[key]||'').forEach(it=>{
+      feed.push({...it,key,target:label,color:colorByKey(key),t:parseStampMs(it.stamp)});
+    });
+  });
+  feed.sort((a,b)=>a.t-b.t);
+
+  const defaultTarget=((meta.find(m=>m[1]!==myKey)||meta[0])||['','yossi'])[1];
+  const [msg,setMsg]=React.useState('');
+  const [target,setTarget]=React.useState(defaultTarget);
+  const [editKey,setEditKey]=React.useState(null);
+  const [editVal,setEditVal]=React.useState('');
+  const feedRef=React.useRef(null);
+  const composerRef=React.useRef(null);
+  React.useEffect(()=>{const el=feedRef.current;if(el)el.scrollTop=el.scrollHeight;},[feed.length]);
+
+  const send=()=>{const t=msg.trim();if(!t)return;onAdd(target,t);setMsg('');};
+  const reply=(author)=>{const k=_UF_KEY[author];if(k)setTarget(k);if(composerRef.current)composerRef.current.scrollIntoView({behavior:'smooth',block:'nearest'});};
+  const saveEdit=(it)=>{const nl=buildStampedLine(it,editVal);if(nl&&nl!==it.line&&onEdit)onEdit(it.key,it.line,nl);setEditKey(null);setEditVal('');};
+
+  return(
+    <div>
+      <div ref={feedRef} style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto',marginBottom:12,paddingLeft:2}}>
+        {feed.length===0&&<div style={{fontSize:13,color:'#9a8e84',textAlign:'center',padding:'14px 0'}}>אין עדיין הודעות בתיק זה — כתוב הודעה ראשונה למטה</div>}
+        {feed.map((it,i)=>{
+          const mine=it.user===currentUser;
+          const editing=editKey===(it.key+'|'+i);
+          return(
+            <div key={it.key+'|'+i} style={{background:mine?'#fbf7ec':'#fffdf8',border:'1px solid #ece4d6',borderRight:`3px solid ${it.color}`,borderRadius:9,padding:'8px 11px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,marginBottom:4,fontSize:11}}>
+                <span style={{fontWeight:600,color:it.color}}>{it.user||'—'}<span style={{color:'#b3a898',fontWeight:400}}> ‹ {it.target} ›</span></span>
+                <span style={{color:'#9a8e84',whiteSpace:'nowrap'}}>{it.stamp}</span>
+              </div>
+              {editing
+                ? <RichEditor value={editVal} onChange={setEditVal} onBlur={()=>saveEdit(it)} autoFocus style={{border:'1px solid #ddd0bb',borderRadius:6,background:'#fff',padding:'6px 8px',fontSize:13,width:'100%'}}/>
+                : <div onClick={()=>{setEditKey(it.key+'|'+i);setEditVal(it.text);}} title="לחץ לעריכה" style={{fontSize:13,color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word',cursor:'text'}}>{renderBold(it.text)}</div>}
+              <div style={{display:'flex',gap:14,marginTop:6}}>
+                <button onClick={()=>reply(it.user)} style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'#7a6a58',padding:0,fontFamily:'inherit',fontWeight:500}}>↩ הגב</button>
+                <button onClick={()=>onComplete(it.key,it.line)} style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'#16a34a',padding:0,fontFamily:'inherit',fontWeight:500}}>✓ בוצע</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div ref={composerRef} style={{border:'1px solid #ddd0bb',borderRadius:9,background:'#fff',padding:'9px 11px'}}>
+        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:7,fontSize:12,color:'#7a6a58'}}>
+          <span>מיועד ל:</span>
+          <select value={target} onChange={e=>setTarget(e.target.value)} style={{fontFamily:'inherit',fontSize:13,padding:'4px 8px',borderRadius:7,border:'1px solid #ddd0bb',background:'#fdfbf6',color:'#3a3228',cursor:'pointer'}}>
+            {meta.map(([l,k])=><option key={k} value={k}>{l}</option>)}
+          </select>
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
+          <div style={{flex:1,minWidth:0}}>
+            <RichEditor value={msg} onChange={setMsg} placeholder="כתוב הודעה..." style={{border:'1px solid #e6ddcd',borderRadius:8,background:'#fdfbf6',padding:'8px 10px',fontSize:13,color:'#1a1510',width:'100%'}}/>
+          </div>
+          <button onClick={send} disabled={!msg.trim()} style={{flexShrink:0,background:msg.trim()?GOLD:'#e6ddcd',color:msg.trim()?'#1a0e00':'#b3a898',border:'none',borderRadius:8,padding:'9px 18px',fontSize:13,fontWeight:600,cursor:msg.trim()?'pointer':'not-allowed',fontFamily:'inherit'}}>שלח</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════ PROJECT EXPANDED (inline accordion) ═════════════
 function ProjectExpanded({project,onSave,onCollapse,wide}){
   const [form,setForm]=useState({...project});
@@ -1573,13 +1657,13 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                             ? <TaskWidget value={form[myKey]||''} onChange={v=>set(myKey,v)} onBlur={autoSave} style={iS}/>
                             : <TaskChecklist value={form[myKey]||''} onComplete={line=>doCompleteTask(myKey,line)} onAdd={(t,d)=>doAddTask(myKey,t,d)} onEdit={(o,n)=>doEditTask(myKey,o,n)} style={iS}/>)
                         : <div style={{fontSize:13,color:'#9a8e84'}}>לא זוהה משתמש מוכר — לחץ "הצג את כל הצוות"</div>)
-                    : meta.map(([l,k,c])=>(
-                        <div key={k} style={{marginBottom:14}}><FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
-                          {isGeneralTask
-                            ? <TaskWidget value={form[k]||''} onChange={v=>set(k,v)} onBlur={autoSave} style={iS}/>
-                            : <TaskChecklist value={form[k]||''} onComplete={line=>doCompleteTask(k,line)} onAdd={(t,d)=>doAddTask(k,t,d)} onEdit={(o,n)=>doEditTask(k,o,n)} style={iS}/>}
-                        </div>
-                      ))}
+                    : (isGeneralTask
+                        ? meta.map(([l,k,c])=>(
+                            <div key={k} style={{marginBottom:14}}><FLabel><span style={{color:c,fontWeight:500}}>{l}</span></FLabel>
+                              <TaskWidget value={form[k]||''} onChange={v=>set(k,v)} onBlur={autoSave} style={iS}/>
+                            </div>
+                          ))
+                        : <TeamFeed form={form} meta={meta} currentUser={_currentUserName} onAdd={doAddTask} onComplete={doCompleteTask} onEdit={doEditTask} style={iS}/>)}
                 </>);
               })()}
             </div>
