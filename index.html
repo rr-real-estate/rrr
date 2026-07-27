@@ -860,6 +860,13 @@ function buildStampedLine(it,newText){
   if(it.due)inner+=' | 🎯'+it.due;
   return encodeTaskText(t)+' ('+inner+')';
 }
+// ציטוט בתוך תגובה: ⟪טקסט מצוטט⟫ + שורת תגובה. נשמר בטקסט ההודעה כדי לשמר הקשר.
+const QUOTE_OPEN='⟪', QUOTE_CLOSE='⟫';
+function parseQuote(text){
+  const m=String(text||'').match(/^⟪([\s\S]*?)⟫\n?([\s\S]*)$/);
+  if(m)return{quote:m[1],body:m[2]};
+  return{quote:'',body:String(text||'')};
+}
 function TeamFeed({form,meta,currentUser,onAdd,onComplete,onEdit,style}){
   const myKey=_UF_KEY[currentUser]||'';
   const colorByKey=k=>(meta.find(m=>m[1]===k)||[])[2]||'#7a6a58';
@@ -873,6 +880,7 @@ function TeamFeed({form,meta,currentUser,onAdd,onComplete,onEdit,style}){
 
   const defaultTarget=((meta.find(m=>m[1]!==myKey)||meta[0])||['','yossi'])[1];
   const [msg,setMsg]=React.useState('');
+  const [quote,setQuote]=React.useState('');
   const [target,setTarget]=React.useState(defaultTarget);
   const [editKey,setEditKey]=React.useState(null);
   const [editVal,setEditVal]=React.useState('');
@@ -880,9 +888,9 @@ function TeamFeed({form,meta,currentUser,onAdd,onComplete,onEdit,style}){
   const composerRef=React.useRef(null);
   React.useEffect(()=>{const el=feedRef.current;if(el)el.scrollTop=el.scrollHeight;},[feed.length]);
 
-  const send=()=>{const t=msg.trim();if(!t)return;onAdd(target,t);setMsg('');};
-  const reply=(author)=>{const k=_UF_KEY[author];if(k)setTarget(k);if(composerRef.current)composerRef.current.scrollIntoView({behavior:'smooth',block:'nearest'});};
-  const saveEdit=(it)=>{const nl=buildStampedLine(it,editVal);if(nl&&nl!==it.line&&onEdit)onEdit(it.key,it.line,nl);setEditKey(null);setEditVal('');};
+  const send=()=>{const t=msg.trim();if(!t)return;const full=quote?(QUOTE_OPEN+quote+QUOTE_CLOSE+'\n'+t):t;onAdd(target,full);setMsg('');setQuote('');};
+  const reply=(it)=>{const k=_UF_KEY[it.user];if(k)setTarget(k);const flat=String(parseQuote(it.text).body||'').replace(/\s+/g,' ').trim();const snip=flat.slice(0,90)+(flat.length>90?'…':'');setQuote((it.user?it.user+': ':'')+snip);if(composerRef.current)composerRef.current.scrollIntoView({behavior:'smooth',block:'nearest'});};
+  const saveEdit=(it,q)=>{const newText=q?(QUOTE_OPEN+q+QUOTE_CLOSE+'\n'+editVal):editVal;const nl=buildStampedLine(it,newText);if(nl&&nl!==it.line&&onEdit)onEdit(it.key,it.line,nl);setEditKey(null);setEditVal('');};
 
   return(
     <div>
@@ -897,11 +905,14 @@ function TeamFeed({form,meta,currentUser,onAdd,onComplete,onEdit,style}){
                 <span style={{fontWeight:600,color:it.color}}>{it.user||'—'}<span style={{color:'#b3a898',fontWeight:400}}> ‹ {it.target} ›</span></span>
                 <span style={{color:'#9a8e84',whiteSpace:'nowrap'}}>{it.stamp}</span>
               </div>
-              {editing
-                ? <RichEditor value={editVal} onChange={setEditVal} onBlur={()=>saveEdit(it)} autoFocus style={{border:'1px solid #ddd0bb',borderRadius:6,background:'#fff',padding:'6px 8px',fontSize:13,width:'100%'}}/>
-                : <div onClick={()=>{setEditKey(it.key+'|'+i);setEditVal(it.text);}} title="לחץ לעריכה" style={{fontSize:13,color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word',cursor:'text'}}>{renderBold(it.text)}</div>}
+              {(()=>{const pq=parseQuote(it.text);return editing
+                ? <RichEditor value={editVal} onChange={setEditVal} onBlur={()=>saveEdit(it,pq.quote)} autoFocus style={{border:'1px solid #ddd0bb',borderRadius:6,background:'#fff',padding:'6px 8px',fontSize:13,width:'100%'}}/>
+                : <div>
+                    {pq.quote&&<div style={{borderRight:'3px solid #d8cdbb',background:'#f5f0e6',borderRadius:'0 6px 6px 0',padding:'4px 9px',margin:'0 0 5px',fontSize:12,color:'#8a7a68',lineHeight:1.4,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>↩ {pq.quote}</div>}
+                    <div onClick={()=>{setEditKey(it.key+'|'+i);setEditVal(pq.body);}} title="לחץ לעריכה" style={{fontSize:13,color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word',cursor:'text'}}>{renderBold(pq.body)}</div>
+                  </div>;})()}
               <div style={{display:'flex',gap:14,marginTop:6}}>
-                <button onClick={()=>reply(it.user)} style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'#7a6a58',padding:0,fontFamily:'inherit',fontWeight:500}}>↩ הגב</button>
+                <button onClick={()=>reply(it)} style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'#7a6a58',padding:0,fontFamily:'inherit',fontWeight:500}}>↩ הגב</button>
                 <button onClick={()=>onComplete(it.key,it.line)} style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'#16a34a',padding:0,fontFamily:'inherit',fontWeight:500}}>✓ בוצע</button>
               </div>
             </div>
@@ -909,6 +920,10 @@ function TeamFeed({form,meta,currentUser,onAdd,onComplete,onEdit,style}){
         })}
       </div>
       <div ref={composerRef} style={{border:'1px solid #ddd0bb',borderRadius:9,background:'#fff',padding:'9px 11px'}}>
+        {quote&&<div style={{display:'flex',alignItems:'flex-start',gap:8,background:'#f5f0e6',borderRight:'3px solid #d8cdbb',borderRadius:'0 6px 6px 0',padding:'5px 9px',marginBottom:7,fontSize:12,color:'#8a7a68'}}>
+          <span style={{flex:1,minWidth:0,lineHeight:1.4,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>↩ {quote}</span>
+          <button onClick={()=>setQuote('')} title="הסר ציטוט" style={{background:'none',border:'none',cursor:'pointer',color:'#9a8e84',fontSize:14,padding:0,lineHeight:1,flexShrink:0}}>✕</button>
+        </div>}
         <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:7,fontSize:12,color:'#7a6a58'}}>
           <span>מיועד ל:</span>
           <select value={target} onChange={e=>setTarget(e.target.value)} style={{fontFamily:'inherit',fontSize:13,padding:'4px 8px',borderRadius:7,border:'1px solid #ddd0bb',background:'#fdfbf6',color:'#3a3228',cursor:'pointer'}}>
