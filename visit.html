@@ -47,6 +47,8 @@ function compressImage(file,maxDim,quality){
     const rd=new FileReader();rd.onload=e=>{img.src=e.target.result;};rd.readAsDataURL(file);
   });
 }
+const fileToDataURL=file=>new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=()=>res(null);r.readAsDataURL(file);});
+const MAX_VIDEO_MB=40;
 
 const DIVISION_OPTS=['סלון','מטבח','חדר','2 חדרים','3 חדרים','4 חדרים','חצי חדר','ממ"ד','חדר שינה הכולל יחידת הורים ובה שירותים ואמבטיה','חדר שינה הכולל יחידת הורים ובה שירותים ומקלחון','חדר רחצה הכולל שירותים ואמבטיה','חדר רחצה הכולל שירותים ומקלחון','חדר שירותים','2 חדרי שירותים','מרפסת שירות','מרפסת','חצר','מחסן'];
 const RESIDENT_FIXED=['שוכרים','ריק - לא מאוכלס'];
@@ -100,13 +102,20 @@ function App(){
   const [f,setF]=useState(blankForm);
   const [err,setErr]=useState('');
   const [photos,setPhotos]=useState([]);
+  const [progress,setProgress]=useState('');
   const set=(k,v)=>setF(s=>({...s,[k]:v}));
   const toggleMulti=(k,o)=>setF(s=>{const cur=s[k]||[];return {...s,[k]:cur.includes(o)?cur.filter(x=>x!==o):[...cur,o]};});
-  const onPickPhotos=async(e)=>{
-    const files=Array.from(e.target.files||[]); e.target.value='';
-    for(const file of files){
-      const data=await compressImage(file,1280,0.6);
-      if(data)setPhotos(ps=>ps.length>=20?ps:[...ps,{name:file.name,data}]);
+  const onPickFiles=async(e)=>{
+    const list=Array.from(e.target.files||[]); e.target.value=''; setErr('');
+    for(const file of list){
+      if(/^video\//.test(file.type)){
+        if(file.size>MAX_VIDEO_MB*1024*1024){setErr('סרטון גדול מדי (מעל '+MAX_VIDEO_MB+'MB): '+file.name);continue;}
+        const data=await fileToDataURL(file);
+        if(data)setPhotos(ps=>[...ps,{name:file.name,data,isVideo:true}]);
+      }else{
+        const data=await compressImage(file,2048,0.85);
+        if(data){const nm=(file.name.replace(/\.[^.]+$/,'')||'photo')+'.jpg';setPhotos(ps=>[...ps,{name:nm,data,isVideo:false}]);}
+      }
     }
   };
   const removePhoto=i=>setPhotos(ps=>ps.filter((_,j)=>j!==i));
@@ -220,12 +229,24 @@ function App(){
     if(!String(f.appraiserName||'').trim()){setErr('יש להזין את שם השמאי המבקר');window.scrollTo({top:0,behavior:'smooth'});return;}
     setStatus('submitting');
     try{
+      // 1) העלאת הקבצים אחד-אחד (הטוקן עדיין תקף)
+      let failed=0;
+      for(let i=0;i<photos.length;i++){
+        setProgress(`מעלה קובץ ${i+1} מתוך ${photos.length}…`);
+        try{
+          const r=await fetch(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'uploadFile',t:token,name:photos[i].name,data:photos[i].data})});
+          const j=await r.json(); if(!j||!j.ok)failed++;
+        }catch(_){failed++;}
+      }
+      // 2) שליחת שדות הטופס (מסמן את הטוקן כנוצל)
+      setProgress('שולח את הטופס…');
       const row=buildRow();
-      const r=await fetch(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'visitSubmit',t:token,row,photos:photos.map(p=>({name:p.name,data:p.data}))})});
+      const r=await fetch(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'visitSubmit',t:token,row})});
       const j=await r.json();
-      if(j&&j.ok){setStatus('done');window.scrollTo({top:0,behavior:'smooth'});}
+      setProgress('');
+      if(j&&j.ok){setStatus('done');if(failed>0)setErr(failed+' קבצים לא הועלו, אך הטופס נשלח.');window.scrollTo({top:0,behavior:'smooth'});}
       else{setStatus('ready');setErr((j&&j.reason)||'ההגשה נכשלה. ייתכן שהקישור פג או שכבר נשלח ביקור.');}
-    }catch(e){setStatus('ready');setErr('שגיאת תקשורת בשליחה. נסה שוב.');}
+    }catch(e){setProgress('');setStatus('ready');setErr('שגיאת תקשורת בשליחה. נסה שוב.');}
   };
 
   const wrap={maxWidth:720,margin:'0 auto',padding:'20px 16px 60px'};
@@ -276,16 +297,21 @@ function App(){
       <div style={card}>
         {VISIT_FIELDS.map(renderField)}
         {info&&info.photos&&<div style={{borderTop:'1px solid #f0ebe2',paddingTop:16,marginTop:8}}>
-          <div style={{fontSize:14,fontWeight:700,color:GOLD3,marginBottom:6}}>📷 תמונות מהביקור</div>
-          <div style={{fontSize:12.5,color:'#9a8e84',marginBottom:10}}>אפשר לצרף תמונות מהנכס (עד 20). התמונות נדחסות אוטומטית לפני ההעלאה.</div>
+          <div style={{fontSize:14,fontWeight:700,color:GOLD3,marginBottom:6}}>📷 תמונות וסרטונים מהביקור</div>
+          <div style={{fontSize:12.5,color:'#9a8e84',marginBottom:10}}>אפשר לצרף תמונות (באיכות גבוהה) וסרטונים מהנכס. סרטון עד {MAX_VIDEO_MB}MB לקובץ.</div>
           <label style={{display:'inline-block',border:`1.5px dashed ${GOLD}`,background:'#fff',color:GOLD3,borderRadius:9,padding:'10px 16px',cursor:'pointer',fontSize:14,fontWeight:600}}>
-            ➕ בחר תמונות
-            <input type="file" accept="image/*" multiple onChange={onPickPhotos} style={{display:'none'}}/>
+            ➕ בחר תמונות / סרטונים
+            <input type="file" accept="image/*,video/*" multiple onChange={onPickFiles} style={{display:'none'}}/>
           </label>
           {photos.length>0&&<div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:12}}>
             {photos.map((p,i)=>(
-              <div key={i} style={{position:'relative',width:84,height:84,borderRadius:8,overflow:'hidden',border:'1px solid #e0d8cc'}}>
-                <img src={p.data} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+              <div key={i} style={{position:'relative',width:84,height:84,borderRadius:8,overflow:'hidden',border:'1px solid #e0d8cc',background:'#f0ede8'}}>
+                {p.isVideo
+                  ? <div style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:3,padding:4}}>
+                      <span style={{fontSize:24}}>🎬</span>
+                      <span style={{fontSize:9,color:'#7a6a58',textAlign:'center',lineHeight:1.2,wordBreak:'break-word',maxHeight:24,overflow:'hidden'}}>{p.name}</span>
+                    </div>
+                  : <img src={p.data} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>}
                 <button onClick={()=>removePhoto(i)} style={{position:'absolute',top:2,right:2,background:'rgba(0,0,0,0.6)',color:'#fff',border:'none',borderRadius:'50%',width:20,height:20,cursor:'pointer',fontSize:12,lineHeight:1,padding:0}}>×</button>
               </div>
             ))}
@@ -294,7 +320,7 @@ function App(){
         <div style={{borderTop:'1px solid #f0ebe2',paddingTop:16,marginTop:8}}>
           <button onClick={submit} disabled={status==='submitting'}
             style={{width:'100%',background:status==='submitting'?'#e6ddcd':GOLD,color:status==='submitting'?'#b3a898':'#1a0e00',border:'none',borderRadius:11,padding:'14px',fontSize:16,fontWeight:700,cursor:status==='submitting'?'default':'pointer',fontFamily:'inherit'}}>
-            {status==='submitting'?'שולח…':'שליחת דף הביקור'}</button>
+            {status==='submitting'?(progress||'שולח…'):'שליחת דף הביקור'}</button>
         </div>
       </div>
     </div>
