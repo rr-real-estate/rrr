@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>דף ביקור בנכס | רובינשטיין רוזנטל שמאות</title>
+<link rel="icon" type="image/png" href="Logo_smol.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Rubik',sans-serif;background:#f0ede8;direction:rtl;color:#1a1510;font-size:14px;-webkit-font-smoothing:antialiased;min-height:100vh}
+input,select,textarea,button{font-family:'Rubik',sans-serif}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#d9af34 !important;box-shadow:0 0 0 3px rgba(217,175,52,0.15) !important}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// ═══ הגדרה: כתובת ה-Apps Script של העמוד החיצוני (החלף אחרי הפרסום) ═══
+const EXT_APPS_URL = 'https://script.google.com/macros/s/AKfycbwFh8IfiLYr_niS51XaA7W1G7kIhPfm3BfVE_uOUccMcnONnq2iaDDf1ncpAJTvMHVR/exec';
+
+const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400';
+const p2=n=>String(n).padStart(2,'0');
+const today=()=>{const d=new Date();return `${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`;};
+const toISO=v=>{const m=(v||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:'';};
+const fromISO=v=>{const m=(v||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:'';};
+
+const DIVISION_OPTS=['סלון','מטבח','חדר','2 חדרים','3 חדרים','4 חדרים','חצי חדר','ממ"ד','חדר שינה הכולל יחידת הורים ובה שירותים ואמבטיה','חדר שינה הכולל יחידת הורים ובה שירותים ומקלחון','חדר רחצה הכולל שירותים ואמבטיה','חדר רחצה הכולל שירותים ומקלחון','חדר שירותים','2 חדרי שירותים','מרפסת שירות','מרפסת','חצר','מחסן'];
+const RESIDENT_FIXED=['שוכרים','ריק - לא מאוכלס'];
+
+// שדות זהים לדף הביקור הפנימי — פרט למספר תיק (מגיע מהטוקן) ולשמאי (שם חופשי)
+const VISIT_FIELDS=[
+  {sec:'זיהוי'},
+  {k:'appraiserName',l:'שם השמאי המבקר',t:'text',req:true},
+  {k:'gushVerify',l:'בוצע צילום מסך ממפות ישראל (שכבות גוש/חלקה) ואומת שהנכס בחלקה הנכונה',t:'check'},
+  {k:'visitDate',l:'תאריך ביקור',t:'date'},
+  {sec:'מיקום ומבנה'},
+  {k:'elevator',l:'מעלית',t:'enum',o:['יש','אין']},
+  {k:'floor',l:'קומה',t:'num'},
+  {k:'numFloors',l:'מספר קומות',t:'num'},
+  {k:'aptNum',l:'מספר דירה',t:'num'},
+  {sec:'נוכחים בביקור'},
+  {k:'presenter',l:'מציג הנכס',t:'text'},
+  {k:'presenterId',l:'ת.ז. מציג הנכס',t:'num'},
+  {k:'presenterRelation',l:'שייכות מציג הנכס',t:'enum',o:['בעלים','שוכר','מתווך','רוכש','עצמאי'],allowOther:true},
+  {k:'residents',l:'מתגוררים בנכס',t:'residents'},
+  {sec:'חלוקה'},
+  {k:'divisionLevels',l:'חלוקה - בחירה',t:'divisions'},
+  {k:'divisionFree',l:'פירוט חלוקה חופשי',t:'long'},
+  {k:'numRooms',l:'מספר חדרים',t:'num'},
+  {sec:'גימור'},
+  {k:'floorType',l:'סוג ריצוף',t:'multi',o:['קרמיקה','טראצו','שיש','דמוי פרקט','ללא']},
+  {k:'floorSize',l:'גודל ריצוף',t:'multi',o:['20/20','30/30','40/40','45/45','50/50','60/60','60/120','80/80','100/100','120/120','ללא']},
+  {k:'kitchenCabinets',l:'ארונות מטבח',t:'enum',o:['עיליים ותחתיים','תחתיים','ללא']},
+  {k:'sanitary',l:'כלים סניטריים',t:'enum',o:['בסיסיים','משודרגים','ללא']},
+  {k:'ceramicWalls',l:'אריחי קרמיקה בקירות חדרי רחצה',t:'enum',o:['חלקי','מלא','ללא']},
+  {k:'windows',l:'חלונות',t:'enum',o:['אלומיניום','עץ','ללא']},
+  {k:'interiorDoors',l:'דלתות פנים',t:'enum',o:['פולימר','עץ','ללא']},
+  {k:'ac',l:'מיזוג',t:'multi',o:['מיזוג עילי','מיזוג עילי בסלון ובחדרים','מיזוג עילי בסלון','מיזוג עילי בחדרים','מיזוג מרכזי VRF','מיזוג מיני מרכזי','ללא']},
+  {sec:'מצב ומידות'},
+  {k:'physical',l:'מצב פיזי',t:'enum',o:['משודרג','טוב','סביר','ירוד'],noOther:true},
+  {k:'maintenance',l:'מצב תחזוקתי',t:'enum',o:['משודרג','טוב','סביר','ירוד'],noOther:true},
+  {k:'locationMatch',l:'מיקום דירה תואם ל',t:'enum',o:['תשריט בית משותף','תשריט מכר','לא תואם','חלקה','מגרש']},
+  {k:'internalDivision',l:'חלוקה פנימית של הדירה',t:'enum',o:['תכנית היתר','תשריט בית משותף','תכנית אדריכלית','דף ביקור']},
+  {k:'internalDims',l:'מידות פנימיות',t:'text'},
+  {k:'buildingViolations',l:'חריגות בניה',t:'enum',o:['יש','אין'],noOther:true},
+  {k:'violationsDetail',l:'פירוט חריגות',t:'long',showIf:f=>f.buildingViolations==='יש'},
+];
+
+const blankForm=()=>({visitDate:today(),divisionLevels:[{name:'',items:[]}]});
+
+function App(){
+  const [token]=useState(()=>new URLSearchParams(location.search).get('t')||'');
+  const [status,setStatus]=useState('loading'); // loading|ready|invalid|submitting|done|error
+  const [info,setInfo]=useState(null); // {caseNum,address}
+  const [reason,setReason]=useState('');
+  const [f,setF]=useState(blankForm);
+  const [err,setErr]=useState('');
+  const set=(k,v)=>setF(s=>({...s,[k]:v}));
+  const toggleMulti=(k,o)=>setF(s=>{const cur=s[k]||[];return {...s,[k]:cur.includes(o)?cur.filter(x=>x!==o):[...cur,o]};});
+
+  useEffect(()=>{
+    if(!token){setStatus('invalid');setReason('חסר טוקן בקישור');return;}
+    (async()=>{
+      try{
+        const r=await fetch(EXT_APPS_URL+'?action=visitInfo&t='+encodeURIComponent(token));
+        const j=await r.json();
+        if(j&&j.ok){setInfo({caseNum:j.caseNum||'',address:j.address||''});setStatus('ready');}
+        else{setStatus('invalid');setReason(j&&j.reason?j.reason:'הקישור אינו תקף או שכבר נעשה בו שימוש');}
+      }catch(e){setStatus('invalid');setReason('שגיאת תקשורת בטעינת הקישור');}
+    })();
+  },[token]);
+
+  const iS={width:'100%',padding:'9px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:15,background:'#fffdf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
+  const fieldLabel=t=><div style={{fontSize:13,color:'#6b5e50',marginBottom:6,fontWeight:600,lineHeight:1.4}}>{t}</div>;
+  const optBtn=(active,onClick,label,key)=>(
+    <button key={key} type="button" onClick={onClick}
+      style={{border:`1.5px solid ${active?GOLD:'#ddd0bb'}`,background:active?`${GOLD}20`:'#fff',color:active?GOLD3:'#5a4e44',borderRadius:9,padding:'8px 14px',cursor:'pointer',fontSize:14,fontWeight:active?600:400,fontFamily:'inherit',transition:'all 0.12s'}}>{label}</button>
+  );
+  const lastName=(String(f.presenter||'').trim().split(/\s+/).filter(Boolean).pop()||'');
+  const familyLabel=lastName?('משפחת '+lastName):'משפחת';
+
+  const renderField=fl=>{
+    if(fl.sec)return <div key={fl.sec} style={{fontSize:14,fontWeight:700,color:GOLD3,margin:'20px 0 10px',paddingBottom:6,borderBottom:'1px solid #ede3d0'}}>{fl.sec}</div>;
+    if(fl.showIf&&!fl.showIf(f))return null;
+    const v=f[fl.k];
+    let inp;
+    if(fl.t==='text') inp=<input value={v||''} onChange={e=>set(fl.k,e.target.value)} style={iS}/>;
+    else if(fl.t==='num') inp=<input type="number" inputMode="decimal" value={v||''} onChange={e=>set(fl.k,e.target.value)} style={iS}/>;
+    else if(fl.t==='long') inp=<textarea value={v||''} onChange={e=>set(fl.k,e.target.value)} rows={2} style={{...iS,resize:'vertical',lineHeight:1.5}}/>;
+    else if(fl.t==='date') inp=<input type="date" value={toISO(v||'')} onChange={e=>set(fl.k,fromISO(e.target.value))} style={{...iS,cursor:'pointer'}}/>;
+    else if(fl.t==='check') inp=<button type="button" onClick={()=>set(fl.k,!v)} style={{border:`1.5px solid ${v?'#16a34a':'#ddd0bb'}`,background:v?'#f0fdf4':'#fff',color:v?'#15803d':'#6b5e50',borderRadius:9,padding:'9px 16px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:8}}>{v?'✓ בוצע':'סמן כבוצע'}</button>;
+    else if(fl.t==='enum'){
+      const canOther=!fl.noOther;
+      const otherActive=canOther&&(f[fl.k+'__oon']||(v&&!fl.o.includes(v)));
+      inp=<div>
+        <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
+          {fl.o.map(o=>optBtn(v===o,()=>setF(s=>({...s,[fl.k]:s[fl.k]===o?'':o,[fl.k+'__oon']:false})),o,o))}
+          {canOther&&optBtn(otherActive,()=>setF(s=>{const act=s[fl.k+'__oon']||(s[fl.k]&&!fl.o.includes(s[fl.k]));return act?{...s,[fl.k+'__oon']:false,[fl.k]:''}:{...s,[fl.k+'__oon']:true,[fl.k]:fl.o.includes(s[fl.k])?'':(s[fl.k]||'')};}),'אחר','__o')}
+        </div>
+        {otherActive&&<input value={fl.o.includes(v)?'':(v||'')} onChange={e=>set(fl.k,e.target.value)} placeholder="הקלד..." style={{...iS,marginTop:8,fontSize:14}}/>}
+      </div>;
+    }
+    else if(fl.t==='residents'){
+      const isFam=v==='__family__';
+      const otherActive=f['residents__oon']||(v&&v!=='__family__'&&!RESIDENT_FIXED.includes(v));
+      inp=<div>
+        <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
+          {optBtn(isFam,()=>setF(s=>({...s,residents:s.residents==='__family__'?'':'__family__',residents__oon:false})),familyLabel,'fam')}
+          {RESIDENT_FIXED.map(o=>optBtn(v===o,()=>setF(s=>({...s,residents:s.residents===o?'':o,residents__oon:false})),o,o))}
+          {optBtn(otherActive,()=>setF(s=>{const act=s['residents__oon']||(s.residents&&s.residents!=='__family__'&&!RESIDENT_FIXED.includes(s.residents));return act?{...s,residents__oon:false,residents:''}:{...s,residents__oon:true,residents:(['__family__',...RESIDENT_FIXED].includes(s.residents)?'':(s.residents||''))};}),'אחר','__o')}
+        </div>
+        {otherActive&&<input value={(v&&v!=='__family__'&&!RESIDENT_FIXED.includes(v))?v:''} onChange={e=>set('residents',e.target.value)} placeholder="הקלד..." style={{...iS,marginTop:8,fontSize:14}}/>}
+      </div>;
+    }
+    else if(fl.t==='multi'){
+      const cur=v||[];const canOther=!fl.noOther;const otherActive=canOther&&f[fl.k+'__oon'];
+      inp=<div>
+        <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
+          {fl.o.map(o=>optBtn(cur.includes(o),()=>toggleMulti(fl.k,o),o,o))}
+          {canOther&&optBtn(otherActive,()=>setF(s=>{const on=!s[fl.k+'__oon'];return on?{...s,[fl.k+'__oon']:true}:{...s,[fl.k+'__oon']:false,[fl.k+'__oth']:''};}),'אחר','__o')}
+        </div>
+        {otherActive&&<input value={f[fl.k+'__oth']||''} onChange={e=>set(fl.k+'__oth',e.target.value)} placeholder="הקלד..." style={{...iS,marginTop:8,fontSize:14}}/>}
+      </div>;
+    }
+    else if(fl.t==='divisions'){
+      const levels=(v&&v.length)?v:[{name:'',items:[]}];
+      const setLevels=upd=>set(fl.k,upd);
+      const toggleItem=(li,room)=>setLevels(levels.map((lv,j)=>j===li?{...lv,items:(lv.items||[]).includes(room)?(lv.items||[]).filter(x=>x!==room):[...(lv.items||[]),room]}:lv));
+      const setName=(li,name)=>setLevels(levels.map((lv,j)=>j===li?{...lv,name}:lv));
+      const addLevel=()=>setLevels([...levels,{name:'',items:[]}]);
+      const removeLevel=li=>setLevels(levels.filter((_,j)=>j!==li));
+      inp=<div>
+        {levels.map((lv,li)=>(
+          <div key={li} style={li>0?{marginTop:10,padding:'10px 12px',border:'1px solid #ede8e0',borderRadius:10,background:'#fdfaf5'}:{marginBottom:6}}>
+            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
+              <input value={lv.name||''} onChange={e=>setName(li,e.target.value)} placeholder={li===0?'שם קומה / מפלס (אופציונלי)':'שם קומה / מפלס (למשל קומת כניסה)'} style={{...iS,fontSize:14,flex:1}}/>
+              {li>0&&<button type="button" onClick={()=>removeLevel(li)} title="הסר קומה" style={{background:'none',border:'none',cursor:'pointer',color:'#c0392b',fontSize:16,lineHeight:1}}>🗑</button>}
+            </div>
+            <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>{DIVISION_OPTS.map(o=>optBtn((lv.items||[]).includes(o),()=>toggleItem(li,o),o,o))}</div>
+          </div>
+        ))}
+        <button type="button" onClick={addLevel} style={{marginTop:10,border:`1.5px dashed ${GOLD}`,background:'#fff',color:GOLD3,borderRadius:9,padding:'8px 14px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>➕ הוסף קומה / מפלס</button>
+      </div>;
+    }
+    return <div key={fl.k} style={{marginBottom:14}}>{fieldLabel(fl.l+(fl.req?' *':''))}{inp}</div>;
+  };
+
+  const buildRow=()=>{
+    const d=new Date();
+    const ts=`${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+    const jm=k=>[...(f[k]||[]),String(f[k+'__oth']||'').trim()].filter(x=>x&&String(x).trim()).join(', ');
+    const residentsOut=f.residents==='__family__'?familyLabel:(f.residents||'');
+    const oVal=(f.divisionLevels||[]).map(lv=>{const items=(lv.items||[]).join(', ');if(!items)return '';return (lv.name||'').trim()?((lv.name||'').trim()+': '+items):items;}).filter(Boolean).join(', ');
+    const pVal=f.divisionFree||'';
+    const qVal=[oVal,pVal].filter(x=>String(x).trim()).join(', ');
+    const row=[ts,(info&&info.caseNum)||'','אחר',f.appraiserName||'',f.gushVerify?'בוצע':'',f.visitDate||'',
+      f.elevator||'',f.floor||'',f.numFloors||'',f.aptNum||'',f.presenter||'',f.presenterId||'',
+      f.presenterRelation||'',residentsOut,oVal,pVal,qVal,
+      f.numRooms||'',jm('floorType'),jm('floorSize'),f.kitchenCabinets||'',f.sanitary||'',f.ceramicWalls||'',
+      f.windows||'',f.interiorDoors||'',jm('ac'),f.physical||'',f.maintenance||'',f.locationMatch||'',
+      f.internalDivision||'',f.internalDims||'',f.buildingViolations||'',f.violationsDetail||''];
+    return [...row,'שמאי חיצוני'];
+  };
+
+  const submit=async()=>{
+    setErr('');
+    if(!String(f.appraiserName||'').trim()){setErr('יש להזין את שם השמאי המבקר');window.scrollTo({top:0,behavior:'smooth'});return;}
+    setStatus('submitting');
+    try{
+      const row=buildRow();
+      const r=await fetch(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'visitSubmit',t:token,row})});
+      const j=await r.json();
+      if(j&&j.ok){setStatus('done');window.scrollTo({top:0,behavior:'smooth'});}
+      else{setStatus('ready');setErr((j&&j.reason)||'ההגשה נכשלה. ייתכן שהקישור פג או שכבר נשלח ביקור.');}
+    }catch(e){setStatus('ready');setErr('שגיאת תקשורת בשליחה. נסה שוב.');}
+  };
+
+  const wrap={maxWidth:720,margin:'0 auto',padding:'20px 16px 60px'};
+  const card={background:'#fff',borderRadius:16,padding:'20px 22px',marginBottom:16,boxShadow:'0 2px 12px rgba(0,0,0,0.06)',border:'1px solid #e8e0d4'};
+
+  if(status==='loading') return (
+    <div style={{...wrap,textAlign:'center',paddingTop:120}}>
+      <div style={{width:64,height:64,margin:'0 auto',borderRadius:'50%',border:'3px solid rgba(217,175,52,.18)',borderTopColor:GOLD,animation:'spin .9s linear infinite'}}/>
+      <div style={{marginTop:18,color:'#7a6a58'}}>טוען את פרטי הביקור…</div>
+    </div>
+  );
+
+  if(status==='invalid') return (
+    <div style={{...wrap,paddingTop:80}}>
+      <div style={{...card,textAlign:'center'}}>
+        <div style={{fontSize:40,marginBottom:10}}>🔒</div>
+        <div style={{fontSize:18,fontWeight:600,color:'#1a1510',marginBottom:8}}>הקישור אינו זמין</div>
+        <div style={{color:'#7a6a58',lineHeight:1.6}}>{reason||'הקישור אינו תקף, פג תוקפו, או שכבר נעשה בו שימוש. פנה למשרד לקבלת קישור חדש.'}</div>
+      </div>
+    </div>
+  );
+
+  if(status==='done') return (
+    <div style={{...wrap,paddingTop:80}}>
+      <div style={{...card,textAlign:'center',animation:'fadeIn .4s ease'}}>
+        <div style={{fontSize:46,marginBottom:10}}>✅</div>
+        <div style={{fontSize:19,fontWeight:600,color:'#15803d',marginBottom:8}}>דף הביקור נשלח בהצלחה</div>
+        <div style={{color:'#7a6a58',lineHeight:1.6}}>תודה. הביקור נשלח למשרד לבדיקה ואישור. אפשר לסגור את הדף.</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={wrap}>
+      <div style={{textAlign:'center',marginBottom:16}}>
+        <img src="Logo_smol.png" alt="" style={{width:66,height:66,borderRadius:14,boxShadow:'0 4px 16px rgba(0,0,0,.08)'}}/>
+        <h1 style={{fontSize:20,fontWeight:600,marginTop:12,color:'#1a1510'}}>דף ביקור בנכס</h1>
+        <div style={{fontSize:13,color:'#9a8e84',marginTop:2}}>רובינשטיין רוזנטל — שמאות מקרקעין</div>
+      </div>
+
+      <div style={{...card,background:'#fdf7e6',border:'1px solid '+GOLD}}>
+        <div style={{fontSize:12,color:'#8a7a58',marginBottom:2}}>כתובת הנכס לביקור</div>
+        <div style={{fontSize:17,fontWeight:600,color:GOLD3}}>{(info&&info.address)||'—'}</div>
+      </div>
+
+      {err&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',color:'#991b1b',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:13.5}}>{err}</div>}
+
+      <div style={card}>
+        {VISIT_FIELDS.map(renderField)}
+        <div style={{borderTop:'1px solid #f0ebe2',paddingTop:16,marginTop:8}}>
+          <button onClick={submit} disabled={status==='submitting'}
+            style={{width:'100%',background:status==='submitting'?'#e6ddcd':GOLD,color:status==='submitting'?'#b3a898':'#1a0e00',border:'none',borderRadius:11,padding:'14px',fontSize:16,fontWeight:700,cursor:status==='submitting'?'default':'pointer',fontFamily:'inherit'}}>
+            {status==='submitting'?'שולח…':'שליחת דף הביקור'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
