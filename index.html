@@ -3101,7 +3101,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
 }
 
 // ═══════════════ BOTTOM NAV (mobile only) ════════════════════════
-function BottomNav({view,setView,counts,onOpenDrawer,loading}){
+function BottomNav({view,setView,counts,onOpenDrawer,loading,visitPending}){
   const items=[
     {id:'__more',  icon:'☰', label:'עוד'},
     {id:'home',   icon:'🏠',label:'בית'},
@@ -3142,6 +3142,9 @@ function BottomNav({view,setView,counts,onOpenDrawer,loading}){
                 minWidth:16,textAlign:'center',lineHeight:'16px',height:16,
               }}>{item.count}</span>
             )}
+            {isMre&&(visitPending||0)>0&&(
+              <span style={{position:'absolute',top:5,right:'calc(50% - 15px)',background:'#e11d48',color:'#fff',borderRadius:10,minWidth:15,height:15,lineHeight:'15px',textAlign:'center',padding:'0 4px',fontSize:9,fontWeight:700}}>{visitPending}</span>
+            )}
             {loading&&active&&<Spinner size={10} color={GOLD} style={{position:'absolute',bottom:2,right:'calc(50% - 5px)'}}/>}
           </button>
         );
@@ -3151,7 +3154,7 @@ function BottomNav({view,setView,counts,onOpenDrawer,loading}){
 }
 
 // ═══════════════ SIDEBAR ══════════════════════════════════════════
-function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,onDrawerClose}){
+function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,onDrawerClose,visitPending}){
   const [logoSrc,setLogoSrc]=useState(CONFIG.LOGO_URL);
   const [logoErr,setLogoErr]=useState(false);
   const handleLogoErr=()=>{
@@ -3207,6 +3210,7 @@ function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,
               <span style={{fontSize:17,flexShrink:0}}>{item.icon}</span>
               <span style={{flex:1}}>{item.label}</span>
               {item.count>0&&<span style={{background:active?GOLD:`${GOLD}44`,color:active?BLACK:'#fff',borderRadius:20,padding:'1px 8px',fontSize:12,fontWeight:500}}>{item.count}</span>}
+              {item.id==='visit'&&(visitPending||0)>0&&<span title="ביקורים ממתינים לאישור" style={{background:'#e11d48',color:'#fff',borderRadius:20,minWidth:18,height:18,lineHeight:'18px',textAlign:'center',padding:'0 5px',fontSize:11,fontWeight:700}}>{visitPending}</span>}
               {loading&&active&&<Spinner size={13} color={GOLD}/>}
             </button>
           );
@@ -4901,11 +4905,19 @@ function VisitFormView({managed,user,isMobile,offline}){
     setLinkMsg('');
     try{
       const row34=(p.row||[]).slice(0,34); while(row34.length<34)row34.push('');
-      await api.append("'ביקורים'",[row34],MAAGAR_ID);                       // נכנס להיסטוריה
+      // כתיבה לשורה הפנויה הראשונה בגיליון "ביקורים" (כמו שמירת ביקור רגילה)
+      const colA=await api.get("'ביקורים'!A:A",MAAGAR_ID);
+      let target=colA.length+1;
+      for(let i=1;i<colA.length;i++){if(!(colA[i]&&String(colA[i][0]||'').trim())){target=i+1;break;}}
+      await api.put(`'ביקורים'!A${target}`,[row34],MAAGAR_ID);
+      // הפקת דוח PDF לתיקיית הפרויקט (כמו בשמירה רגילה)
+      const caseNum=row34[1]||'', dateStr=row34[5]||'';
+      const pairs=VISIT_COLS.map((label,idx)=>[label,row34[idx]||'']).filter((pr,idx)=>idx>0&&idx!==16&&String(pr[1]).trim()!=='');
+      try{fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'visitReport',tikNum:caseNum,dateStr,oldDateStr:'',pairs})}).catch(()=>{});}catch(_){}
       await api.put(`'ביקורים ממתינים'!AJ${p.rowNum}`,[['אושר']],MAAGAR_ID);  // סימון סטטוס
       setExtPending(list=>list.filter(x=>x.rowNum!==p.rowNum));
       loadHist();
-      setLinkMsg('✓ הביקור אושר ונכנס להיסטוריה');setTimeout(()=>setLinkMsg(''),3500);
+      setLinkMsg('✓ הביקור אושר, נכנס להיסטוריה והדוח מופק');setTimeout(()=>setLinkMsg(''),3500);
     }catch(e){setLinkMsg('שגיאה באישור: '+e.message);}
   };
   const rejectVisit=async(p)=>{
@@ -4924,7 +4936,11 @@ function VisitFormView({managed,user,isMobile,offline}){
       const e2=new Date();e2.setDate(e2.getDate()+14);
       const expiry=`${e2.getFullYear()}-${p2(e2.getMonth()+1)}-${p2(e2.getDate())}`;
       const nd=new Date();const nowStr=`${p2(nd.getDate())}/${p2(nd.getMonth()+1)}/${nd.getFullYear()}`;
-      await api.append("'קישורי ביקור'",[[token,cn,ad,expiry,false,nowStr]],MAAGAR_ID);
+      // מזהה תיקיית Drive של התיק (לשמירת תמונות) — נשלף מנתוני התיקים
+      const mc=(managed||[]).find(c=>String(c.caseNum||'').trim()===cn);
+      const drive=(mc&&mc.driveFolderLink)||'';
+      let fid='';const fm=drive.match(/\/folders\/([-\w]+)/);if(fm){fid=fm[1];}else{const gm=drive.match(/[-\w]{25,}/);if(gm)fid=gm[0];}
+      await api.append("'קישורי ביקור'",[[token,cn,ad,expiry,false,nowStr,fid]],MAAGAR_ID);
       const url=new URL('visit.html?t='+token,location.href).href;
       setLinkOut(url);
       try{await navigator.clipboard.writeText(url);setLinkMsg('✓ הקישור נוצר והועתק');}catch(_){setLinkMsg('✓ הקישור נוצר');}
@@ -5297,6 +5313,7 @@ function App(){
     };
   },[projects,managed]);
   const [loading,setLoading]=useState(false);
+  const [visitPending,setVisitPending]=useState(0);
   const [error,setError]=useState('');
   const [projects,setProjects]=useState([]);
   const [managed,setManaged]=useState([]);
@@ -5346,6 +5363,18 @@ function App(){
     const id=setInterval(()=>{if(!document.hidden)silentRefresh();},15000);
     return()=>clearInterval(id);
   },[token,silentRefresh]);
+  // ── ספירת ביקורים חיצוניים ממתינים לאישור (בדג' "לא נקרא") ──
+  const loadVisitPending=useCallback(async()=>{
+    try{const rows=await api.get("'ביקורים ממתינים'!AJ2:AJ",MAAGAR_ID);
+      setVisitPending((rows||[]).filter(r=>String((r&&r[0])||'').trim()==='ממתין').length);
+    }catch(_){}
+  },[]);
+  useEffect(()=>{
+    if(!token)return;
+    loadVisitPending();
+    const id=setInterval(()=>{if(!document.hidden)loadVisitPending();},30000);
+    return()=>clearInterval(id);
+  },[token,loadVisitPending]);
   // Heartbeat נוכחות — כל 30 שניות
   const updatePresence=useCallback(async(uName)=>{
     if(!uName||!api.token)return;
@@ -5526,9 +5555,9 @@ function App(){
   const onLogout=()=>{_stopTokenRefresh();api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);localStorage.removeItem('rrUserHint');};
   return(
     <div style={{display:'flex',height:'100vh',overflow:'hidden',background:'#f7f3ee',fontFamily:'Rubik,sans-serif',direction:'rtl'}}>
-      <Sidebar view={view} setView={setView} user={user} loading={loading} counts={counts}
+      <Sidebar view={view} setView={setView} user={user} loading={loading} counts={counts} visitPending={visitPending}
         onLogout={onLogout} isMobile={isMobile} drawerOpen={drawerOpen} onDrawerClose={()=>setDrawerOpen(false)}/>
-      {isMobile&&<BottomNav view={view} setView={setView} counts={counts} onOpenDrawer={()=>setDrawerOpen(true)} loading={loading}/>}
+      {isMobile&&<BottomNav view={view} setView={setView} counts={counts} onOpenDrawer={()=>setDrawerOpen(true)} loading={loading} visitPending={visitPending}/>}
       <div style={{
         flex:1,overflowY:'auto',overflowX:'hidden',
         marginRight:isMobile?0:232,
@@ -5552,7 +5581,7 @@ function App(){
         <div style={{position:'fixed',left:16,bottom:isMobile?84:24,zIndex:450,display:'flex',flexDirection:'column',gap:12,alignItems:'flex-start'}}>
           {[{id:'tasks',icon:'✅',label:'משימה'},{id:'visit',icon:'🏘️',label:'ביקור בנכס'}].map(fb=>(
             <button key={fb.id} onClick={()=>setView(fb.id)} title={fb.label}
-              style={{width:56,height:56,borderRadius:'50%',border:'none',background:`linear-gradient(135deg,${GOLD} 0%,${GOLD2} 100%)`,color:'#fff',cursor:'pointer',boxShadow:'0 5px 18px rgba(0,0,0,0.3)',fontSize:24,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit',padding:0}}>{fb.icon}</button>
+              style={{position:'relative',width:56,height:56,borderRadius:'50%',border:'none',background:`linear-gradient(135deg,${GOLD} 0%,${GOLD2} 100%)`,color:'#fff',cursor:'pointer',boxShadow:'0 5px 18px rgba(0,0,0,0.3)',fontSize:24,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit',padding:0}}>{fb.icon}{fb.id==='visit'&&(visitPending||0)>0&&<span style={{position:'absolute',top:-2,right:-2,background:'#e11d48',color:'#fff',borderRadius:'50%',minWidth:20,height:20,lineHeight:'20px',textAlign:'center',fontSize:11,fontWeight:700,border:'2px solid #f7f3ee'}}>{visitPending}</span>}</button>
           ))}
         </div>
       )}
