@@ -390,6 +390,30 @@ async function syncStatusToManaged(managedCases,projectName,newStatus,onUpdateCa
 
 // שליחת מייל חוסרי מסמכים — דרך Apps Script (רץ תחת office@yrr.co.il)
 const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycbx_r20bpxzfpDJzZxQy8Nk88Ex_Ql9i4PyRji28kOveJORxsJn84crheH8gGvZEiCQGMw/exec';
+// ── מנוע העלאה ישירה ל-Drive (session URI) עם נפילה ל-base64 ──
+const EXT_APPS_URL='https://script.google.com/macros/s/AKfycbwFh8IfiLYr_niS51XaA7W1G7kIhPfm3BfVE_uOUccMcnONnq2iaDDf1ncpAJTvMHVR/exec';
+function imgToBlob(file,maxDim,quality){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{let w=img.width,h=img.height;const sc=Math.min(1,maxDim/Math.max(w,h));w=Math.round(w*sc);h=Math.round(h*sc);
+      const c=document.createElement('canvas');c.width=w;c.height=h;const cx=c.getContext('2d');cx.imageSmoothingQuality='high';cx.drawImage(img,0,0,w,h);
+      c.toBlob(b=>resolve(b),'image/jpeg',quality);};
+    img.onerror=()=>resolve(null);
+    const rd=new FileReader();rd.onload=e=>{img.src=e.target.result;};rd.readAsDataURL(file);
+  });
+}
+function _blobToDataURL(blob){return new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=()=>res(null);r.readAsDataURL(blob);});}
+function _directPut(url,blob){return new Promise(resolve=>{try{const xhr=new XMLHttpRequest();xhr.open('PUT',url,true);xhr.setRequestHeader('Content-Type',blob.type||'application/octet-stream');xhr.onload=()=>resolve(xhr.status>=200&&xhr.status<300);xhr.onerror=()=>resolve(false);xhr.send(blob);}catch(_){resolve(false);}});}
+async function uploadOne(fileObj,gate){
+  try{const r=await fetch(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action:'startUpload',name:fileObj.name,mimeType:fileObj.blob.type||'application/octet-stream'},gate))});
+    const j=await r.json();
+    if(j&&j.ok&&j.uploadUrl){const ok=await _directPut(j.uploadUrl,fileObj.blob);if(ok)return true;}
+  }catch(_){}
+  try{const dataUrl=await _blobToDataURL(fileObj.blob);
+    const r=await fetch(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action:'uploadFile',name:fileObj.name,data:dataUrl},gate))});
+    const j=await r.json();return !!(j&&j.ok);
+  }catch(_){return false;}
+}
 async function sendMissingDocsEmailFn(upd,prev,managedCases){
   if(!upd.postVisitDocs||upd.postVisitDocs===prev.postVisitDocs)return;
   const match=managedCases.find(c=>c.folder&&c.folder.trim()===upd.name.trim());
@@ -4758,6 +4782,7 @@ function VisitFormView({managed,user,isMobile,offline}){
   const [zoom,setZoom]=React.useState(null);
   const [torch,setTorch]=React.useState(false);
   const [camRes,setCamRes]=React.useState('');
+  const [visitFiles,setVisitFiles]=React.useState([]);
   const videoRef=React.useRef(null);
   const streamRef=React.useRef(null);
   const trackRef=React.useRef(null);
@@ -4781,6 +4806,25 @@ function VisitFormView({managed,user,isMobile,offline}){
     img.onerror=()=>res('');
     img.src=src;
   });
+  // ── העלאת תמונות/סרטונים בסוף הביקור (ישירות ל-Drive) ──
+  const visitFileName=(isVideo,orig)=>{const d=new Date();const base='ביקור - '+(f.caseNum||'')+' - '+p2(d.getDate())+'-'+p2(d.getMonth()+1)+'-'+d.getFullYear()+' '+p2(d.getHours())+'-'+p2(d.getMinutes())+'-'+p2(d.getSeconds());return isVideo?(base+'.'+((String(orig||'').split('.').pop()||'mp4'))):(base+'.jpg');};
+  const onPickVisitFiles=async(e)=>{
+    const list=Array.from(e.target.files||[]); e.target.value='';
+    if(!String(f.caseNum||'').trim()){setCamMsg('בחר תיק לפני העלאה');setTimeout(()=>setCamMsg(''),4000);return;}
+    if(!driveFolderId){setCamMsg('לתיק זה אין תיקיית Drive — לא ניתן להעלות');setTimeout(()=>setCamMsg(''),4000);return;}
+    for(const file of list){
+      const isVideo=/^video\//.test(file.type);
+      let blob,url='';
+      if(isVideo){ if(file.size>200*1024*1024){setCamMsg('סרטון גדול מדי: '+file.name);setTimeout(()=>setCamMsg(''),4000);continue;} blob=file; }
+      else { blob=await imgToBlob(file,2560,0.9); if(!blob)continue; url=URL.createObjectURL(blob); }
+      const name=visitFileName(isVideo,file.name);
+      const item={name,url,isVideo,status:'uploading'};
+      setVisitFiles(fs=>[...fs,item]);
+      uploadOne({name,blob},{folderId:driveFolderId}).then(ok=>{
+        setVisitFiles(fs=>fs.map(x=>x===item?{...x,status:ok?'done':'failed'}:x));
+      });
+    }
+  };
   const openCam=()=>{
     if(!String(f.caseNum||'').trim()){setCamMsg('בחר תיק לפני צילום');setTimeout(()=>setCamMsg(''),3500);return;}
     if(!navigator.onLine){setCamMsg('צילום דורש חיבור לאינטרנט');setTimeout(()=>setCamMsg(''),3500);return;}
@@ -5125,12 +5169,7 @@ function VisitFormView({managed,user,isMobile,offline}){
 
   return(
     <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:760,margin:'0 auto'}}>
-      {/* כפתור מצלמה מרחף — פותח מצלמה מובנית */}
-      <button onClick={openCam} title="צילום תמונות לתיקייה"
-        style={{position:'fixed',top:isMobile?64:78,left:14,zIndex:460,width:56,height:56,borderRadius:'50%',border:'none',background:`linear-gradient(135deg,${GOLD} 0%,${GOLD2} 100%)`,color:'#fff',cursor:'pointer',boxShadow:'0 5px 18px rgba(0,0,0,0.3)',fontSize:24,display:'flex',alignItems:'center',justifyContent:'center'}}>📷</button>
-      {camMsg&&<div style={{position:'fixed',top:isMobile?126:140,left:14,zIndex:460,background:'#1a1510',color:'#fff',padding:'8px 12px',borderRadius:9,fontSize:12,maxWidth:230,boxShadow:'0 4px 14px rgba(0,0,0,0.25)'}}>{camMsg}</div>}
-      {/* מצלמה מובנית במסך מלא */}
-      <input ref={nativeRef} type="file" accept="image/*" capture="environment" multiple onChange={onNativePhotos} style={{display:'none'}}/>
+      {camMsg&&<div style={{position:'fixed',top:isMobile?70:84,left:14,zIndex:460,background:'#1a1510',color:'#fff',padding:'8px 12px',borderRadius:9,fontSize:12,maxWidth:230,boxShadow:'0 4px 14px rgba(0,0,0,0.25)'}}>{camMsg}</div>}
       {camOpen&&<div style={{position:'fixed',inset:0,zIndex:2000,background:'#000',display:'flex',flexDirection:'column'}}>
         <video ref={videoRef} autoPlay playsInline muted style={{flex:1,width:'100%',height:'100%',objectFit:'cover',background:'#000'}}/>
         {flash&&<div style={{position:'absolute',inset:0,background:'#fff',opacity:0.8}}/>}
@@ -5179,6 +5218,26 @@ function VisitFormView({managed,user,isMobile,offline}){
       </div>
       <div style={card}>
         {VISIT_FIELDS.map(renderField)}
+        {driveFolderId&&<div style={{borderTop:'1px solid #f0ebe2',paddingTop:16,marginTop:8}}>
+          <div style={{fontSize:14,fontWeight:700,color:GOLD3,marginBottom:6}}>📷 תמונות / סרטונים מהביקור</div>
+          <div style={{fontSize:12.5,color:'#9a8e84',marginBottom:10}}>צרף בסוף הביקור — נשמר ישירות לתיקיית "ביקור בנכס" של התיק. סרטון עד 200MB.</div>
+          <label style={{display:'inline-block',border:`1.5px dashed ${GOLD}`,background:'#fff',color:GOLD3,borderRadius:9,padding:'10px 16px',cursor:'pointer',fontSize:14,fontWeight:600}}>
+            ➕ בחר תמונות / סרטונים
+            <input type="file" accept="image/*,video/*" multiple onChange={onPickVisitFiles} style={{display:'none'}}/>
+          </label>
+          {visitFiles.length>0&&<div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:12}}>
+            {visitFiles.map((p,i)=>(
+              <div key={i} style={{position:'relative',width:84,height:84,borderRadius:8,overflow:'hidden',border:'1px solid #e0d8cc',background:'#f0ede8'}}>
+                {p.isVideo
+                  ? <div style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:3,padding:4}}><span style={{fontSize:24}}>🎬</span><span style={{fontSize:9,color:'#7a6a58',textAlign:'center',lineHeight:1.2,wordBreak:'break-word',maxHeight:24,overflow:'hidden'}}>{p.name}</span></div>
+                  : <img src={p.url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>}
+                {p.status==='uploading'&&<div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.35)'}}><Spinner size={20} color="#fff"/></div>}
+                {p.status==='done'&&<span style={{position:'absolute',bottom:2,left:2,background:'#16a34a',color:'#fff',borderRadius:'50%',width:18,height:18,lineHeight:'18px',textAlign:'center',fontSize:11}}>✓</span>}
+                {p.status==='failed'&&<span style={{position:'absolute',bottom:2,left:2,background:'#dc2626',color:'#fff',borderRadius:'50%',width:18,height:18,lineHeight:'18px',textAlign:'center',fontSize:11}}>!</span>}
+              </div>
+            ))}
+          </div>}
+        </div>}
         <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',marginTop:6,borderTop:'1px solid #f0ebe2',paddingTop:16}}>
           <button onClick={save} disabled={busy}
             style={{background:busy?'#c8bfb5':GOLD,color:'#fff',border:'none',borderRadius:10,padding:'12px 30px',cursor:busy?'default':'pointer',fontSize:15,fontWeight:600,fontFamily:'inherit'}}>
