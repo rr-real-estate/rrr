@@ -31,6 +31,22 @@ const p2=n=>String(n).padStart(2,'0');
 const today=()=>{const d=new Date();return `${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`;};
 const toISO=v=>{const m=(v||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:'';};
 const fromISO=v=>{const m=(v||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:'';};
+// דחיסת תמונה בצד הלקוח (הקטנה + JPEG) לפני העלאה
+function compressImage(file,maxDim,quality){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      let w=img.width,h=img.height;
+      if(w>=h){ if(w>maxDim){h=Math.round(h*maxDim/w);w=maxDim;} }
+      else { if(h>maxDim){w=Math.round(w*maxDim/h);h=maxDim;} }
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      resolve(c.toDataURL('image/jpeg',quality));
+    };
+    img.onerror=()=>resolve(null);
+    const rd=new FileReader();rd.onload=e=>{img.src=e.target.result;};rd.readAsDataURL(file);
+  });
+}
 
 const DIVISION_OPTS=['סלון','מטבח','חדר','2 חדרים','3 חדרים','4 חדרים','חצי חדר','ממ"ד','חדר שינה הכולל יחידת הורים ובה שירותים ואמבטיה','חדר שינה הכולל יחידת הורים ובה שירותים ומקלחון','חדר רחצה הכולל שירותים ואמבטיה','חדר רחצה הכולל שירותים ומקלחון','חדר שירותים','2 חדרי שירותים','מרפסת שירות','מרפסת','חצר','מחסן'];
 const RESIDENT_FIXED=['שוכרים','ריק - לא מאוכלס'];
@@ -83,8 +99,17 @@ function App(){
   const [reason,setReason]=useState('');
   const [f,setF]=useState(blankForm);
   const [err,setErr]=useState('');
+  const [photos,setPhotos]=useState([]);
   const set=(k,v)=>setF(s=>({...s,[k]:v}));
   const toggleMulti=(k,o)=>setF(s=>{const cur=s[k]||[];return {...s,[k]:cur.includes(o)?cur.filter(x=>x!==o):[...cur,o]};});
+  const onPickPhotos=async(e)=>{
+    const files=Array.from(e.target.files||[]); e.target.value='';
+    for(const file of files){
+      const data=await compressImage(file,1280,0.6);
+      if(data)setPhotos(ps=>ps.length>=20?ps:[...ps,{name:file.name,data}]);
+    }
+  };
+  const removePhoto=i=>setPhotos(ps=>ps.filter((_,j)=>j!==i));
 
   useEffect(()=>{
     if(!token){setStatus('invalid');setReason('חסר טוקן בקישור');return;}
@@ -92,7 +117,7 @@ function App(){
       try{
         const r=await fetch(EXT_APPS_URL+'?action=visitInfo&t='+encodeURIComponent(token));
         const j=await r.json();
-        if(j&&j.ok){setInfo({caseNum:j.caseNum||'',address:j.address||''});setStatus('ready');}
+        if(j&&j.ok){setInfo({caseNum:j.caseNum||'',address:j.address||'',photos:!!j.photos});setStatus('ready');}
         else{setStatus('invalid');setReason(j&&j.reason?j.reason:'הקישור אינו תקף או שכבר נעשה בו שימוש');}
       }catch(e){setStatus('invalid');setReason('שגיאת תקשורת בטעינת הקישור');}
     })();
@@ -196,7 +221,7 @@ function App(){
     setStatus('submitting');
     try{
       const row=buildRow();
-      const r=await fetch(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'visitSubmit',t:token,row})});
+      const r=await fetch(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'visitSubmit',t:token,row,photos:photos.map(p=>({name:p.name,data:p.data}))})});
       const j=await r.json();
       if(j&&j.ok){setStatus('done');window.scrollTo({top:0,behavior:'smooth'});}
       else{setStatus('ready');setErr((j&&j.reason)||'ההגשה נכשלה. ייתכן שהקישור פג או שכבר נשלח ביקור.');}
@@ -250,6 +275,22 @@ function App(){
 
       <div style={card}>
         {VISIT_FIELDS.map(renderField)}
+        {info&&info.photos&&<div style={{borderTop:'1px solid #f0ebe2',paddingTop:16,marginTop:8}}>
+          <div style={{fontSize:14,fontWeight:700,color:GOLD3,marginBottom:6}}>📷 תמונות מהביקור</div>
+          <div style={{fontSize:12.5,color:'#9a8e84',marginBottom:10}}>אפשר לצרף תמונות מהנכס (עד 20). התמונות נדחסות אוטומטית לפני ההעלאה.</div>
+          <label style={{display:'inline-block',border:`1.5px dashed ${GOLD}`,background:'#fff',color:GOLD3,borderRadius:9,padding:'10px 16px',cursor:'pointer',fontSize:14,fontWeight:600}}>
+            ➕ בחר תמונות
+            <input type="file" accept="image/*" multiple onChange={onPickPhotos} style={{display:'none'}}/>
+          </label>
+          {photos.length>0&&<div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:12}}>
+            {photos.map((p,i)=>(
+              <div key={i} style={{position:'relative',width:84,height:84,borderRadius:8,overflow:'hidden',border:'1px solid #e0d8cc'}}>
+                <img src={p.data} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                <button onClick={()=>removePhoto(i)} style={{position:'absolute',top:2,right:2,background:'rgba(0,0,0,0.6)',color:'#fff',border:'none',borderRadius:'50%',width:20,height:20,cursor:'pointer',fontSize:12,lineHeight:1,padding:0}}>×</button>
+              </div>
+            ))}
+          </div>}
+        </div>}
         <div style={{borderTop:'1px solid #f0ebe2',paddingTop:16,marginTop:8}}>
           <button onClick={submit} disabled={status==='submitting'}
             style={{width:'100%',background:status==='submitting'?'#e6ddcd':GOLD,color:status==='submitting'?'#b3a898':'#1a0e00',border:'none',borderRadius:11,padding:'14px',fontSize:16,fontWeight:700,cursor:status==='submitting'?'default':'pointer',fontFamily:'inherit'}}>
