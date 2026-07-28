@@ -4880,10 +4880,57 @@ function VisitFormView({managed,user,isMobile,offline}){
 
   const loadHist=React.useCallback(async()=>{
     try{const rows=await api.get("'ביקורים'!A2:AH",MAAGAR_ID);
-      const arr=(rows||[]).map((r,i)=>({rowNum:i+2,row:r,ts:r[0]||'',caseNum:r[1]||'',appraiser:r[2]||'',date:r[5]||'',web:(r[33]||'')==='אתר'})).filter(x=>x.web);
+      const arr=(rows||[]).map((r,i)=>({rowNum:i+2,row:r,ts:r[0]||'',caseNum:r[1]||'',appraiser:r[3]||r[2]||'',date:r[5]||'',web:['אתר','שמאי חיצוני'].includes(r[33]||''),ext:(r[33]||'')==='שמאי חיצוני'})).filter(x=>x.web);
       setHist(arr.reverse().slice(0,50));
     }catch(e){/* שקט */}
   },[]);
+  // ── ביקורים חיצוניים ממתינים לאישור ──
+  const [extPending,setExtPending]=React.useState([]);
+  const [linkCase,setLinkCase]=React.useState('');
+  const [linkAddr,setLinkAddr]=React.useState('');
+  const [linkOut,setLinkOut]=React.useState('');
+  const [linkBusy,setLinkBusy]=React.useState(false);
+  const [linkMsg,setLinkMsg]=React.useState('');
+  const loadPending=React.useCallback(async()=>{
+    try{const rows=await api.get("'ביקורים ממתינים'!A2:AK",MAAGAR_ID);
+      const arr=(rows||[]).map((r,i)=>({rowNum:i+2,row:r,caseNum:r[1]||'',appraiser:r[3]||r[2]||'',date:r[5]||'',ts:r[0]||'',token:r[34]||'',status:r[35]||'ממתין'})).filter(x=>String(x.status).trim()==='ממתין');
+      setExtPending(arr.reverse());
+    }catch(e){/* שקט */}
+  },[]);
+  const approveVisit=async(p)=>{
+    setLinkMsg('');
+    try{
+      const row34=(p.row||[]).slice(0,34); while(row34.length<34)row34.push('');
+      await api.append("'ביקורים'",[row34],MAAGAR_ID);                       // נכנס להיסטוריה
+      await api.put(`'ביקורים ממתינים'!AJ${p.rowNum}`,[['אושר']],MAAGAR_ID);  // סימון סטטוס
+      setExtPending(list=>list.filter(x=>x.rowNum!==p.rowNum));
+      loadHist();
+      setLinkMsg('✓ הביקור אושר ונכנס להיסטוריה');setTimeout(()=>setLinkMsg(''),3500);
+    }catch(e){setLinkMsg('שגיאה באישור: '+e.message);}
+  };
+  const rejectVisit=async(p)=>{
+    if(!window.confirm('לדחות ולהסיר את הביקור הממתין?'))return;
+    try{
+      await api.put(`'ביקורים ממתינים'!AJ${p.rowNum}`,[['נדחה']],MAAGAR_ID);
+      setExtPending(list=>list.filter(x=>x.rowNum!==p.rowNum));
+    }catch(e){setLinkMsg('שגיאה בדחייה: '+e.message);}
+  };
+  const genExternalLink=async()=>{
+    const cn=String(linkCase||'').trim(), ad=String(linkAddr||'').trim();
+    if(!cn){setLinkMsg('יש להזין מספר תיק');return;}
+    setLinkBusy(true);setLinkMsg('');setLinkOut('');
+    try{
+      const token=(Date.now().toString(36)+Math.random().toString(36).slice(2,12)+Math.random().toString(36).slice(2,12)).replace(/[^a-z0-9]/g,'');
+      const e2=new Date();e2.setDate(e2.getDate()+14);
+      const expiry=`${e2.getFullYear()}-${p2(e2.getMonth()+1)}-${p2(e2.getDate())}`;
+      const nd=new Date();const nowStr=`${p2(nd.getDate())}/${p2(nd.getMonth()+1)}/${nd.getFullYear()}`;
+      await api.append("'קישורי ביקור'",[[token,cn,ad,expiry,false,nowStr]],MAAGAR_ID);
+      const url=new URL('visit.html?t='+token,location.href).href;
+      setLinkOut(url);
+      try{await navigator.clipboard.writeText(url);setLinkMsg('✓ הקישור נוצר והועתק');}catch(_){setLinkMsg('✓ הקישור נוצר');}
+    }catch(e){setLinkMsg('שגיאה ביצירת הקישור: '+e.message);}
+    finally{setLinkBusy(false);}
+  };
   // ── סנכרון אוטומטי של ביקורים ממתינים ──
   const doSync=React.useCallback(async()=>{
     if(!navigator.onLine){setErr('אין חיבור לאינטרנט');setTimeout(()=>setErr(''),3000);return;}
@@ -4935,7 +4982,7 @@ function VisitFormView({managed,user,isMobile,offline}){
     fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'visitReport',tikNum:h.caseNum,dateStr:h.date,oldDateStr:h.date,pairs})}).catch(()=>{});
     setMsg('הדוח מופק מחדש ונשמר לתיקיית "ביקור בנכס" ✓');setTimeout(()=>setMsg(''),3500);
   };
-  React.useEffect(()=>{if(offline)return;loadHist();},[loadHist,offline]);
+  React.useEffect(()=>{if(offline)return;loadHist();loadPending();},[loadHist,loadPending,offline]);
 
   const iS={width:'100%',padding:'9px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:15,background:'#fffdf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
   const card={background:'#fff',borderRadius:16,padding:isMobile?'16px 14px':'20px 22px',marginBottom:16,boxShadow:'0 2px 10px rgba(0,0,0,0.06)',border:'1px solid #e8e0d4'};
@@ -5128,6 +5175,38 @@ function VisitFormView({managed,user,isMobile,offline}){
           <span style={{fontSize:12,color:'#a89c90',marginRight:'auto'}}>💾 נשמר אוטומטית במכשיר</span>
         </div>
       </div>
+      {!offline&&<div style={card}>
+        <div style={{fontSize:14,fontWeight:700,color:GOLD3,marginBottom:6}}>🔗 קישור לשמאי חיצוני</div>
+        <div style={{fontSize:12.5,color:'#9a8e84',marginBottom:12}}>צור קישור חד-פעמי למילוי דף ביקור ללא התחברות. הקישור מוגבל לתיק אחד ופג אחרי 14 יום.</div>
+        <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 2fr',gap:10,marginBottom:10}}>
+          <div>{fieldLabel('מספר תיק')}<input value={linkCase} onChange={e=>setLinkCase(e.target.value)} placeholder="לדוגמה 50489" style={iS}/></div>
+          <div>{fieldLabel('כתובת הנכס')}<input value={linkAddr} onChange={e=>setLinkAddr(e.target.value)} placeholder="רחוב, עיר" style={iS}/></div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          <button onClick={genExternalLink} disabled={linkBusy} style={{background:linkBusy?'#c8bfb5':GOLD,color:'#fff',border:'none',borderRadius:10,padding:'10px 20px',cursor:linkBusy?'default':'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit'}}>{linkBusy?'יוצר…':'צור קישור'}</button>
+          {linkMsg&&<span style={{fontSize:13,color:linkMsg[0]==='✓'?'#16a34a':'#dc2626',fontWeight:600}}>{linkMsg}</span>}
+        </div>
+        {linkOut&&<div style={{marginTop:12,display:'flex',gap:8,alignItems:'center',background:'#f7f3ea',border:'1px solid #e6ddc7',borderRadius:9,padding:'8px 12px'}}>
+          <input readOnly value={linkOut} onFocus={e=>e.target.select()} style={{...iS,flex:1,fontSize:12.5,background:'#fff'}}/>
+          <button onClick={()=>{try{navigator.clipboard.writeText(linkOut);setLinkMsg('✓ הועתק');}catch(_){}}} style={{background:'#fff',border:'1px solid #ddd0bb',borderRadius:8,padding:'8px 12px',cursor:'pointer',fontSize:13,fontFamily:'inherit',whiteSpace:'nowrap'}}>העתק</button>
+        </div>}
+      </div>}
+
+      {!offline&&extPending.length>0&&<div style={{...card,padding:0,overflow:'hidden'}}>
+        <div style={{padding:'14px 18px',borderBottom:'1px solid #ede8e0',fontSize:14,fontWeight:700,color:'#3a2a00',background:'#fff7e6'}}>⏳ ביקורים ממתינים לאישור ({extPending.length})</div>
+        {extPending.map((p,i)=>(
+          <div key={p.rowNum} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 18px',borderBottom:i<extPending.length-1?'1px solid #f0ebe2':'none',flexWrap:'wrap'}}>
+            <span style={{fontSize:12,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 10px',fontWeight:600,whiteSpace:'nowrap'}}>תיק {p.caseNum||'—'}</span>
+            <span style={{fontSize:13,color:'#1a1510',fontWeight:500}}>{p.date||p.ts}</span>
+            {p.appraiser&&<span style={{fontSize:12,color:'#9a8e84'}}>· {p.appraiser}</span>}
+            <div style={{marginInlineStart:'auto',display:'flex',gap:6}}>
+              <button onClick={()=>approveVisit(p)} style={{background:'#16a34a',border:'none',borderRadius:8,padding:'5px 14px',cursor:'pointer',fontSize:12.5,color:'#fff',fontWeight:600,fontFamily:'inherit'}}>✓ אשר</button>
+              <button onClick={()=>rejectVisit(p)} style={{background:'#fff',border:'1px solid #e0b4b4',borderRadius:8,padding:'5px 12px',cursor:'pointer',fontSize:12.5,color:'#b91c1c',fontFamily:'inherit'}}>דחה</button>
+            </div>
+          </div>
+        ))}
+      </div>}
+
       {!offline&&<div style={{...card,padding:0,overflow:'hidden'}}>
         <div style={{padding:'14px 18px',borderBottom:'1px solid #ede8e0',fontSize:14,fontWeight:600,color:'#3a2a00',background:'#fdfaf5'}}>🗂️ היסטוריית ביקורים {hist.length?`(${hist.length})`:''}</div>
         {hist.length===0?(
@@ -5137,6 +5216,7 @@ function VisitFormView({managed,user,isMobile,offline}){
             <span style={{fontSize:12,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 10px',fontWeight:600,whiteSpace:'nowrap'}}>תיק {h.caseNum||'—'}</span>
             <span style={{fontSize:13,color:'#1a1510',fontWeight:500}}>{h.date||h.ts}</span>
             {h.appraiser&&<span style={{fontSize:12,color:'#9a8e84'}}>· {h.appraiser}</span>}
+            {h.ext&&<span style={{fontSize:11,color:'#8a6d1f',background:'#fff3d6',border:'1px solid #e6c65a',borderRadius:10,padding:'1px 8px',fontWeight:600,whiteSpace:'nowrap'}}>שמאי חיצוני</span>}
             <div style={{marginInlineStart:'auto',display:'flex',gap:6}}>
               <button onClick={()=>editVisit(h)} title="ערוך ביקור" style={{background:'#fff',border:'1px solid #ddd0bb',borderRadius:8,padding:'4px 10px',cursor:'pointer',fontSize:12,color:'#6b5e50',fontFamily:'inherit'}}>✏️ ערוך</button>
               <button onClick={()=>genReport(h)} title="הפק דוח מחדש" style={{background:'#fff',border:'1px solid #ddd0bb',borderRadius:8,padding:'4px 10px',cursor:'pointer',fontSize:12,color:'#6b5e50',fontFamily:'inherit'}}>📄 הפק דוח</button>
