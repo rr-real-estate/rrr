@@ -53,12 +53,17 @@ const MAX_VIDEO_MB=200;
 function directPut(url,blob,onProg){
   return new Promise(resolve=>{
     try{
+      let sent=false;
       const xhr=new XMLHttpRequest();
       xhr.open('PUT',url,true);
       xhr.setRequestHeader('Content-Type',blob.type||'application/octet-stream');
-      if(onProg&&xhr.upload)xhr.upload.onprogress=ev=>{if(ev.lengthComputable)onProg(ev.loaded/ev.total);};
-      xhr.onload=()=>resolve(xhr.status>=200&&xhr.status<300);
-      xhr.onerror=()=>resolve(false);
+      if(xhr.upload){
+        xhr.upload.onprogress=ev=>{if(ev.lengthComputable){if(onProg)onProg(ev.loaded/ev.total);if(ev.loaded>=ev.total)sent=true;}};
+        xhr.upload.onload=()=>{sent=true;};
+      }
+      // אם התשובה קריאה — לפי הסטטוס; אם חסומה ב-CORS (status 0) — לפי סיום שליחת הבייטים
+      xhr.onload=()=>resolve(xhr.status===0?sent:(xhr.status>=200&&xhr.status<300));
+      xhr.onerror=()=>resolve(sent);
       xhr.send(blob);
     }catch(_){resolve(false);}
   });
