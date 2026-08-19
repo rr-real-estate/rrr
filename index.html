@@ -255,6 +255,12 @@ function openFolder(winPath){
   if(!winPath)return;
   window.location.href='opendir:///'+encodeURI(winPath.replace(/\\/g,'/'));
 }
+// נתיב תיקיית "פורמטים ועזרים": נתיב הבסיס ללא הסגמנט האחרון + "פורמטים ועזרים"
+function formatsFolderPath(){
+  const bp=(localStorage.getItem('folderBasePath')||'').replace(/[\\\/]+$/,'');
+  if(!bp)return'';
+  return bp.replace(/[\\\/][^\\\/]*$/,'')+'\\פורמטים ועזרים';
+}
 // פתיחת כל קובצי ה-PDF שבתיקייה (רקורסיבי) דרך פרוטוקול openpdfs://
 function openPdfs(winPath){
   if(!winPath)return;
@@ -3189,11 +3195,14 @@ function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,
     {id:'managed',icon:'🗂️',label:'כלל התיקים',count:counts.managed},
     {id:'tasks',icon:'✅',label:'משימות'},
     {id:'visit',icon:'🏘️',label:'ביקור בנכס'},
-    ...(!isMobile?[{id:'nadlan',icon:'🏡',label:'עסקאות נדל"ן'}]:[]),
+    ...(!isMobile?[{id:'nadlan',icon:'🏡',label:'עסקאות נדל"ן'},{id:'formats',icon:'📁',label:'פורמטים ועזרים'}]:[]),
     {id:'reports',icon:'📊',label:'דוחות'},
     {id:'settings',icon:'⚙️',label:'הגדרות'},
   ];
-  const handleNav=(id)=>{setView(id);if(isMobile&&onDrawerClose)onDrawerClose();};
+  const handleNav=(id)=>{
+    if(id==='formats'){const p=formatsFolderPath();if(!p){alert('לא הוגדר נתיב בסיס בהגדרות');}else{openFolder(p);}return;}
+    setView(id);if(isMobile&&onDrawerClose)onDrawerClose();
+  };
 
   // תוכן פנימי — משותף לדסקטופ ומובייל
   const inner=(
