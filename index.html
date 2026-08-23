@@ -216,6 +216,10 @@ function splitTasks(field){
   });
 }
 const TASK_FIELD_NAME={yossi:'יוסי',michael:'מיכאל',feigi:'פייגי'};
+// האם לתיק יש לפחות משימה אחת למישהו מהצוות
+function projHasTask(p){return !!(splitTasks(p&&p.yossi).length||splitTasks(p&&p.michael).length||splitTasks(p&&p.feigi).length);}
+// תיק אמיתי (עם מספר תיק) שאין בו אף משימה משויכת
+function projNoTaskFlag(p){return /\b5\d{4}\b/.test((p&&p.name)||'')&&!projHasTask(p);}
 // ── סימון משימה כבוצעה: מסיר מהשדה ובונה רשומת היסטוריה ──
 function computeCompletion(project,field,taskLine,completer){
   const ps=parseTaskStamp(taskLine);
@@ -1335,6 +1339,11 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,task
               ))}
             </div>
           )}
+          {!isGeneral&&tasks.length===0&&(
+            <div style={{display:'flex',alignItems:'center',gap:6,background:'#fef2f2',border:'1px solid #fecaca',color:'#b91c1c',borderRadius:8,padding:'5px 10px',fontSize:12.5,fontWeight:600}}>
+              ⚠️ אין משימה משויכת
+            </div>
+          )}
           {(()=>{const{text}=parseNoteStamp(project.notes||'');return text?(
             <div style={{marginTop:6,fontSize:12,color:'#6b5e50',background:'#fafaf7',border:'1px solid #e8e2d8',borderRadius:7,padding:'5px 9px',overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>
               💬 {renderBold(text)}
@@ -1854,6 +1863,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
   const [search,setSearch]=useState('');
   const [personFilter,setPersonFilter]=useState('');
   const [daysFilter,setDaysFilter]=useState('all');
+  const [onlyNoTask,setOnlyNoTask]=useState(false);
   const [panelProject,setPanelProject]=useState(null);
   const [panelAnchor,setPanelAnchor]=useState(null);
   const [collapsed,setCollapsed]=useState({});
@@ -1913,8 +1923,10 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
         return diff<=maxDays; // כולל באיחור (diff<0)
       });
     }
+    if(onlyNoTask)arr=arr.filter(projNoTaskFlag);
     return arr;
-  },[projects,activeProjects,search,personFilter,daysFilter]);
+  },[projects,activeProjects,search,personFilter,daysFilter,onlyNoTask]);
+  const noTaskCount=useMemo(()=>activeProjects.filter(projNoTaskFlag).length,[activeProjects]);
 
   const groups=useMemo(()=>{
     const byStatus={};
@@ -2004,7 +2016,9 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
             }}>{label}</button>
           ))}
         </div>}
-        {(search||personFilter||daysFilter!=='all')&&<button onClick={()=>{setSearch('');setPersonFilter('');setDaysFilter('all');}}
+        {noTaskCount>0&&<button onClick={()=>setOnlyNoTask(v=>!v)} title="תיקים פעילים ללא משימה משויכת"
+          style={{...inp,cursor:'pointer',fontWeight:600,whiteSpace:'nowrap',border:`1px solid ${onlyNoTask?'#dc2626':'#fecaca'}`,background:onlyNoTask?'#dc2626':'#fef2f2',color:onlyNoTask?'#fff':'#b91c1c'}}>⚠️ ללא משימה ({noTaskCount})</button>}
+        {(search||personFilter||daysFilter!=='all'||onlyNoTask)&&<button onClick={()=>{setSearch('');setPersonFilter('');setDaysFilter('all');setOnlyNoTask(false);}}
           style={{...inp,background:'#f5f0e8',color:'#4b3400',border:'1px solid #d9c5a0',cursor:'pointer',fontWeight:500}}>נקה ×</button>}
       </div>
 
