@@ -99,7 +99,7 @@ function useIsMobile(){
 }
 
 // ═══════════════ STATUS — colors matching Google Sheets ══════════
-const CLIENT_STATUSES=['ממתין לקבלת מסמכים','נבדק - נשלח עדכון/טיוטה ללקוח','נשלח לבנק / לקוח','בהמתנה'];
+const CLIENT_STATUSES=['ממתין לקבלת מסמכים','נבדק - ממתין להשלמה','נשלח','בהמתנה'];
 const STATUS_META={
   'בבדיקה':                           {bg:'#fef9e8',fg:'#4b3400',dot:'#d9af34',order:1},
   'בכתיבה':                           {bg:'#f5e8d5',fg:'#3a2000',dot:'#8c6239',order:2},
@@ -107,8 +107,9 @@ const STATUS_META={
   'תואם ביקור':                        {bg:'#e0e0e0',fg:'#404040',dot:'#808080',order:4},
   'בשלבי תיאום ביקור':                 {bg:'#f0f0f0',fg:'#606060',dot:'#b8b8b8',order:5},
   'ממתין לקבלת מסמכים':                {bg:'#e0e0e0',fg:'#404040',dot:'#808080',order:6},
-  'נבדק - נשלח עדכון/טיוטה ללקוח':    {bg:'#f5e8d5',fg:'#3a2000',dot:'#8c6239',order:7},
-  'נשלח לבנק / לקוח':                  {bg:'#fef9e8',fg:'#4b3400',dot:'#d9af34',order:8},
+  'נבדק - בטיפול משרד':               {bg:'#e8d5a8',fg:'#1a0e00',dot:'#4b3400',order:7},
+  'נבדק - ממתין להשלמה':              {bg:'#e0e0e0',fg:'#404040',dot:'#808080',order:7.5},
+  'נשלח':                  {bg:'#fef9e8',fg:'#4b3400',dot:'#d9af34',order:8},
   'בהמתנה':                            {bg:'#1c1c1c',fg:'#d9af34',dot:'#d9af34',order:9},
 };
 const STATUS_ORDER=Object.entries(STATUS_META).sort((a,b)=>a[1].order-b[1].order).map(e=>e[0]);
@@ -657,7 +658,7 @@ function AutocompleteInput({value,onChange,options=[],style={},placeholder=''}){
 
 // ═══════════════ CALC EXPECTED ══════════════════════════════════
 // מחשב "צפי לסיום" — אותה לוגיקה כמו updateExpectedDates_ בסקריפט
-const SKIP_EXPECTED_STATUSES=['בהמתנה','נבדק - נשלח עדכון/טיוטה ללקוח','נשלח לבנק / לקוח'];
+const SKIP_EXPECTED_STATUSES=['בהמתנה','נבדק - ממתין להשלמה','נשלח'];
 function calcExpected(form){
   const {visitDate,postVisitDocs,postVisitComplete,status}=form;
   if(!visitDate||SKIP_EXPECTED_STATUSES.includes(status))return'';
