@@ -73,6 +73,8 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
+const APP_VERSION='v59'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
 function loadSettings(){try{return{...DEFAULT_SETTINGS,...JSON.parse(localStorage.getItem('rrSettings')||'{}')};}catch{return DEFAULT_SETTINGS;}}
@@ -588,7 +590,7 @@ function parseMsg(row,i){
     readBy:row[4]?row[4].split(',').map(s=>s.trim()).filter(Boolean):[]};
 }
 function parsePresenceRow(row){
-  return{name:String(row[0]||'').trim(),lastSeen:row[1]?new Date(row[1]):null};
+  return{name:String(row[0]||'').trim(),lastSeen:row[1]?new Date(row[1]):null,deviceId:String(row[2]||'').trim(),version:String(row[3]||'').trim()};
 }
 function nowHe(){
   const d=new Date();
@@ -3286,6 +3288,7 @@ function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,
           onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color=`${GOLD}77`;}}>
           התנתקות
         </button>
+        <div style={{textAlign:'center',fontSize:10,color:'rgba(255,255,255,0.25)',marginTop:8}}>גרסה {APP_VERSION}</div>
       </div>
     </>
   );
@@ -5401,11 +5404,11 @@ function App(){
     try{
       const [msgRows,presRows]=await Promise.all([
         api.get("'הודעות'!A2:E"),
-        api.get("'נוכחות'!A2:B"),
+        api.get("'נוכחות'!A2:D"),
       ]);
       setMessages((msgRows||[]).map((r,i)=>parseMsg(r,i)).filter(m=>m.text));
       const now=new Date();
-      setOnlineUsers((presRows||[]).map(r=>parsePresenceRow(r)).filter(p=>p.name&&p.lastSeen&&(now-p.lastSeen)<3*60*1000).map(p=>p.name));
+      setOnlineUsers([...new Set((presRows||[]).map(r=>parsePresenceRow(r)).filter(p=>p.name&&p.lastSeen&&(now-p.lastSeen)<3*60*1000).map(p=>p.name))]);
     }catch(e){}
   },[]);
   const loadAll=useCallback(async()=>{
@@ -5443,12 +5446,16 @@ function App(){
   const updatePresence=useCallback(async(uName)=>{
     if(!uName||!api.token)return;
     try{
-      const rows=await api.get("'נוכחות'!A2:B");
+      const rows=await api.get("'נוכחות'!A2:D");
       const arr=rows||[];
-      const idx=arr.findIndex(r=>String(r[0]).trim()===uName);
+      const dev=getDeviceId();
+      // מפתח לפי מזהה מכשיר; אם אין — שדרג שורה ישנה של אותו שם (חד-פעמי)
+      let idx=arr.findIndex(r=>String(r[2]||'').trim()===dev);
+      if(idx<0)idx=arr.findIndex(r=>String(r[0]||'').trim()===uName&&!String(r[2]||'').trim());
       const now=new Date().toISOString();
-      if(idx>=0){await api.put(`'נוכחות'!A${idx+2}:B${idx+2}`,[[uName,now]]);}
-      else{await api.append("'נוכחות'",[[uName,now]]);}
+      const rowData=[uName,now,dev,APP_VERSION];
+      if(idx>=0){await api.put(`'נוכחות'!A${idx+2}:D${idx+2}`,[rowData]);}
+      else{await api.append("'נוכחות'",[rowData]);}
       loadMsgsPresence();
     }catch(e){}
   },[loadMsgsPresence]);
@@ -5678,8 +5685,15 @@ root.render(<App/>);
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
     navigator.serviceWorker.register('./sw.js')
-      .then(reg=>console.log('[SW] רשום בהצלחה:',reg.scope))
+      .then(reg=>{console.log('[SW] רשום בהצלחה:',reg.scope);setInterval(()=>reg.update(),15*60*1000);})
       .catch(err=>console.warn('[SW] שגיאה ברישום:',err));
+  });
+  // אכיפת עדכון: כשגרסה חדשה משתלטת (SW חדש) — רענון אוטומטי (למעט בהתקנה הראשונה)
+  let _hadController=!!navigator.serviceWorker.controller, _refreshing=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(!_hadController){_hadController=true;return;}
+    if(_refreshing)return; _refreshing=true;
+    location.reload();
   });
 }
 </script>
