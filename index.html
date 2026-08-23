@@ -680,8 +680,15 @@ function calcExpected(form){
 // ═══════════════ SAVE ROW HELPER ════════════════════════════════
 // ── חישובי שכ"ט ──
 function feeNum(v){const n=parseFloat(String(v==null?'':v).replace(/[^\d.\-]/g,''));return isNaN(n)?0:n;}
+function feeHasFull(p){return String(p&&p.fee!=null?p.fee:'').trim()!=='';}
 function feeBalance(p){return feeNum(p.fee)-feeNum(p.advanceAmount)-feeNum(p.feeCompletion);}
-function feePayStatus(p){const a=feeNum(p.advanceAmount),c=feeNum(p.feeCompletion),bal=feeNum(p.fee)-a-c;if(a===0&&c===0)return 'טרם הוסדר תשלום';if(bal<=0)return 'תשלום הוסדר';return 'שולמה מקדמה';}
+function feeBalanceStr(p){return feeHasFull(p)?String(feeBalance(p)):'';} // ריק אם אין שכ"ט מלא (יתרה לא ידועה)
+function feePayStatus(p){
+  const paid=feeNum(p.advanceAmount)+feeNum(p.feeCompletion);
+  if(!feeHasFull(p))return paid>0?'טרם עודכן שכ"ט מלא':'טרם הוסדר תשלום';
+  if(paid===0)return 'טרם הוסדר תשלום';
+  return (feeNum(p.fee)-paid)<=0?'תשלום הוסדר':'שולמה מקדמה';
+}
 function buildProjectRow(upd){
   const row=[...upd._raw];
   while(row.length<=28)row.push('');
@@ -695,7 +702,7 @@ function buildProjectRow(upd){
    ['advanceAmount',P.advanceAmount],['feeCompletion',P.feeCompletion],
   ].forEach(([k,i])=>row[i]=upd[k]||'');
   row[P.feeStatus]=feePayStatus(upd);   // סטטוס תשלום אוטומטי
-  row[P.balance]=String(feeBalance(upd)); // יתרת תשלום מחושבת
+  row[P.balance]=feeBalanceStr(upd);    // יתרת תשלום מחושבת (ריק אם אין שכ"ט מלא)
   return row;
 }
 
@@ -1826,9 +1833,10 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             </div>
           </div>}
           {tab==='fee'&&(()=>{
-            const _bal=feeBalance(form), _st=feePayStatus(form), _paid=feeNum(form.advanceAmount)+feeNum(form.feeCompletion);
-            const _stC=_st==='תשלום הוסדר'?{bg:'#dcfce7',fg:'#166534'}:_st==='שולמה מקדמה'?{bg:'#fef3c7',fg:'#92400e'}:{bg:'#fee2e2',fg:'#991b1b'};
+            const _hasFee=feeHasFull(form), _bal=feeBalance(form), _st=feePayStatus(form), _paid=feeNum(form.advanceAmount)+feeNum(form.feeCompletion);
+            const _stC=_st==='תשלום הוסדר'?{bg:'#dcfce7',fg:'#166534'}:_st==='שולמה מקדמה'?{bg:'#fef3c7',fg:'#92400e'}:_st==='טרם עודכן שכ"ט מלא'?{bg:'#e0e7ff',fg:'#3730a3'}:{bg:'#fee2e2',fg:'#991b1b'};
             const money=n=>'₪'+feeNum(n).toLocaleString('he-IL');
+            const balDisp=_hasFee?money(_bal):'?';
             return(<div>
             <div style={sec}>
               <SectionTitle icon="💰">שכר טרחה</SectionTitle>
@@ -1837,7 +1845,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 <div><FLabel>סכום מקדמה (₪)</FLabel>{inp('advanceAmount')}</div>
                 <div><FLabel>השלמת שכ"ט (₪)</FLabel>{inp('feeCompletion')}</div>
                 <div><FLabel>יתרת תשלום (מחושב)</FLabel>
-                  <div style={{...iS,background:'#f0ede8',color:_bal>0?'#b45309':'#166534',fontWeight:600,cursor:'default'}}>{money(_bal)}</div>
+                  <div style={{...iS,background:'#f0ede8',color:!_hasFee?'#6b5e50':(_bal>0?'#b45309':'#166534'),fontWeight:600,cursor:'default'}}>{balDisp}</div>
                 </div>
               </div>
               <div style={{marginBottom:12}}>
@@ -1849,7 +1857,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 <div style={{display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
                   <div><div style={{fontSize:11,color:'#9a8e84'}}>שכ"ט מלא</div><div style={{fontSize:20,fontWeight:500,color:GOLD3}}>{money(form.fee)}</div></div>
                   <div><div style={{fontSize:11,color:'#9a8e84'}}>שולם</div><div style={{fontSize:20,fontWeight:500,color:'#166534'}}>{money(_paid)}</div></div>
-                  <div><div style={{fontSize:11,color:'#9a8e84'}}>יתרה</div><div style={{fontSize:20,fontWeight:500,color:_bal>0?'#b45309':'#166534'}}>{money(_bal)}</div></div>
+                  <div><div style={{fontSize:11,color:'#9a8e84'}}>יתרה</div><div style={{fontSize:20,fontWeight:500,color:!_hasFee?'#6b5e50':(_bal>0?'#b45309':'#166534')}}>{balDisp}</div></div>
                 </div>
                 <div style={{fontSize:12,color:'#6b5e50',marginTop:8}}>סטטוס: {_st}</div>
                 {form.feeNotes&&<div style={{fontSize:12,color:'#9a8e84',marginTop:2}}>{form.feeNotes}</div>}
@@ -2120,8 +2128,8 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
             {h:'שם תיק',w:NW,r:nameCell},
             {h:'שכ"ט מלא (₪)',w:CW,r:(p)=><EC p={p} field='fee' displayNode={p.fee?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.fee}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'השלמת שכ"ט (₪)',w:CW,r:(p)=><EC p={p} field='feeCompletion' displayNode={p.feeCompletion?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.feeCompletion}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
-            {h:'יתרה (₪)',w:CW,r:(p)=>{const b=feeBalance(p);return (p.fee||p.advanceAmount||p.feeCompletion)?<span style={{fontSize:12,fontWeight:600,color:b>0?'#b45309':'#166534'}}>₪{b.toLocaleString('he-IL')}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>;}},
-            {h:'סטטוס תשלום',w:CW,r:(p)=>{const s=feePayStatus(p);const c=s==='תשלום הוסדר'?{bg:'#dcfce7',fg:'#166534'}:s==='שולמה מקדמה'?{bg:'#fef3c7',fg:'#92400e'}:{bg:'#fee2e2',fg:'#991b1b'};return <span style={{fontSize:11,padding:'2px 7px',borderRadius:8,background:c.bg,color:c.fg,fontWeight:500}}>{s}</span>;}},
+            {h:'יתרה (₪)',w:CW,r:(p)=>{if(!feeHasFull(p))return (p.advanceAmount||p.feeCompletion)?<span style={{color:'#b45309',fontWeight:600}}>?</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>;const b=feeBalance(p);return <span style={{fontSize:12,fontWeight:600,color:b>0?'#b45309':'#166534'}}>₪{b.toLocaleString('he-IL')}</span>;}},
+            {h:'סטטוס תשלום',w:CW,r:(p)=>{const s=feePayStatus(p);const c=s==='תשלום הוסדר'?{bg:'#dcfce7',fg:'#166534'}:s==='שולמה מקדמה'?{bg:'#fef3c7',fg:'#92400e'}:s==='טרם עודכן שכ"ט מלא'?{bg:'#e0e7ff',fg:'#3730a3'}:{bg:'#fee2e2',fg:'#991b1b'};return <span style={{fontSize:11,padding:'2px 7px',borderRadius:8,background:c.bg,color:c.fg,fontWeight:500}}>{s}</span>;}},
             {h:'הערות שכ"ט',w:FW,r:(p)=><EC p={p} field='feeNotes' displayNode={p.feeNotes?<span style={{fontSize:11,color:'#6b5e50',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}}>{p.feeNotes}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
           ]},
         ];
@@ -2337,8 +2345,8 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
             {h:'שם תיק',w:NW,r:nameCell},
             {h:'שכ"ט מלא (₪)',w:CW,r:(p)=><EC p={p} field='fee' displayNode={p.fee?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.fee}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'השלמת שכ"ט (₪)',w:CW,r:(p)=><EC p={p} field='feeCompletion' displayNode={p.feeCompletion?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.feeCompletion}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
-            {h:'יתרה (₪)',w:CW,r:(p)=>{const b=feeBalance(p);return (p.fee||p.advanceAmount||p.feeCompletion)?<span style={{fontSize:12,fontWeight:600,color:b>0?'#b45309':'#166534'}}>₪{b.toLocaleString('he-IL')}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>;}},
-            {h:'סטטוס תשלום',w:CW,r:(p)=>{const s=feePayStatus(p);const c=s==='תשלום הוסדר'?{bg:'#dcfce7',fg:'#166534'}:s==='שולמה מקדמה'?{bg:'#fef3c7',fg:'#92400e'}:{bg:'#fee2e2',fg:'#991b1b'};return <span style={{fontSize:11,padding:'2px 7px',borderRadius:8,background:c.bg,color:c.fg,fontWeight:500}}>{s}</span>;}},
+            {h:'יתרה (₪)',w:CW,r:(p)=>{if(!feeHasFull(p))return (p.advanceAmount||p.feeCompletion)?<span style={{color:'#b45309',fontWeight:600}}>?</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>;const b=feeBalance(p);return <span style={{fontSize:12,fontWeight:600,color:b>0?'#b45309':'#166534'}}>₪{b.toLocaleString('he-IL')}</span>;}},
+            {h:'סטטוס תשלום',w:CW,r:(p)=>{const s=feePayStatus(p);const c=s==='תשלום הוסדר'?{bg:'#dcfce7',fg:'#166534'}:s==='שולמה מקדמה'?{bg:'#fef3c7',fg:'#92400e'}:s==='טרם עודכן שכ"ט מלא'?{bg:'#e0e7ff',fg:'#3730a3'}:{bg:'#fee2e2',fg:'#991b1b'};return <span style={{fontSize:11,padding:'2px 7px',borderRadius:8,background:c.bg,color:c.fg,fontWeight:500}}>{s}</span>;}},
             {h:'הערות שכ"ט',w:FW,r:(p)=><EC p={p} field='feeNotes' displayNode={p.feeNotes?<span style={{fontSize:11,color:'#6b5e50',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}}>{p.feeNotes}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
           ]},
         ];
