@@ -5409,7 +5409,7 @@ function App(){
     setLoading(true);setError('');
     try{
       const [pRows,mRows]=await Promise.all([
-        api.get("'פרויקטים בביצוע'!A2:Z"),
+        api.get("'פרויקטים בביצוע'!A2:AC"),
         api.get("'ניהול תיקים'!A2:Z"),
       ]);
       setProjects((pRows||[]).map((r,i)=>parseProject(r,i)).filter(p=>p.name));
@@ -5423,7 +5423,7 @@ function App(){
     if(!api.token)return;
     try{
       const [pRows,mRows]=await Promise.all([
-        api.get("'פרויקטים בביצוע'!A2:Z"),
+        api.get("'פרויקטים בביצוע'!A2:AC"),
         api.get("'ניהול תיקים'!A2:Z"),
       ]);
       setProjects((pRows||[]).map((r,i)=>parseProject(r,i)).filter(p=>p.name));
