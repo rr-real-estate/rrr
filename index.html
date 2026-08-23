@@ -455,7 +455,7 @@ async function sendMissingDocsEmailFn(upd,prev,managedCases){
 }
 
 // Per-column checklist options (matching Google Sheets validation exactly)
-const ADVANCE_OPTS=['','נשלחה דרישה','התקבל','לא נשלחה'];
+const ADVANCE_OPTS=['','נשלחה דרישה','לא נשלחה'];
 const DOCS_OPTS=['','בוצע','נשלח בקשה ללקוח'];
 const BUILDING_OPTS=['','בוצע','לא אותר'];
 const TRANSACTIONS_OPTS=['','בוצע','לא בוצע'];
@@ -1785,7 +1785,8 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             <div style={sec}>
               <SectionTitle icon="📁">מסמכים ופעולות</SectionTitle>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
-                    {docChk('docs','השלמת מסמכים','#c49a28',DOCS_OPTS)}
+                {docChk('advance','דרישת מקדמה','#d9af34',ADVANCE_OPTS)}
+                {docChk('docs','השלמת מסמכים','#c49a28',DOCS_OPTS)}
                 {docChk('buildingFile','תיק בניין','#8c6239',BUILDING_OPTS)}
                 {docChk('transactions','עסקאות','#6a4520',TRANSACTIONS_OPTS)}
                 {docChk('visitSheet','דף ביקור','#4b3400',VISIT_SHEET_OPTS)}
@@ -2112,7 +2113,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
             {h:'עסקאות',w:CW,r:(p)=><EC p={p} field='transactions' opts={TRANSACTIONS_OPTS.filter(Boolean)} displayNode={<Chk v={p.transactions}/>}/>},
             {h:'מסמכים',w:CW,r:(p)=><EC p={p} field='docs' opts={DOCS_OPTS.filter(Boolean)} displayNode={<Chk v={p.docs}/>}/>},
             {h:'דף ביקור',w:CW,r:(p)=><EC p={p} field='visitSheet' opts={VISIT_SHEET_OPTS.filter(Boolean)} displayNode={<Chk v={p.visitSheet}/>}/>},
-            {h:'מקדמה (₪)',w:CW,r:(p)=><EC p={p} field='advanceAmount' displayNode={p.advanceAmount?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.advanceAmount}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'דרישת מקדמה',w:CW,r:(p)=><EC p={p} field='advance' opts={ADVANCE_OPTS.filter(Boolean)} displayNode={p.advance?<Chk v={p.advance}/>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'מסמכים חסרים',w:FW,r:(p)=><EC p={p} field='missingDocs' displayNode={p.missingDocs?<span style={{fontSize:11,color:'#9a3412',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}} title={p.missingDocs}>{p.missingDocs}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
           ]},
           {label:'🏠 ביקור',cols:[
@@ -2127,6 +2128,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
           {label:'💰 שכ"ט',cols:[
             {h:'שם תיק',w:NW,r:nameCell},
             {h:'שכ"ט מלא (₪)',w:CW,r:(p)=><EC p={p} field='fee' displayNode={p.fee?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.fee}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'מקדמה (₪)',w:CW,r:(p)=><EC p={p} field='advanceAmount' displayNode={p.advanceAmount?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.advanceAmount}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'השלמת שכ"ט (₪)',w:CW,r:(p)=><EC p={p} field='feeCompletion' displayNode={p.feeCompletion?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.feeCompletion}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'יתרה (₪)',w:CW,r:(p)=>{if(!feeHasFull(p))return (p.advanceAmount||p.feeCompletion)?<span style={{color:'#b45309',fontWeight:600}}>?</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>;const b=feeBalance(p);return <span style={{fontSize:12,fontWeight:600,color:b>0?'#b45309':'#166534'}}>₪{b.toLocaleString('he-IL')}</span>;}},
             {h:'סטטוס תשלום',w:CW,r:(p)=>{const s=feePayStatus(p);const c=s==='תשלום הוסדר'?{bg:'#dcfce7',fg:'#166534'}:s==='שולמה מקדמה'?{bg:'#fef3c7',fg:'#92400e'}:s==='טרם עודכן שכ"ט מלא'?{bg:'#e0e7ff',fg:'#3730a3'}:{bg:'#fee2e2',fg:'#991b1b'};return <span style={{fontSize:11,padding:'2px 7px',borderRadius:8,background:c.bg,color:c.fg,fontWeight:500}}>{s}</span>;}},
@@ -2329,7 +2331,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
             {h:'עסקאות',w:CW,r:(p)=><EC p={p} field='transactions' opts={TRANSACTIONS_OPTS.filter(Boolean)} displayNode={<Chk v={p.transactions}/>}/>},
             {h:'מסמכים',w:CW,r:(p)=><EC p={p} field='docs' opts={DOCS_OPTS.filter(Boolean)} displayNode={<Chk v={p.docs}/>}/>},
             {h:'דף ביקור',w:CW,r:(p)=><EC p={p} field='visitSheet' opts={VISIT_SHEET_OPTS.filter(Boolean)} displayNode={<Chk v={p.visitSheet}/>}/>},
-            {h:'מקדמה (₪)',w:CW,r:(p)=><EC p={p} field='advanceAmount' displayNode={p.advanceAmount?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.advanceAmount}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'דרישת מקדמה',w:CW,r:(p)=><EC p={p} field='advance' opts={ADVANCE_OPTS.filter(Boolean)} displayNode={p.advance?<Chk v={p.advance}/>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'מסמכים חסרים',w:FW,r:(p)=><EC p={p} field='missingDocs' displayNode={p.missingDocs?<span style={{fontSize:11,color:'#9a3412',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}} title={p.missingDocs}>{p.missingDocs}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
           ]},
           {label:'🏠 ביקור',cols:[
@@ -2344,6 +2346,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
           {label:'💰 שכ"ט',cols:[
             {h:'שם תיק',w:NW,r:nameCell},
             {h:'שכ"ט מלא (₪)',w:CW,r:(p)=><EC p={p} field='fee' displayNode={p.fee?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.fee}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'מקדמה (₪)',w:CW,r:(p)=><EC p={p} field='advanceAmount' displayNode={p.advanceAmount?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.advanceAmount}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'השלמת שכ"ט (₪)',w:CW,r:(p)=><EC p={p} field='feeCompletion' displayNode={p.feeCompletion?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.feeCompletion}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'יתרה (₪)',w:CW,r:(p)=>{if(!feeHasFull(p))return (p.advanceAmount||p.feeCompletion)?<span style={{color:'#b45309',fontWeight:600}}>?</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>;const b=feeBalance(p);return <span style={{fontSize:12,fontWeight:600,color:b>0?'#b45309':'#166534'}}>₪{b.toLocaleString('he-IL')}</span>;}},
             {h:'סטטוס תשלום',w:CW,r:(p)=>{const s=feePayStatus(p);const c=s==='תשלום הוסדר'?{bg:'#dcfce7',fg:'#166534'}:s==='שולמה מקדמה'?{bg:'#fef3c7',fg:'#92400e'}:s==='טרם עודכן שכ"ט מלא'?{bg:'#e0e7ff',fg:'#3730a3'}:{bg:'#fee2e2',fg:'#991b1b'};return <span style={{fontSize:11,padding:'2px 7px',borderRadius:8,background:c.bg,color:c.fg,fontWeight:500}}>{s}</span>;}},
@@ -5518,11 +5521,11 @@ function App(){
   },[]);
   const addCase=useCallback((c)=>{setManaged(ms=>[...ms,c]);},[]);
   const addProject=useCallback((p)=>{setProjects(ps=>[...ps,p]);},[]);
-  const deleteProject=useCallback((rowNum)=>{setProjects(ps=>ps.filter(p=>p._row!==rowNum));},[]);
+  const deleteProject=useCallback((rowNum)=>{setProjects(ps=>ps.filter(p=>p._row!==rowNum).map(p=>p._row>rowNum?{...p,_row:p._row-1}:p));},[]);
   // מחיקת משימה כללית — מוחקת את השורה מהגיליון (רק משימות ללא שיוך)
   const deleteGeneralTask=useCallback(async(rowNum)=>{
     await api.deleteSheetRow('פרויקטים בביצוע',rowNum);
-    setProjects(ps=>ps.filter(p=>p._row!==rowNum));
+    setProjects(ps=>ps.filter(p=>p._row!==rowNum).map(p=>p._row>rowNum?{...p,_row:p._row-1}:p));
   },[]);
   // סימון משימת תיק כבוצעה — מסיר מהשדה ומעביר להיסטוריה (עמודה Z)
   const completeTask=useCallback(async(rowNum,field,taskLine)=>{
@@ -5534,7 +5537,7 @@ function App(){
     await api.put(`'פרויקטים בביצוע'!A${p._row}:${colLetter(row.length)}${p._row}`,[row]);
     updateProject(p._row,{...upd,_raw:row});
   },[projects,updateProject]);
-  const deleteCase=useCallback((rowNum)=>{setManaged(ms=>ms.filter(m=>m._row!==rowNum));},[]);
+  const deleteCase=useCallback((rowNum)=>{setManaged(ms=>ms.filter(m=>m._row!==rowNum).map(m=>m._row>rowNum?{...m,_row:m._row-1}:m));},[]);
   const handleUpdateFolderLinks=useCallback(async(basePath)=>{
     if(!managed.length)return;
     // כתיבה אחת — טווח רציף מהשורה הנמוכה לגבוהה
