@@ -120,7 +120,8 @@ const P={name:0,yossi:1,michael:2,feigi:3,notes:4,dueDate:5,status:6,
   expected:7,advance:8,docs:9,missingDocs:10,buildingFile:11,
   transactions:12,visitSheet:13,visitDate:14,visitHours:15,
   visitPhone:16,visitName:17,visitRole:18,visitNotes:19,
-  postVisitDocs:20,postVisitComplete:21,fee:22,feeStatus:23,feeNotes:24,taskHistory:25};
+  postVisitDocs:20,postVisitComplete:21,fee:22,feeStatus:23,feeNotes:24,taskHistory:25,
+  advanceAmount:26,feeCompletion:27,balance:28};
 const M={openDate:0,closeDate:1,fee:2,caseNum:3,status:4,folder:5,
   client:6,phone:7,email:8,advisor:9,advisorPhone:10,advisorEmail:11,
   purpose:12,propType:13,city:14,street:15,houseNum:16,
@@ -562,6 +563,7 @@ function parseProject(row,ri){
     postVisitDocs:fmt(g(row,P.postVisitDocs))||g(row,P.postVisitDocs),
     postVisitComplete:fmt(g(row,P.postVisitComplete))||g(row,P.postVisitComplete),
     fee:g(row,P.fee),feeStatus:g(row,P.feeStatus),feeNotes:g(row,P.feeNotes),
+    advanceAmount:g(row,P.advanceAmount),feeCompletion:g(row,P.feeCompletion),balance:g(row,P.balance),
     taskHistory:g(row,P.taskHistory),
     _expD:parseDate(g(row,P.expected)),_dueD:parseDate(g(row,P.dueDate)),_visitD:parseDate(g(row,P.visitDate)),
   };
@@ -676,17 +678,24 @@ function calcExpected(form){
 }
 
 // ═══════════════ SAVE ROW HELPER ════════════════════════════════
+// ── חישובי שכ"ט ──
+function feeNum(v){const n=parseFloat(String(v==null?'':v).replace(/[^\d.\-]/g,''));return isNaN(n)?0:n;}
+function feeBalance(p){return feeNum(p.fee)-feeNum(p.advanceAmount)-feeNum(p.feeCompletion);}
+function feePayStatus(p){const a=feeNum(p.advanceAmount),c=feeNum(p.feeCompletion),bal=feeNum(p.fee)-a-c;if(a===0&&c===0)return 'טרם הוסדר תשלום';if(bal<=0)return 'תשלום הוסדר';return 'שולמה מקדמה';}
 function buildProjectRow(upd){
   const row=[...upd._raw];
-  while(row.length<=25)row.push('');
+  while(row.length<=28)row.push('');
   [['status',P.status],['yossi',P.yossi],['michael',P.michael],['feigi',P.feigi],
    ['notes',P.notes],['missingDocs',P.missingDocs],['dueDate',P.dueDate],['expected',P.expected],
    ['advance',P.advance],['docs',P.docs],['buildingFile',P.buildingFile],['transactions',P.transactions],
    ['visitSheet',P.visitSheet],['visitDate',P.visitDate],['visitHours',P.visitHours],
    ['visitPhone',P.visitPhone],['visitName',P.visitName],['visitRole',P.visitRole],
    ['visitNotes',P.visitNotes],['postVisitDocs',P.postVisitDocs],['postVisitComplete',P.postVisitComplete],
-   ['fee',P.fee],['feeStatus',P.feeStatus],['feeNotes',P.feeNotes],['taskHistory',P.taskHistory],
+   ['fee',P.fee],['feeNotes',P.feeNotes],['taskHistory',P.taskHistory],
+   ['advanceAmount',P.advanceAmount],['feeCompletion',P.feeCompletion],
   ].forEach(([k,i])=>row[i]=upd[k]||'');
+  row[P.feeStatus]=feePayStatus(upd);   // סטטוס תשלום אוטומטי
+  row[P.balance]=String(feeBalance(upd)); // יתרת תשלום מחושבת
   return row;
 }
 
@@ -1148,7 +1157,6 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
         <div style={box}>
           <SectionTitle icon="📁">מסמכים ופעולות</SectionTitle>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:7}}>
-            {docChk('advance','דרישת מקדמה','#d9af34',ADVANCE_OPTS)}
             {docChk('docs','השלמת מסמכים','#c49a28',DOCS_OPTS)}
             {docChk('buildingFile','תיק בנין','#8c6239',BUILDING_OPTS)}
             {docChk('transactions','עסקאות','#6a4520',TRANSACTIONS_OPTS)}
@@ -1770,8 +1778,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             <div style={sec}>
               <SectionTitle icon="📁">מסמכים ופעולות</SectionTitle>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
-                {docChk('advance','דרישת מקדמה','#d9af34',ADVANCE_OPTS)}
-                {docChk('docs','השלמת מסמכים','#c49a28',DOCS_OPTS)}
+                    {docChk('docs','השלמת מסמכים','#c49a28',DOCS_OPTS)}
                 {docChk('buildingFile','תיק בניין','#8c6239',BUILDING_OPTS)}
                 {docChk('transactions','עסקאות','#6a4520',TRANSACTIONS_OPTS)}
                 {docChk('visitSheet','דף ביקור','#4b3400',VISIT_SHEET_OPTS)}
@@ -1818,21 +1825,37 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
               <FLabel>הערות לביקור</FLabel>{inp('visitNotes',true)}
             </div>
           </div>}
-          {tab==='fee'&&<div>
+          {tab==='fee'&&(()=>{
+            const _bal=feeBalance(form), _st=feePayStatus(form), _paid=feeNum(form.advanceAmount)+feeNum(form.feeCompletion);
+            const _stC=_st==='תשלום הוסדר'?{bg:'#dcfce7',fg:'#166534'}:_st==='שולמה מקדמה'?{bg:'#fef3c7',fg:'#92400e'}:{bg:'#fee2e2',fg:'#991b1b'};
+            const money=n=>'₪'+feeNum(n).toLocaleString('he-IL');
+            return(<div>
             <div style={sec}>
               <SectionTitle icon="💰">שכר טרחה</SectionTitle>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-                <div><FLabel>סכום שכ"ט (₪)</FLabel>{inp('fee')}</div>
-                <div><FLabel>סטטוס תשלום</FLabel>{inp('feeStatus')}</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+                <div><FLabel>סכום שכ"ט מלא (₪)</FLabel>{inp('fee')}</div>
+                <div><FLabel>סכום מקדמה (₪)</FLabel>{inp('advanceAmount')}</div>
+                <div><FLabel>השלמת שכ"ט (₪)</FLabel>{inp('feeCompletion')}</div>
+                <div><FLabel>יתרת תשלום (מחושב)</FLabel>
+                  <div style={{...iS,background:'#f0ede8',color:_bal>0?'#b45309':'#166534',fontWeight:600,cursor:'default'}}>{money(_bal)}</div>
+                </div>
+              </div>
+              <div style={{marginBottom:12}}>
+                <FLabel>סטטוס תשלום (אוטומטי)</FLabel>
+                <div><span style={{display:'inline-block',padding:'6px 14px',borderRadius:20,fontSize:13,fontWeight:600,background:_stC.bg,color:_stC.fg}}>{_st}</span></div>
               </div>
               <FLabel>הערות שכ"ט</FLabel>{inp('feeNotes',true)}
               {form.fee&&<div style={{marginTop:16,padding:'14px 16px',background:'#fef9e8',borderRadius:10,border:`1px solid ${GOLD}66`}}>
-                <div style={{fontSize:22,fontWeight:500,color:GOLD3}}>₪{form.fee}</div>
-                {form.feeStatus&&<div style={{fontSize:12,color:'#6b5e50',marginTop:4}}>סטטוס: {form.feeStatus}</div>}
+                <div style={{display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
+                  <div><div style={{fontSize:11,color:'#9a8e84'}}>שכ"ט מלא</div><div style={{fontSize:20,fontWeight:500,color:GOLD3}}>{money(form.fee)}</div></div>
+                  <div><div style={{fontSize:11,color:'#9a8e84'}}>שולם</div><div style={{fontSize:20,fontWeight:500,color:'#166534'}}>{money(_paid)}</div></div>
+                  <div><div style={{fontSize:11,color:'#9a8e84'}}>יתרה</div><div style={{fontSize:20,fontWeight:500,color:_bal>0?'#b45309':'#166534'}}>{money(_bal)}</div></div>
+                </div>
+                <div style={{fontSize:12,color:'#6b5e50',marginTop:8}}>סטטוס: {_st}</div>
                 {form.feeNotes&&<div style={{fontSize:12,color:'#9a8e84',marginTop:2}}>{form.feeNotes}</div>}
               </div>}
             </div>
-          </div>}
+          </div>);})()}
         </div>
       </div>
       {confirmKtiva&&(
@@ -2081,7 +2104,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
             {h:'עסקאות',w:CW,r:(p)=><EC p={p} field='transactions' opts={TRANSACTIONS_OPTS.filter(Boolean)} displayNode={<Chk v={p.transactions}/>}/>},
             {h:'מסמכים',w:CW,r:(p)=><EC p={p} field='docs' opts={DOCS_OPTS.filter(Boolean)} displayNode={<Chk v={p.docs}/>}/>},
             {h:'דף ביקור',w:CW,r:(p)=><EC p={p} field='visitSheet' opts={VISIT_SHEET_OPTS.filter(Boolean)} displayNode={<Chk v={p.visitSheet}/>}/>},
-            {h:'מקדמה',w:CW,r:(p)=><EC p={p} field='advance' opts={ADVANCE_OPTS.filter(Boolean)} displayNode={p.advance?<Chk v={p.advance}/>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'מקדמה (₪)',w:CW,r:(p)=><EC p={p} field='advanceAmount' displayNode={p.advanceAmount?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.advanceAmount}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'מסמכים חסרים',w:FW,r:(p)=><EC p={p} field='missingDocs' displayNode={p.missingDocs?<span style={{fontSize:11,color:'#9a3412',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}} title={p.missingDocs}>{p.missingDocs}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
           ]},
           {label:'🏠 ביקור',cols:[
@@ -2095,8 +2118,10 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
           ]},
           {label:'💰 שכ"ט',cols:[
             {h:'שם תיק',w:NW,r:nameCell},
-            {h:'סכום (₪)',w:CW,r:(p)=><EC p={p} field='fee' displayNode={p.fee?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.fee}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
-            {h:'סטטוס תשלום',w:CW,r:(p)=><EC p={p} field='feeStatus' displayNode={p.feeStatus?<span style={{fontSize:11,padding:'2px 7px',borderRadius:8,background:'#fef3c7',color:'#92400e',fontWeight:500}}>{p.feeStatus}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'שכ"ט מלא (₪)',w:CW,r:(p)=><EC p={p} field='fee' displayNode={p.fee?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.fee}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'השלמת שכ"ט (₪)',w:CW,r:(p)=><EC p={p} field='feeCompletion' displayNode={p.feeCompletion?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.feeCompletion}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'יתרה (₪)',w:CW,r:(p)=>{const b=feeBalance(p);return (p.fee||p.advanceAmount||p.feeCompletion)?<span style={{fontSize:12,fontWeight:600,color:b>0?'#b45309':'#166534'}}>₪{b.toLocaleString('he-IL')}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>;}},
+            {h:'סטטוס תשלום',w:CW,r:(p)=>{const s=feePayStatus(p);const c=s==='תשלום הוסדר'?{bg:'#dcfce7',fg:'#166534'}:s==='שולמה מקדמה'?{bg:'#fef3c7',fg:'#92400e'}:{bg:'#fee2e2',fg:'#991b1b'};return <span style={{fontSize:11,padding:'2px 7px',borderRadius:8,background:c.bg,color:c.fg,fontWeight:500}}>{s}</span>;}},
             {h:'הערות שכ"ט',w:FW,r:(p)=><EC p={p} field='feeNotes' displayNode={p.feeNotes?<span style={{fontSize:11,color:'#6b5e50',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}}>{p.feeNotes}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
           ]},
         ];
@@ -2296,7 +2321,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
             {h:'עסקאות',w:CW,r:(p)=><EC p={p} field='transactions' opts={TRANSACTIONS_OPTS.filter(Boolean)} displayNode={<Chk v={p.transactions}/>}/>},
             {h:'מסמכים',w:CW,r:(p)=><EC p={p} field='docs' opts={DOCS_OPTS.filter(Boolean)} displayNode={<Chk v={p.docs}/>}/>},
             {h:'דף ביקור',w:CW,r:(p)=><EC p={p} field='visitSheet' opts={VISIT_SHEET_OPTS.filter(Boolean)} displayNode={<Chk v={p.visitSheet}/>}/>},
-            {h:'מקדמה',w:CW,r:(p)=><EC p={p} field='advance' opts={ADVANCE_OPTS.filter(Boolean)} displayNode={p.advance?<Chk v={p.advance}/>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'מקדמה (₪)',w:CW,r:(p)=><EC p={p} field='advanceAmount' displayNode={p.advanceAmount?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.advanceAmount}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
             {h:'מסמכים חסרים',w:FW,r:(p)=><EC p={p} field='missingDocs' displayNode={p.missingDocs?<span style={{fontSize:11,color:'#9a3412',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}} title={p.missingDocs}>{p.missingDocs}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
           ]},
           {label:'🏠 ביקור',cols:[
@@ -2310,8 +2335,10 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
           ]},
           {label:'💰 שכ"ט',cols:[
             {h:'שם תיק',w:NW,r:nameCell},
-            {h:'סכום (₪)',w:CW,r:(p)=><EC p={p} field='fee' displayNode={p.fee?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.fee}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
-            {h:'סטטוס תשלום',w:CW,r:(p)=><EC p={p} field='feeStatus' displayNode={p.feeStatus?<span style={{fontSize:11,padding:'2px 7px',borderRadius:8,background:'#fef3c7',color:'#92400e',fontWeight:500}}>{p.feeStatus}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'שכ"ט מלא (₪)',w:CW,r:(p)=><EC p={p} field='fee' displayNode={p.fee?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.fee}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'השלמת שכ"ט (₪)',w:CW,r:(p)=><EC p={p} field='feeCompletion' displayNode={p.feeCompletion?<span style={{fontSize:12,color:'#1a5e1a',fontWeight:600}}>₪{p.feeCompletion}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
+            {h:'יתרה (₪)',w:CW,r:(p)=>{const b=feeBalance(p);return (p.fee||p.advanceAmount||p.feeCompletion)?<span style={{fontSize:12,fontWeight:600,color:b>0?'#b45309':'#166534'}}>₪{b.toLocaleString('he-IL')}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>;}},
+            {h:'סטטוס תשלום',w:CW,r:(p)=>{const s=feePayStatus(p);const c=s==='תשלום הוסדר'?{bg:'#dcfce7',fg:'#166534'}:s==='שולמה מקדמה'?{bg:'#fef3c7',fg:'#92400e'}:{bg:'#fee2e2',fg:'#991b1b'};return <span style={{fontSize:11,padding:'2px 7px',borderRadius:8,background:c.bg,color:c.fg,fontWeight:500}}>{s}</span>;}},
             {h:'הערות שכ"ט',w:FW,r:(p)=><EC p={p} field='feeNotes' displayNode={p.feeNotes?<span style={{fontSize:11,color:'#6b5e50',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',display:'block'}}>{p.feeNotes}</span>:<span style={{color:'#ccc',fontSize:11}}>—</span>}/>},
           ]},
         ];
