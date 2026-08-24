@@ -52,6 +52,21 @@ const MAX_VIDEO_MB=200;
 function encodeLevelTexts(levels,key){
   return (levels||[]).map((lv,i)=>{const t=String((lv&&lv[key])||'').trim();if(!t)return '';const nm=String((lv&&lv.name)||'').trim();return 'מפלס '+(i+1)+(nm?' ('+nm+')':'')+': '+t;}).filter(Boolean).join(' | ');
 }
+// בניית עמודת "חלוקה" (Q) ממוזגת פר-מפלס + הערה אם יש שוני בגימור
+function buildDivisionQ(levels){
+  const segs=(levels||[]).map(lv=>{
+    const items=(lv.items||[]).join(', ');
+    const free=String(lv.free||'').trim();
+    const body=[items,free].filter(x=>x&&String(x).trim()).join(', ');
+    if(!body)return '';
+    const nm=String(lv.name||'').trim();
+    return (nm?nm+': ':'')+body;
+  }).filter(Boolean);
+  let q=segs.join('. '); if(q)q+='.';
+  const anyDiff=(levels||[]).some(lv=>String(lv.finish||'').replace(/^\s+/,'').indexOf('לא זהה')===0);
+  if(anyDiff)q=(q?q+' ':'')+'(יש לעיין בדוח הביקור לגבי שוני במפרט גימור בין המפלסים)';
+  return q;
+}
 // PUT ישיר של הבייטים ל-Drive (session URI), עם התקדמות
 function directPut(url,blob,onProg){
   return new Promise(resolve=>{
@@ -256,12 +271,19 @@ function App(){
       const levels=(f.divisionLevels&&f.divisionLevels.length)?f.divisionLevels:[{name:'',items:[]}];
       const setFinish=(li,finish)=>set('divisionLevels',levels.map((lv,j)=>j===li?{...lv,finish}:lv));
       inp=<div>
-        {levels.map((lv,li)=>(
-          <div key={li} style={{marginBottom:8}}>
-            <div style={{fontSize:12.5,color:'#6b5e50',marginBottom:4,fontWeight:600}}>מפלס {li+1}{lv.name&&String(lv.name).trim()?' — '+String(lv.name).trim():''}</div>
-            <textarea value={lv.finish||''} onChange={e=>setFinish(li,e.target.value)} rows={2} placeholder="זהה / פרט את השוני בגימור למפלס זה (הוספת נתונים)" style={{...iS,fontSize:14,resize:'vertical',lineHeight:1.5}}/>
-          </div>
-        ))}
+        {levels.map((lv,li)=>{
+          const fin=String(lv.finish||'');
+          const status=fin.replace(/^\s+/,'').indexOf('לא זהה')===0?'לא זהה':fin.replace(/^\s+/,'').indexOf('זהה')===0?'זהה':'';
+          const detail=status==='לא זהה'?fin.replace(/^\s*לא זהה\s*[:—-]?\s*/,''):'';
+          return(<div key={li} style={{marginBottom:10}}>
+            <div style={{fontSize:12.5,color:'#6b5e50',marginBottom:5,fontWeight:600}}>מפלס {li+1}{lv.name&&String(lv.name).trim()?' — '+String(lv.name).trim():''}</div>
+            <div style={{display:'flex',gap:7}}>
+              {optBtn(status==='זהה',()=>setFinish(li,'זהה'),'זהה','same')}
+              {optBtn(status==='לא זהה',()=>setFinish(li,'לא זהה'+(detail?': '+detail:'')),'לא זהה','diff')}
+            </div>
+            {status==='לא זהה'&&<textarea value={detail} onChange={e=>setFinish(li,'לא זהה'+(e.target.value?': '+e.target.value:''))} rows={2} placeholder="פרט את השוני בגימור למפלס זה" style={{...iS,fontSize:14,marginTop:8,resize:'vertical',lineHeight:1.5}}/>}
+          </div>);
+        })}
       </div>;
     }
     return <div key={fl.k} style={{marginBottom:14}}>{fieldLabel(fl.l+(fl.req?' *':''))}{inp}</div>;
@@ -275,7 +297,7 @@ function App(){
     const oVal=(f.divisionLevels||[]).map(lv=>{const items=(lv.items||[]).join(', ');if(!items)return '';return (lv.name||'').trim()?((lv.name||'').trim()+': '+items):items;}).filter(Boolean).join(', ');
     const pVal=encodeLevelTexts(f.divisionLevels,'free');
     const finishVal=encodeLevelTexts(f.divisionLevels,'finish');
-    const qVal=[oVal,pVal].filter(x=>String(x).trim()).join(', ');
+    const qVal=buildDivisionQ(f.divisionLevels);
     const row=[ts,(info&&info.caseNum)||'','אחר',f.appraiserName||'',f.gushVerify?'בוצע':'',f.visitDate||'',
       f.elevator||'',f.floor||'',f.numFloors||'',f.aptNum||'',f.presenter||'',f.presenterId||'',
       f.presenterRelation||'',residentsOut,oVal,pVal,qVal,
