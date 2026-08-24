@@ -3444,6 +3444,86 @@ function LoginScreen({onLogin,autoLogging}){
 }
 
 // ═══════════════ DASHBOARD VIEW ══════════════════════════════════
+// ═══════════ פינת עדכונים ובקשות תכונה (דף הבית) ═══════════
+function AnnouncementsCorner({updates,userName,onRefresh,height,isMobile}){
+  const isAdmin=userName==='מיכאל';
+  const [tab,setTab]=useState('news');            // news | requests
+  const [compType,setCompType]=useState(null);    // null | 'announcement' | 'request'
+  const [draft,setDraft]=useState('');
+  const [busy,setBusy]=useState(false);
+  const announcements=(updates||[]).filter(u=>u.type==='announcement').sort((a,b)=>Number(b.id||0)-Number(a.id||0));
+  const requests=(updates||[]).filter(u=>u.type==='request'&&(isAdmin||u.author===userName)).sort((a,b)=>Number(b.id||0)-Number(a.id||0));
+  const newestId=announcements.length?announcements[0].id:'';
+  const [seen,setSeen]=useState(()=>{try{return localStorage.getItem('rr_seen_announce')||'';}catch(_){return '';}});
+  const hasUnread=!!newestId&&Number(newestId||0)>Number(seen||0);
+  useEffect(()=>{ if(tab==='news'&&newestId&&Number(newestId)>Number(seen||0)){try{localStorage.setItem('rr_seen_announce',newestId);}catch(_){} setSeen(newestId);} },[tab,newestId]);
+  const tsStr=()=>{const d=new Date();const q=n=>String(n).padStart(2,'0');return `${q(d.getDate())}/${q(d.getMonth()+1)}/${d.getFullYear()} ${q(d.getHours())}:${q(d.getMinutes())}`;};
+  const submit=async()=>{
+    const t=draft.trim(); if(!t||busy)return; setBusy(true);
+    try{
+      await api.append("'עדכונים'",[[String(Date.now()),compType,tsStr(),userName,t,compType==='request'?'חדש':'']]);
+      setDraft(''); setCompType(null); if(onRefresh)await onRefresh();
+    }catch(e){alert('שגיאה בשליחה: '+e.message);}
+    setBusy(false);
+  };
+  const setStatus=async(u,st)=>{ try{ await api.put(`'עדכונים'!F${u._row}`,[[st]]); if(onRefresh)await onRefresh(); }catch(e){alert('שגיאה: '+e.message);} };
+  const STATUS_OPTS=['חדש','בטיפול','בוצע','נדחה'];
+  const stColor=st=>st==='בוצע'?{bg:'#dcfce7',fg:'#166534'}:st==='בטיפול'?{bg:'#fef3c7',fg:'#92400e'}:st==='נדחה'?{bg:'#fee2e2',fg:'#991b1b'}:{bg:'#e0e7ff',fg:'#3730a3'};
+  const empty=txt=><div style={{textAlign:'center',color:'#9a8e84',fontSize:12.5,padding:'24px 8px'}}>{txt}</div>;
+  return(
+    <div style={{background:'#fff',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0',height:isMobile?'auto':height,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+      <div style={{padding:'12px 16px 0',borderBottom:'1px solid #ede8e0',background:'#fdfaf5',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+          <span style={{fontSize:15}}>📣</span>
+          <span style={{fontSize:13,fontWeight:600,color:'#3a2a00'}}>עדכונים ובקשות</span>
+        </div>
+        <div style={{display:'flex',gap:10}}>
+          {[['news','הודעות'],['requests',isAdmin?'בקשות':'הבקשות שלי']].map(([id,lbl])=>(
+            <button key={id} onClick={()=>setTab(id)} style={{position:'relative',border:'none',background:'none',cursor:'pointer',padding:'7px 2px',fontFamily:'inherit',fontSize:12.5,fontWeight:tab===id?700:500,color:tab===id?GOLD3:'#9a8e84',borderBottom:tab===id?`2px solid ${GOLD3}`:'2px solid transparent'}}>
+              {lbl}
+              {id==='news'&&hasUnread&&<span style={{position:'absolute',top:3,left:-6,width:7,height:7,borderRadius:'50%',background:'#dc2626'}}/>}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'6px 14px',minHeight:isMobile?120:0}}>
+        {tab==='news'
+          ?(announcements.length===0?empty('אין הודעות עדיין'):announcements.map(a=>(
+              <div key={a.id} style={{padding:'10px 0',borderBottom:'1px solid #f0ebe2'}}>
+                <div style={{fontSize:13,color:'#1a1510',lineHeight:1.6,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{a.text}</div>
+                <div style={{fontSize:10.5,color:'#9a8e84',marginTop:4}}>{a.author} · {a.date}</div>
+              </div>)))
+          :(requests.length===0?empty('אין בקשות'):requests.map(r=>{const c=stColor(r.status);return(
+              <div key={r.id} style={{padding:'10px 0',borderBottom:'1px solid #f0ebe2'}}>
+                <div style={{fontSize:13,color:'#1a1510',lineHeight:1.6,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{r.text}</div>
+                <div style={{display:'flex',alignItems:'center',gap:6,marginTop:5,flexWrap:'wrap'}}>
+                  {isAdmin
+                    ?<select value={r.status||'חדש'} onChange={e=>setStatus(r,e.target.value)} style={{fontSize:11,padding:'2px 6px',borderRadius:6,border:'1px solid #ddd0bb',background:c.bg,color:c.fg,fontFamily:'inherit',fontWeight:600,outline:'none'}}>{STATUS_OPTS.map(s=><option key={s} value={s}>{s}</option>)}</select>
+                    :<span style={{fontSize:11,padding:'2px 8px',borderRadius:10,background:c.bg,color:c.fg,fontWeight:600}}>{r.status||'חדש'}</span>}
+                  <span style={{fontSize:10.5,color:'#9a8e84'}}>{isAdmin?(r.author+' · '):''}{r.date}</span>
+                </div>
+              </div>);}))}
+      </div>
+      <div style={{borderTop:'1px solid #ede8e0',padding:'10px 14px',flexShrink:0,background:'#fdfaf5'}}>
+        {compType?(
+          <div>
+            {compType==='request'&&<div style={{fontSize:11,color:'#9a8e84',marginBottom:6,lineHeight:1.5}}>תאר/י את <b>הבעיה או הקושי</b> — לא את הפתרון. לדוגמה: "קשה לי לאתר תיקים ישנים לפי כתובת".</div>}
+            <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={3} autoFocus placeholder={compType==='announcement'?'תוכן ההודעה לכלל המשתמשים...':'מה הבעיה / הצורך?'} style={{width:'100%',boxSizing:'border-box',padding:'8px 10px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:13,fontFamily:'inherit',resize:'vertical',lineHeight:1.5,outline:'none'}}/>
+            <div style={{display:'flex',gap:6,marginTop:6}}>
+              <button disabled={busy||!draft.trim()} onClick={submit} style={{flex:1,padding:'7px',borderRadius:8,border:'none',background:draft.trim()?GOLD3:'#d4cabb',color:'#fff',fontSize:12.5,fontWeight:600,cursor:draft.trim()?'pointer':'default',fontFamily:'inherit'}}>{busy?'שולח...':'שליחה'}</button>
+              <button onClick={()=>{setCompType(null);setDraft('');}} style={{padding:'7px 12px',borderRadius:8,border:'1px solid #ddd0bb',background:'#fff',color:'#6b5e50',fontSize:12.5,cursor:'pointer',fontFamily:'inherit'}}>ביטול</button>
+            </div>
+          </div>
+        ):(
+          <div style={{display:'flex',gap:6}}>
+            <button onClick={()=>{setCompType('request');setTab('requests');}} style={{flex:1,padding:'8px',borderRadius:8,border:`1.5px solid ${GOLD}`,background:'#fff',color:GOLD3,fontSize:12.5,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>💡 בקשה / דיווח</button>
+            {isAdmin&&<button onClick={()=>{setCompType('announcement');setTab('news');}} style={{flex:1,padding:'8px',borderRadius:8,border:'none',background:GOLD3,color:'#fff',fontSize:12.5,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>➕ הודעה</button>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,onlineUsers,onPostMessage,onMarkRead,onDeleteMessage,updates,onRefreshUpdates}){
   const isMobile=useIsMobile();
   const today=new Date();today.setHours(0,0,0,0);
@@ -3572,7 +3652,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
           onClick={()=>onSetView('managed')}/>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:16,marginBottom:16,alignItems:'start'}}>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 0.9fr 1fr',gap:14,marginBottom:16,alignItems:'start'}}>
 
         {/* ── ימין: תיבת מייל — משימות אישיות ── */}
         {(()=>{
@@ -3638,6 +3718,9 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
             </div>
           );
         })()}
+
+        {/* ── אמצע: פינת עדכונים ובקשות ── */}
+        <AnnouncementsCorner updates={updates} userName={userName} onRefresh={onRefreshUpdates} height={isMobile?undefined:480} isMobile={isMobile}/>
 
         {/* ── שמאל: לוח שנה שבועי ── */}
         {(()=>{
