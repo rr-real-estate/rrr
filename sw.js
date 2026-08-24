@@ -3,7 +3,7 @@
 //  אסטרטגיה: Cache-First לקבצים סטטיים, Network-First לשאר
 // ═══════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'rr-v63';
+const CACHE_NAME = 'rr-v64';
 
 // קבצים שיישמרו בcache בעת ההתקנה
 const STATIC_ASSETS = [
@@ -84,11 +84,39 @@ self.addEventListener('fetch', (event) => {
   );
   if (isNetworkOnly) return;
 
-  // קבצים סטטיים — Cache-First (אם אין cache, שלוף מרשת)
-  const isStatic = STATIC_ASSETS.some(
-    (path) => url.pathname === path || url.pathname.endsWith('.png') ||
-              url.pathname.endsWith('.js') || url.pathname.endsWith('.css')
-  );
+  // ─── מעטפת האפליקציה (index.html / ניווט) — NETWORK-FIRST ───
+  // כשיש רשת: תמיד מושכים את הגרסה העדכנית מהשרת (וכך כל רענון מעדכן מיד).
+  // במצב אופליין: fallback לעותק השמור ב-cache.
+  const isAppShell =
+    url.origin === self.location.origin &&
+    (event.request.mode === 'navigate' ||
+      url.pathname === '/rrr/' ||
+      url.pathname === '/rrr' ||
+      url.pathname.endsWith('/index.html'));
+
+  if (isAppShell) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/rrr/index.html', clone));
+          }
+          return response;
+        })
+        .catch(() =>
+          caches.match('/rrr/index.html').then((c) => c || caches.match(event.request))
+        )
+    );
+    return;
+  }
+
+  // שאר הקבצים הסטטיים (לוגואים, manifest) — Cache-First
+  const isStatic =
+    url.origin === self.location.origin &&
+    (url.pathname.endsWith('.png') ||
+      url.pathname.endsWith('.css') ||
+      url.pathname.endsWith('/manifest.json'));
 
   if (isStatic) {
     event.respondWith(
