@@ -49,6 +49,9 @@ function compressImage(file,maxDim,quality){
 }
 const blobToDataURL=blob=>new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=()=>res(null);r.readAsDataURL(blob);});
 const MAX_VIDEO_MB=200;
+function encodeLevelTexts(levels,key){
+  return (levels||[]).map((lv,i)=>{const t=String((lv&&lv[key])||'').trim();if(!t)return '';const nm=String((lv&&lv.name)||'').trim();return 'מפלס '+(i+1)+(nm?' ('+nm+')':'')+': '+t;}).filter(Boolean).join(' | ');
+}
 // PUT ישיר של הבייטים ל-Drive (session URI), עם התקדמות
 function directPut(url,blob,onProg){
   return new Promise(resolve=>{
@@ -91,6 +94,17 @@ const VISIT_FIELDS=[
   {k:'appraiserName',l:'שם השמאי המבקר',t:'text',req:true},
   {k:'gushVerify',l:'בוצע צילום מסך ממפות ישראל (שכבות גוש/חלקה) ואומת שהנכס בחלקה הנכונה',t:'check'},
   {k:'visitDate',l:'תאריך ביקור',t:'date'},
+  {sec:'תיאור הבניין והסביבה'},
+  {k:'buildingType',l:'סוג הבניין',t:'enum',o:['בנייה רוויה','צמוד קרקע','קרקע']},
+  {k:'roofType',l:'סוג גג',t:'enum',o:['רעפים','שטוח']},
+  {k:'buildingPhysical',l:'מצב פיזי בניין',t:'enum',o:['תואם לגילו','טוב','בבנייה']},
+  {k:'buildingConstruction',l:'הבניין בנוי',t:'enum',o:['בלוקים ובטון','בניה טרומית']},
+  {k:'exteriorCladding',l:'חיפוי חיצוני',t:'enum',o:['טיח חוץ','אבן','ללא']},
+  {k:'propertyType',l:'סוג נכס',t:'enum',o:['דירה','דירה מפוצלת','בית צמוד קרקע','קרקע לבניית בית צמוד קרקע']},
+  {k:'usage',l:'שימוש',t:'enum',o:['מגורים','מסחר','אחסנה']},
+  {k:'envDescription',l:'תיאור סביבה',t:'enum',o:['מגורים','תעשייה','מסחר']},
+  {k:'streetDescription',l:'תיאור רחוב',t:'enum',o:['ראשי','פנימי']},
+  {k:'locationDescription',l:'תיאור מיקום',t:'enum',o:['מרכזי','שקט']},
   {sec:'מיקום ומבנה'},
   {k:'elevator',l:'מעלית',t:'enum',o:['יש','אין']},
   {k:'floor',l:'קומה',t:'num'},
@@ -103,7 +117,6 @@ const VISIT_FIELDS=[
   {k:'residents',l:'מתגוררים בנכס',t:'residents'},
   {sec:'חלוקה'},
   {k:'divisionLevels',l:'חלוקה - בחירה',t:'divisions'},
-  {k:'divisionFree',l:'פירוט חלוקה חופשי',t:'long'},
   {k:'numRooms',l:'מספר חדרים',t:'num'},
   {sec:'גימור'},
   {k:'floorType',l:'סוג ריצוף',t:'multi',o:['קרמיקה','טראצו','שיש','דמוי פרקט','ללא']},
@@ -114,6 +127,7 @@ const VISIT_FIELDS=[
   {k:'windows',l:'חלונות',t:'enum',o:['אלומיניום','עץ','ללא']},
   {k:'interiorDoors',l:'דלתות פנים',t:'enum',o:['פולימר','עץ','ללא']},
   {k:'ac',l:'מיזוג',t:'multi',o:['מיזוג עילי','מיזוג עילי בסלון ובחדרים','מיזוג עילי בסלון','מיזוג עילי בחדרים','מיזוג מרכזי VRF','מיזוג מיני מרכזי','ללא']},
+  {k:'levelSpecs',l:'מפרט גימור לפי מפלס',t:'levelSpecs'},
   {sec:'מצב ומידות'},
   {k:'physical',l:'מצב פיזי',t:'enum',o:['משודרג','טוב','סביר','ירוד'],noOther:true},
   {k:'maintenance',l:'מצב תחזוקתי',t:'enum',o:['משודרג','טוב','סביר','ירוד'],noOther:true},
@@ -220,19 +234,34 @@ function App(){
       const setLevels=upd=>set(fl.k,upd);
       const toggleItem=(li,room)=>setLevels(levels.map((lv,j)=>j===li?{...lv,items:(lv.items||[]).includes(room)?(lv.items||[]).filter(x=>x!==room):[...(lv.items||[]),room]}:lv));
       const setName=(li,name)=>setLevels(levels.map((lv,j)=>j===li?{...lv,name}:lv));
+      const setFree=(li,free)=>setLevels(levels.map((lv,j)=>j===li?{...lv,free}:lv));
       const addLevel=()=>setLevels([...levels,{name:'',items:[]}]);
       const removeLevel=li=>setLevels(levels.filter((_,j)=>j!==li));
+      const multi=levels.length>1;
       inp=<div>
-        {levels.map((lv,li)=>(
+        {levels.map((lv,li)=>{const nameReq=multi&&!(lv.name&&String(lv.name).trim());return(
           <div key={li} style={li>0?{marginTop:10,padding:'10px 12px',border:'1px solid #ede8e0',borderRadius:10,background:'#fdfaf5'}:{marginBottom:6}}>
             <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
-              <input value={lv.name||''} onChange={e=>setName(li,e.target.value)} placeholder={li===0?'שם קומה / מפלס (אופציונלי)':'שם קומה / מפלס (למשל קומת כניסה)'} style={{...iS,fontSize:14,flex:1}}/>
+              <input value={lv.name||''} onChange={e=>setName(li,e.target.value)} placeholder={multi?'שם קומה / מפלס *':'שם קומה / מפלס (אופציונלי)'} style={{...iS,fontSize:14,flex:1,borderColor:nameReq?'#dc2626':undefined}}/>
               {li>0&&<button type="button" onClick={()=>removeLevel(li)} title="הסר קומה" style={{background:'none',border:'none',cursor:'pointer',color:'#c0392b',fontSize:16,lineHeight:1}}>🗑</button>}
             </div>
             <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>{DIVISION_OPTS.map(o=>optBtn((lv.items||[]).includes(o),()=>toggleItem(li,o),o,o))}</div>
+            <textarea value={lv.free||''} onChange={e=>setFree(li,e.target.value)} rows={2} placeholder="פירוט חופשי (הוספת נתונים)" style={{...iS,fontSize:14,marginTop:8,resize:'vertical',lineHeight:1.5}}/>
+          </div>
+        );})}
+        <button type="button" onClick={addLevel} style={{marginTop:10,border:`1.5px dashed ${GOLD}`,background:'#fff',color:GOLD3,borderRadius:9,padding:'8px 14px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>➕ הוסף קומה / מפלס</button>
+      </div>;
+    }
+    else if(fl.t==='levelSpecs'){
+      const levels=(f.divisionLevels&&f.divisionLevels.length)?f.divisionLevels:[{name:'',items:[]}];
+      const setFinish=(li,finish)=>set('divisionLevels',levels.map((lv,j)=>j===li?{...lv,finish}:lv));
+      inp=<div>
+        {levels.map((lv,li)=>(
+          <div key={li} style={{marginBottom:8}}>
+            <div style={{fontSize:12.5,color:'#6b5e50',marginBottom:4,fontWeight:600}}>מפלס {li+1}{lv.name&&String(lv.name).trim()?' — '+String(lv.name).trim():''}</div>
+            <textarea value={lv.finish||''} onChange={e=>setFinish(li,e.target.value)} rows={2} placeholder="זהה / פרט את השוני בגימור למפלס זה (הוספת נתונים)" style={{...iS,fontSize:14,resize:'vertical',lineHeight:1.5}}/>
           </div>
         ))}
-        <button type="button" onClick={addLevel} style={{marginTop:10,border:`1.5px dashed ${GOLD}`,background:'#fff',color:GOLD3,borderRadius:9,padding:'8px 14px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>➕ הוסף קומה / מפלס</button>
       </div>;
     }
     return <div key={fl.k} style={{marginBottom:14}}>{fieldLabel(fl.l+(fl.req?' *':''))}{inp}</div>;
@@ -244,7 +273,8 @@ function App(){
     const jm=k=>[...(f[k]||[]),String(f[k+'__oth']||'').trim()].filter(x=>x&&String(x).trim()).join(', ');
     const residentsOut=f.residents==='__family__'?familyLabel:(f.residents||'');
     const oVal=(f.divisionLevels||[]).map(lv=>{const items=(lv.items||[]).join(', ');if(!items)return '';return (lv.name||'').trim()?((lv.name||'').trim()+': '+items):items;}).filter(Boolean).join(', ');
-    const pVal=f.divisionFree||'';
+    const pVal=encodeLevelTexts(f.divisionLevels,'free');
+    const finishVal=encodeLevelTexts(f.divisionLevels,'finish');
     const qVal=[oVal,pVal].filter(x=>String(x).trim()).join(', ');
     const row=[ts,(info&&info.caseNum)||'','אחר',f.appraiserName||'',f.gushVerify?'בוצע':'',f.visitDate||'',
       f.elevator||'',f.floor||'',f.numFloors||'',f.aptNum||'',f.presenter||'',f.presenterId||'',
@@ -252,12 +282,17 @@ function App(){
       f.numRooms||'',jm('floorType'),jm('floorSize'),f.kitchenCabinets||'',f.sanitary||'',f.ceramicWalls||'',
       f.windows||'',f.interiorDoors||'',jm('ac'),f.physical||'',f.maintenance||'',f.locationMatch||'',
       f.internalDivision||'',f.internalDims||'',f.buildingViolations||'',f.violationsDetail||''];
-    return [...row,'שמאי חיצוני'];
+    return [...row,'שמאי חיצוני',
+      f.buildingType||'',f.roofType||'',f.buildingPhysical||'',f.buildingConstruction||'',f.exteriorCladding||'',
+      f.propertyType||'',f.usage||'',f.envDescription||'',f.streetDescription||'',f.locationDescription||'',
+      finishVal];
   };
 
   const submit=async()=>{
     setErr('');
     if(!String(f.appraiserName||'').trim()){setErr('יש להזין את שם השמאי המבקר');window.scrollTo({top:0,behavior:'smooth'});return;}
+    {const used=(f.divisionLevels||[]).filter(lv=>(lv.items&&lv.items.length)||(lv.free&&String(lv.free).trim())||(lv.finish&&String(lv.finish).trim())||(lv.name&&String(lv.name).trim()));
+     if(used.length>1&&used.some(lv=>!(lv.name&&String(lv.name).trim()))){setErr('כשיש יותר ממפלס אחד — חובה לרשום שם לכל מפלס');window.scrollTo({top:0,behavior:'smooth'});return;}}
     setStatus('submitting');
     try{
       // 1) העלאת הקבצים במקביל (עד 4 בו-זמנית) — הטוקן עדיין תקף
