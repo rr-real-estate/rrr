@@ -73,7 +73,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v63'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v64'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
@@ -3507,7 +3507,7 @@ function AnnouncementsCorner({updates,userName,onRefresh,height,isMobile}){
       <div style={{borderTop:'1px solid #ede8e0',padding:'10px 14px',flexShrink:0,background:'#fdfaf5'}}>
         {compType?(
           <div>
-            {compType==='request'&&<div style={{fontSize:11,color:'#9a8e84',marginBottom:6,lineHeight:1.5}}>תאר/י את <b>הבעיה או הקושי</b> — לא את הפתרון. לדוגמה: "קשה לי לאתר תיקים ישנים לפי כתובת".</div>}
+            {compType==='request'&&<div style={{fontSize:11,color:'#9a8e84',marginBottom:6,lineHeight:1.5}}>תאר/י את <b>הבעיה או הקושי</b>. לדוגמה: "קשה לי לאתר תיקים ישנים לפי כתובת".</div>}
             <textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={3} autoFocus placeholder={compType==='announcement'?'תוכן ההודעה לכלל המשתמשים...':'מה הבעיה / הצורך?'} style={{width:'100%',boxSizing:'border-box',padding:'8px 10px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:13,fontFamily:'inherit',resize:'vertical',lineHeight:1.5,outline:'none'}}/>
             <div style={{display:'flex',gap:6,marginTop:6}}>
               <button disabled={busy||!draft.trim()} onClick={submit} style={{flex:1,padding:'7px',borderRadius:8,border:'none',background:draft.trim()?GOLD3:'#d4cabb',color:'#fff',fontSize:12.5,fontWeight:600,cursor:draft.trim()?'pointer':'default',fontFamily:'inherit'}}>{busy?'שולח...':'שליחה'}</button>
