@@ -73,7 +73,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v62'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v63'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
@@ -1452,6 +1452,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const [visitDateErr,setVisitDateErr]=useState(false);
   const [confirmKtiva,setConfirmKtiva]=useState(false);
   const [histOpen,setHistOpen]=useState(false);
+  const [lastVisit,setLastVisit]=useState(null); // ביקור אחרון מגיליון "ביקורים" (שם שמאי + חותמת זמן)
   const pendingStatusRef=useRef(null);
   const savingRef=useRef(false);
   const formRef=useRef({...project});
@@ -1546,6 +1547,24 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   };
   const numMatch=project.name.match(/\b(5\d{4})\b/);
   const caseNum=numMatch?numMatch[1]:'';
+  // שליפת הביקור האחרון לתיק מגיליון "ביקורים": שם השמאי (עמודה C, ואם "אחר" → D) + חותמת זמן (עמודה A)
+  useEffect(()=>{
+    if(!caseNum){setLastVisit(null);return;}
+    let alive=true;
+    (async()=>{
+      try{
+        const rows=await api.get("'ביקורים'!A2:D",MAAGAR_ID);
+        const matches=(rows||[]).filter(r=>String(r[1]||'').trim()===caseNum);
+        if(!alive)return;
+        if(matches.length){
+          const last=matches[matches.length-1];
+          const appr=String(last[2]||'').trim()==='אחר'?(last[3]||''):(last[2]||'');
+          setLastVisit({ts:String(last[0]||'').trim(),appraiser:String(appr||'').trim()});
+        }else setLastVisit(null);
+      }catch(_){ if(alive)setLastVisit(null); }
+    })();
+    return ()=>{alive=false;};
+  },[caseNum]);
   const dot=STATUS_META[form.status]?.dot||GOLD;
   const sec={background:'#fff',borderRadius:14,padding:18,marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
   const isGeneralTask=!/\b5\d{4}\b/.test(project.name||'');  // משימה כללית — ללא מספר תיק
@@ -1868,6 +1887,14 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 </div>
               </div>
               <FLabel>הערות לביקור</FLabel>{inp('visitNotes',true)}
+              <div style={{marginTop:14}}>
+                <FLabel>שמאי מבקר</FLabel>
+                <div style={{padding:'9px 12px',borderRadius:8,border:'1px solid #ede8e0',background:'#f7f4ef',fontSize:14,color:lastVisit?'#1a1510':'#9a8e84'}}>
+                  {lastVisit
+                    ?<span><b>{lastVisit.appraiser||'—'}</b>{lastVisit.ts?<span style={{color:'#8a7d70'}}>{' · '+lastVisit.ts}</span>:null}</span>
+                    :'טרם נרשם ביקור לתיק זה'}
+                </div>
+              </div>
             </div>
             <div style={sec}>
               {(()=>{const mc=(managed||[]).find(c=>String(c.caseNum||'').trim()===caseNum);return <ExternalLinkButton caseNum={caseNum} fullName={(mc&&mc.folder)||project.name} driveFolderLink={mc&&mc.driveFolderLink}/>;})()}
@@ -3417,7 +3444,7 @@ function LoginScreen({onLogin,autoLogging}){
 }
 
 // ═══════════════ DASHBOARD VIEW ══════════════════════════════════
-function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,onlineUsers,onPostMessage,onMarkRead,onDeleteMessage}){
+function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,onlineUsers,onPostMessage,onMarkRead,onDeleteMessage,updates,onRefreshUpdates}){
   const isMobile=useIsMobile();
   const today=new Date();today.setHours(0,0,0,0);
   const in7=new Date(today);in7.setDate(in7.getDate()+7);
@@ -4805,6 +4832,21 @@ function encodeLevelTexts(levels,key){
 function decodeLevelTexts(str){
   const map={};String(str||'').split(' | ').forEach(part=>{const m=part.match(/^\s*מפלס\s+(\d+)[^:]*:\s*([\s\S]*)$/);if(m)map[parseInt(m[1],10)-1]=m[2].trim();});return map;
 }
+// בניית עמודת "חלוקה" (Q) ממוזגת פר-מפלס: "<שם>: <פריטים>, <פירוט חופשי>." + הערה אם יש שוני בגימור
+function buildDivisionQ(levels){
+  const segs=(levels||[]).map(lv=>{
+    const items=(lv.items||[]).join(', ');
+    const free=String(lv.free||'').trim();
+    const body=[items,free].filter(x=>x&&String(x).trim()).join(', ');
+    if(!body)return '';
+    const nm=String(lv.name||'').trim();
+    return (nm?nm+': ':'')+body;
+  }).filter(Boolean);
+  let q=segs.join('. '); if(q)q+='.';
+  const anyDiff=(levels||[]).some(lv=>String(lv.finish||'').replace(/^\s+/,'').indexOf('לא זהה')===0);
+  if(anyDiff)q=(q?q+' ':'')+'(יש לעיין בדוח הביקור לגבי שוני במפרט גימור בין המפלסים)';
+  return q;
+}
 // ═══ תור ביקורים ממתינים — עבודה ללא אינטרנט ═══
 const VQ_KEY='rrVisitQueue';
 const CASES_KEY='rrCasesCache';
@@ -5196,12 +5238,19 @@ function VisitFormView({managed,user,isMobile,offline}){
       const levels=(f.divisionLevels&&f.divisionLevels.length)?f.divisionLevels:[{name:'',items:[]}];
       const setFinish=(li,finish)=>set('divisionLevels',levels.map((lv,j)=>j===li?{...lv,finish}:lv));
       inp=<div>
-        {levels.map((lv,li)=>(
-          <div key={li} style={{marginBottom:8}}>
-            <div style={{fontSize:12.5,color:'#6b5e50',marginBottom:4,fontWeight:600}}>מפלס {li+1}{lv.name&&String(lv.name).trim()?' — '+String(lv.name).trim():''}</div>
-            <textarea value={lv.finish||''} onChange={e=>setFinish(li,e.target.value)} rows={2} placeholder="זהה / פרט את השוני בגימור למפלס זה (הוספת נתונים)" style={{...iS,fontSize:14,resize:'vertical',lineHeight:1.5}}/>
-          </div>
-        ))}
+        {levels.map((lv,li)=>{
+          const fin=String(lv.finish||'');
+          const status=fin.replace(/^\s+/,'').indexOf('לא זהה')===0?'לא זהה':fin.replace(/^\s+/,'').indexOf('זהה')===0?'זהה':'';
+          const detail=status==='לא זהה'?fin.replace(/^\s*לא זהה\s*[:—-]?\s*/,''):'';
+          return(<div key={li} style={{marginBottom:10}}>
+            <div style={{fontSize:12.5,color:'#6b5e50',marginBottom:5,fontWeight:600}}>מפלס {li+1}{lv.name&&String(lv.name).trim()?' — '+String(lv.name).trim():''}</div>
+            <div style={{display:'flex',gap:7}}>
+              {optBtn(status==='זהה',()=>setFinish(li,'זהה'),'זהה','same')}
+              {optBtn(status==='לא זהה',()=>setFinish(li,'לא זהה'+(detail?': '+detail:'')),'לא זהה','diff')}
+            </div>
+            {status==='לא זהה'&&<textarea value={detail} onChange={e=>setFinish(li,'לא זהה'+(e.target.value?': '+e.target.value:''))} rows={2} placeholder="פרט את השוני בגימור למפלס זה" style={{...iS,fontSize:14,marginTop:8,resize:'vertical',lineHeight:1.5}}/>}
+          </div>);
+        })}
       </div>;
     }
     return <div key={fl.k} style={{marginBottom:14}}>{fieldLabel(fl.l+(fl.req?' *':''))}{inp}</div>;
@@ -5231,7 +5280,7 @@ function VisitFormView({managed,user,isMobile,offline}){
       const oVal=(f.divisionLevels||[]).map(lv=>{const items=(lv.items||[]).join(', ');if(!items)return '';return (lv.name||'').trim()?((lv.name||'').trim()+': '+items):items;}).filter(Boolean).join(', '); // חלוקה - בחירה (כולל קומות/מפלסים)
       const pVal=encodeLevelTexts(f.divisionLevels,'free');        // פירוט חלוקה חופשי — פר-מפלס
       const finishVal=encodeLevelTexts(f.divisionLevels,'finish'); // מפרט גימור לפי מפלס (עמודה AS)
-      const qVal=[oVal,pVal].filter(x=>String(x).trim()).join(', '); // חלוקה = O + P מחוברים בפסיק
+      const qVal=buildDivisionQ(f.divisionLevels); // חלוקה (Q) = ממוזג פר-מפלס: פריטים + פירוט חופשי, + הערת שוני גימור
       const row=[ts,f.caseNum||'',f.appraiser||'',f.appraiser==='אחר'?(f.appraiserName||''):'',f.gushVerify?'בוצע':'',f.visitDate||'',
         f.elevator||'',f.floor||'',f.numFloors||'',f.aptNum||'',f.presenter||'',f.presenterId||'',
         f.presenterRelation||'',residentsOut,oVal,pVal,qVal,
@@ -5486,16 +5535,19 @@ function App(){
   const [projects,setProjects]=useState([]);
   const [managed,setManaged]=useState([]);
   const [messages,setMessages]=useState([]);
+  const [updates,setUpdates]=useState([]); // פינת עדכונים / בקשות תכונה
   const [onlineUsers,setOnlineUsers]=useState([]);
   const [settings,setSettings]=useState(()=>{try{return JSON.parse(localStorage.getItem('rrr_settings')||'{}')}catch{return {};}});
   const onSetting=(k,v)=>setSettings(s=>{const n={...s,[k]:v};try{localStorage.setItem('rrr_settings',JSON.stringify(n));}catch{}return n;});
   const loadMsgsPresence=useCallback(async()=>{
     try{
-      const [msgRows,presRows]=await Promise.all([
+      const [msgRows,presRows,updRows]=await Promise.all([
         api.get("'הודעות'!A2:E"),
         api.get("'נוכחות'!A2:D"),
+        api.get("'עדכונים'!A2:F").catch(()=>[]),
       ]);
       setMessages((msgRows||[]).map((r,i)=>parseMsg(r,i)).filter(m=>m.text));
+      setUpdates((updRows||[]).map((r,i)=>({id:String(r[0]||'').trim(),type:String(r[1]||'').trim(),date:String(r[2]||'').trim(),author:String(r[3]||'').trim(),text:String(r[4]||''),status:String(r[5]||'').trim(),_row:i+2})).filter(u=>u.text&&String(u.text).trim()));
       const now=new Date();
       setOnlineUsers([...new Set((presRows||[]).map(r=>parsePresenceRow(r)).filter(p=>p.name&&p.lastSeen&&(now-p.lastSeen)<3*60*1000).map(p=>p.name))]);
     }catch(e){}
@@ -5737,7 +5789,7 @@ function App(){
         paddingBottom:isMobile?68:0,
       }}>
         {error&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{error}</div>}
-        {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}} messages={messages} onlineUsers={onlineUsers} onPostMessage={postMessage} onMarkRead={markRead} onDeleteMessage={deleteMessage}/>}
+        {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}} messages={messages} onlineUsers={onlineUsers} onPostMessage={postMessage} onMarkRead={markRead} onDeleteMessage={deleteMessage} updates={updates} onRefreshUpdates={loadMsgsPresence}/>}
         {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)} autoOpenSearch={projectSearch} onAutoOpenSearchConsumed={()=>setProjectSearch('')} isMobile={isMobile}/>}
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject} isMobile={isMobile}/>}
         {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject} initialSearch={managedSearch} onSearchConsumed={()=>setManagedSearch('')} isMobile={isMobile}/>}
@@ -5772,11 +5824,16 @@ root.render(<App/>);
 <script>
 // ─── רישום Service Worker (PWA) ───────────────────────────
 if('serviceWorker' in navigator){
+  let _reg=null;
+  const _checkUpdate=()=>{ if(_reg){ try{ _reg.update(); }catch(_){} } };
   window.addEventListener('load',()=>{
     navigator.serviceWorker.register('./sw.js')
-      .then(reg=>{console.log('[SW] רשום בהצלחה:',reg.scope);setInterval(()=>reg.update(),15*60*1000);})
+      .then(reg=>{console.log('[SW] רשום בהצלחה:',reg.scope);_reg=reg;_checkUpdate();setInterval(_checkUpdate,5*60*1000);})
       .catch(err=>console.warn('[SW] שגיאה ברישום:',err));
   });
+  // בדיקת עדכון גם כשחוזרים ללשונית / למסך (חיוני במובייל — הטיימר מושהה ברקע)
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible')_checkUpdate(); });
+  window.addEventListener('focus',_checkUpdate);
   // אכיפת עדכון: כשגרסה חדשה משתלטת (SW חדש) — רענון אוטומטי (למעט בהתקנה הראשונה)
   let _hadController=!!navigator.serviceWorker.controller, _refreshing=false;
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
