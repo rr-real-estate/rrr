@@ -73,7 +73,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v64'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v65'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
@@ -2499,46 +2499,6 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
   const [tab,setTab]=useState(0);
   const [err,setErr]=useState('');
   const lastSavedStatusRef=React.useRef(cas.status);
-  const extInstalled=document.documentElement.getAttribute('data-rrr-ext')==='1';
-  const [nadlState,setNadlState]=useState('idle'); // idle|loading|done|error
-  const [nadlResult,setNadlResult]=useState(null); // {link,filename}
-  const nadlReqRef=React.useRef(null);
-  const hasDriveFolder=!!cas.folder;
-
-  React.useEffect(()=>{
-    const handler=async(e)=>{
-      console.log('[RRR] RRR_NADLAN_RESULT received, reqId:',e.detail.requestId,'expected:',nadlReqRef.current);
-      if(e.detail.requestId!==nadlReqRef.current)return;
-      console.log('[RRR] requestId matched! saveToDrive:',e.detail.saveToDrive,'hasData:',!!e.detail.data);
-      if(e.detail.saveToDrive&&e.detail.data){
-        try{
-          const ctrl=new AbortController();
-          const tid=setTimeout(()=>ctrl.abort(),30000);
-          const resp=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify({type:'saveToDrive',folderName:cas.folder,filename:e.detail.filename,data:e.detail.data}),signal:ctrl.signal});
-          clearTimeout(tid);
-          const result=await resp.json();
-          if(result.success){setNadlState('done');setNadlResult({link:result.link,filename:result.name});}
-          else throw new Error(result.error||'שגיאה');
-        }catch(err){setNadlState('error');}
-      }else{
-        setNadlState('done');setNadlResult({filename:e.detail.filename});
-      }
-    };
-    window.addEventListener('RRR_NADLAN_RESULT',handler);
-    return()=>window.removeEventListener('RRR_NADLAN_RESULT',handler);
-  },[cas.folder]);
-
-  const handleNadlan=()=>{
-    if(!cas.block)return;
-    const reqId=Date.now();
-    nadlReqRef.current=reqId;
-    setNadlState('loading');setNadlResult(null);
-    window.dispatchEvent(new CustomEvent('RRR_NADLAN_REQUEST',{detail:{
-      gush:cas.block,caseFolder:cas.folder,caseName:cas.folder,
-      saveToDrive:hasDriveFolder,folderName:cas.folder,
-      propTypeName:null,requestId:reqId,
-    }}));
-  };
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   const handleAdvisorChange=(v)=>{
@@ -2692,31 +2652,6 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
             );
           })()}
         </div>
-        {extInstalled&&cas.block&&(
-          <div style={{padding:'8px 22px',background:'#fff',borderBottom:'1px solid #e0d8cc',flexShrink:0}}>
-            <button onClick={handleNadlan} disabled={nadlState==='loading'}
-              style={{width:'100%',padding:'8px 0',borderRadius:9,
-                border:`1px solid ${nadlState==='done'?'rgba(22,163,74,0.6)':nadlState==='error'?'rgba(220,38,38,0.4)':'rgba(22,163,74,0.4)'}`,
-                background:nadlState==='done'?'rgba(22,163,74,0.1)':nadlState==='error'?'rgba(220,38,38,0.07)':'rgba(22,163,74,0.07)',
-                color:nadlState==='done'?'#15803d':nadlState==='error'?'#dc2626':'#15803d',
-                cursor:nadlState==='loading'?'not-allowed':'pointer',
-                fontSize:13,fontWeight:600,fontFamily:'inherit',
-                display:'flex',alignItems:'center',justifyContent:'center',gap:6,transition:'all 0.15s'}}
-              onMouseEnter={e=>{if(nadlState==='idle')e.currentTarget.style.background='rgba(22,163,74,0.15)';}}
-              onMouseLeave={e=>{if(nadlState==='idle')e.currentTarget.style.background='rgba(22,163,74,0.07)';}}>
-              {nadlState==='loading'?<><Spinner size={12} color="#15803d"/>מוריד עסקאות...</>
-               :nadlState==='done'?<>{hasDriveFolder?`✓ נשמר ב-Drive — ${nadlResult?.filename||''}`:(`✓ הורד — ${nadlResult?.filename||''}`)}</>
-               :nadlState==='error'?'❌ שגיאה — נסה שנית'
-               :`📊 הורד עסקאות השוואה — גוש ${cas.block}`}
-            </button>
-            {nadlState==='done'&&nadlResult?.link&&(
-              <a href={nadlResult.link} target="_blank" rel="noreferrer"
-                style={{display:'block',textAlign:'center',fontSize:11,color:'#15803d',marginTop:4,textDecoration:'none',fontWeight:600}}>
-                📂 פתח קובץ ב-Drive ↗
-              </a>
-            )}
-          </div>
-        )}
         {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 22px',fontSize:13,flexShrink:0}}>{err}</div>}
 
         {/* Content */}
@@ -3288,7 +3223,7 @@ function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,
     {id:'managed',icon:'🗂️',label:'כלל התיקים',count:counts.managed},
     {id:'tasks',icon:'✅',label:'משימות'},
     {id:'visit',icon:'🏘️',label:'ביקור בנכס'},
-    ...(!isMobile?[{id:'nadlan',icon:'🏡',label:'עסקאות נדל"ן'},{id:'formats',icon:'📁',label:'פורמטים ועזרים'}]:[]),
+    ...(!isMobile?[{id:'formats',icon:'📁',label:'פורמטים ועזרים'}]:[]),
     {id:'reports',icon:'📊',label:'דוחות'},
     {id:'settings',icon:'⚙️',label:'הגדרות'},
   ];
@@ -3354,6 +3289,16 @@ function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,
           התנתקות
         </button>
         <div style={{textAlign:'center',fontSize:10,color:'rgba(255,255,255,0.25)',marginTop:8}}>גרסה {APP_VERSION}</div>
+        <a href="https://myos.co.il" target="_blank" rel="noreferrer"
+          style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,marginTop:8,paddingTop:9,borderTop:'1px solid rgba(47,240,230,0.18)',textDecoration:'none'}}
+          title="פותח באמצעות MyOS — myos.co.il">
+          <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)'}}>פותח באמצעות</span>
+          <svg width="14" height="15" viewBox="0 -8 100 104" xmlns="http://www.w3.org/2000/svg" style={{display:'block'}} aria-label="MyOS">
+            <path d="M38 6 L20 6 L6 20 L6 80 L20 94 L80 94 L94 80 L94 20 L80 6 L62 6 L62 20 L80 34 L80 66 L62 80 L38 80 L20 66 L20 34 L38 20 Z" fill="#eff3fa"/>
+            <path d="M47 -7 L53 -7 L57 -3 L57 31 L50 38 L43 31 L43 -3 Z" fill="#2ff0e6"/>
+          </svg>
+          <span style={{fontSize:12,fontWeight:700,color:'#eff3fa',letterSpacing:'0.02em'}}>MyOS</span>
+        </a>
       </div>
     </>
   );
@@ -3451,12 +3396,13 @@ function AnnouncementsCorner({updates,userName,onRefresh,height,isMobile}){
   const [compType,setCompType]=useState(null);    // null | 'announcement' | 'request'
   const [draft,setDraft]=useState('');
   const [busy,setBusy]=useState(false);
-  const announcements=(updates||[]).filter(u=>u.type==='announcement').sort((a,b)=>Number(b.id||0)-Number(a.id||0));
+  const [readIds,setReadIds]=useState(()=>{try{return JSON.parse(localStorage.getItem('rr_read_announce')||'[]');}catch(_){return [];}});
+  const markRead=(id)=>{ setReadIds(prev=>{const n=[...new Set([...prev,String(id)])];try{localStorage.setItem('rr_read_announce',JSON.stringify(n));}catch(_){} return n;}); };
+  const allAnnouncements=(updates||[]).filter(u=>u.type==='announcement').sort((a,b)=>Number(b.id||0)-Number(a.id||0));
+  const announcements=allAnnouncements.filter(a=>!readIds.includes(String(a.id)));  // מוסתרות אחרי "נקרא"
   const requests=(updates||[]).filter(u=>u.type==='request'&&(isAdmin||u.author===userName)).sort((a,b)=>Number(b.id||0)-Number(a.id||0));
-  const newestId=announcements.length?announcements[0].id:'';
-  const [seen,setSeen]=useState(()=>{try{return localStorage.getItem('rr_seen_announce')||'';}catch(_){return '';}});
-  const hasUnread=!!newestId&&Number(newestId||0)>Number(seen||0);
-  useEffect(()=>{ if(tab==='news'&&newestId&&Number(newestId)>Number(seen||0)){try{localStorage.setItem('rr_seen_announce',newestId);}catch(_){} setSeen(newestId);} },[tab,newestId]);
+  const hasUnread=announcements.length>0;
+  const delAnnouncement=async(u)=>{ if(!window.confirm('למחוק את ההודעה?'))return; try{ await api.deleteSheetRow('עדכונים',u._row); if(onRefresh)await onRefresh(); }catch(e){alert('שגיאה במחיקה: '+e.message);} };
   const tsStr=()=>{const d=new Date();const q=n=>String(n).padStart(2,'0');return `${q(d.getDate())}/${q(d.getMonth()+1)}/${d.getFullYear()} ${q(d.getHours())}:${q(d.getMinutes())}`;};
   const submit=async()=>{
     const t=draft.trim(); if(!t||busy)return; setBusy(true);
@@ -3488,10 +3434,14 @@ function AnnouncementsCorner({updates,userName,onRefresh,height,isMobile}){
       </div>
       <div style={{flex:1,overflowY:'auto',padding:'6px 14px',minHeight:isMobile?120:0}}>
         {tab==='news'
-          ?(announcements.length===0?empty('אין הודעות עדיין'):announcements.map(a=>(
+          ?(announcements.length===0?empty('אין הודעות חדשות'):announcements.map(a=>(
               <div key={a.id} style={{padding:'10px 0',borderBottom:'1px solid #f0ebe2'}}>
                 <div style={{fontSize:13,color:'#1a1510',lineHeight:1.6,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{a.text}</div>
-                <div style={{fontSize:10.5,color:'#9a8e84',marginTop:4}}>{a.author} · {a.date}</div>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginTop:6,flexWrap:'wrap'}}>
+                  <span style={{fontSize:10.5,color:'#9a8e84'}}>{a.author} · {a.date}</span>
+                  <button onClick={()=>markRead(a.id)} style={{marginRight:'auto',fontSize:11,fontWeight:600,color:'#166534',background:'#dcfce7',border:'none',borderRadius:8,padding:'3px 9px',cursor:'pointer',fontFamily:'inherit'}}>✓ נקרא</button>
+                  {isAdmin&&<button onClick={()=>delAnnouncement(a)} title="מחק הודעה" style={{fontSize:13,color:'#c0392b',background:'none',border:'none',cursor:'pointer',lineHeight:1}}>🗑</button>}
+                </div>
               </div>)))
           :(requests.length===0?empty('אין בקשות'):requests.map(r=>{const c=stColor(r.status);return(
               <div key={r.id} style={{padding:'10px 0',borderBottom:'1px solid #f0ebe2'}}>
@@ -4448,163 +4398,7 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
         )}
       </div>
 
-      {/* ── אינטגרציה עסקאות נדל"ן ── */}
-      {!isMobile&&<div style={sec}>
-        {secTitle('📊','אינטגרציה עסקאות נדל"ן')}
-        {(()=>{
-          const installed=document.documentElement.getAttribute('data-rrr-ext')==='1';
-          const [dlState,setDlState]=React.useState('idle'); // idle | loading | done | error
-          const downloadZip=async()=>{
-            setDlState('loading');
-            try{
-              // טען JSZip מ-CDN
-              if(!window.JSZip)await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
-              const base='https://raw.githubusercontent.com/rr-real-estate/rrr/main/nadlan_extension/';
-              const files=['manifest.json','background.js','content_webapp.js','content_nadlan.js','exceljs.min.js','Logo_smol.png'];
-              const binaryFiles=new Set(['Logo_smol.png']);
-              const zip=new window.JSZip();
-              await Promise.all(files.map(async f=>{
-                const r=await fetch(base+f);
-                if(!r.ok)throw new Error('לא ניתן להוריד: '+f);
-                zip.file(f,binaryFiles.has(f)?await r.arrayBuffer():await r.text());
-              }));
-              const blob=await zip.generateAsync({type:'blob'});
-              const a=document.createElement('a');
-              a.href=URL.createObjectURL(blob);
-              a.download='nadlan_extension.zip';
-              a.click();
-              setDlState('done');
-              setTimeout(()=>setDlState('idle'),4000);
-            }catch(e){setDlState('error');setTimeout(()=>setDlState('idle'),4000);}
-          };
-          return(
-            <>
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,flexWrap:'wrap'}}>
-                <div style={{width:10,height:10,borderRadius:'50%',background:installed?'#16a34a':'#9ca3af',flexShrink:0}}/>
-                <span style={{fontSize:13,fontWeight:500,color:installed?'#166534':'#6b7280'}}>
-                  {installed?'Extension מותקן ופעיל ✓':'Extension לא מותקן'}
-                </span>
-                <button onClick={downloadZip} disabled={dlState==='loading'}
-                  style={{marginRight:'auto',padding:'6px 16px',borderRadius:9,border:'none',
-                    background:dlState==='done'?'#16a34a':dlState==='error'?'#dc2626':BLACK,
-                    color:dlState==='done'||dlState==='error'?'#fff':GOLD,
-                    cursor:dlState==='loading'?'wait':'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',
-                    display:'flex',alignItems:'center',gap:6,opacity:dlState==='loading'?0.7:1}}>
-                  {dlState==='loading'?<><Spinner size={11} color={GOLD}/>מוריד...</>
-                   :dlState==='done'?'✓ הורד בהצלחה'
-                   :dlState==='error'?'❌ שגיאה'
-                   :'📥 הורד Extension (ZIP)'}
-                </button>
-              </div>
-              {!installed&&(
-                <div style={{fontSize:12,color:'#6b5e50',lineHeight:1.8,marginBottom:12}}>
-                  לאחר ההתקנה יופיע כפתור 📊 בכל פאנל תיק שיש לו גוש — לחיצה אחת תפתח את אתר נדלן עם הגוש כבר מולא, ולאחר פתרון CAPTCHA הסקריפט ירוץ אוטומטית ויוריד קובץ Excel עם כל עסקאות ההשוואה.
-                </div>
-              )}
-              <div style={{fontSize:13,fontWeight:600,color:'#3a2a00',marginBottom:10}}>הוראות התקנה:</div>
-              {[
-                ['1','הורד את ה-Extension','לחץ על כפתור 📥 הורד Extension (ZIP) מעמוד זה'],
-                ['2','חלץ את הקובץ','לחץ לחיצה ימנית על הקובץ שהורד ובחר "חלץ הכל" — תיווצר תיקייה בשם nadlan_extension'],
-                ['3','פתח הרחבות Chrome','בכתובת chrome://extensions — הדבק בשורת הכתובת ולחץ Enter'],
-                ['4','הפעל "מצב פיתוח"','בפינה השמאלית העליונה של דף ההרחבות, הפעל את המתג "מצב פיתוח"'],
-                ['5','טען פריט unpacked','לחץ "טען פריט unpacked" ובחר את תיקיית nadlan_extension'],
-                ['6','רענן את הדף','לחץ F5 — הסטטוס כאן יתעדכן ל"מותקן"'],
-              ].map(([n,title,desc])=>(
-                <div key={n} style={{display:'flex',gap:12,marginBottom:12,alignItems:'flex-start'}}>
-                  <div style={{width:24,height:24,borderRadius:'50%',background:BLACK,color:GOLD,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,flexShrink:0,marginTop:1}}>{n}</div>
-                  <div>
-                    <div style={{fontSize:13,fontWeight:600,color:'#1a1510',marginBottom:2}}>{title}</div>
-                    <div style={{fontSize:12,color:'#6b5e50',lineHeight:1.6}}>{desc}</div>
-                  </div>
-                </div>
-              ))}
-              <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:9,padding:'10px 14px',marginTop:4}}>
-                <div style={{fontSize:12,color:'#92400e',lineHeight:1.7}}>
-                  ⚠️ ה-Extension הוא כלי פנימי — אין צורך לפרסם אותו ב-Chrome Web Store.<br/>
-                  ניתן להתקינו כ"Unpacked" על כל מחשב בנפרד. ה-Extension ניגש רק לאתר נדלן ולאתר המערכת שלנו.
-                </div>
-              </div>
-            </>
-          );
-        })()}
-      </div>}
 
-    </div>
-  );
-}
-function NadlanSearchView(){
-  const sec={background:'#fff',borderRadius:14,padding:'20px 22px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
-  const [gush,setGush]=useState('');
-  const [nadState,setNadState]=useState('idle'); // idle|loading|done|error
-  const [nadMsg,setNadMsg]=useState('');
-  const reqRef=React.useRef(null);
-  const extInstalled=document.documentElement.getAttribute('data-rrr-ext')==='1';
-
-  React.useEffect(()=>{
-    const handler=(e)=>{
-      if(e.detail.requestId!==reqRef.current)return;
-      const {filename,count}=e.detail;
-      setNadState('done');
-      setNadMsg(`✓ ${count} עסקאות — ${filename||''}`);
-      setTimeout(()=>{setNadState('idle');setNadMsg('');},8000);
-    };
-    window.addEventListener('RRR_NADLAN_RESULT',handler);
-    return()=>window.removeEventListener('RRR_NADLAN_RESULT',handler);
-  },[]);
-
-  const handleDownload=()=>{
-    const g=gush.trim();
-    if(!g||nadState==='loading')return;
-    const reqId=Date.now();
-    reqRef.current=reqId;
-    setNadState('loading');setNadMsg('');
-    window.dispatchEvent(new CustomEvent('RRR_NADLAN_REQUEST',{detail:{
-      gush:g,caseName:`גוש ${g}`,caseFolder:'',
-      saveToDrive:false,
-      propTypeName:'דירת מגורים',
-      requestId:reqId,
-    }}));
-  };
-
-  if(!extInstalled){
-    return(
-      <div style={{padding:'28px 32px',animation:'fadeIn 0.3s ease'}}>
-        <div style={{...sec,textAlign:'center',padding:40}}>
-          <div style={{fontSize:40,marginBottom:16}}>🔌</div>
-          <div style={{fontSize:16,fontWeight:600,color:'#3a2a00',marginBottom:8}}>Extension לא מותקן</div>
-          <div style={{fontSize:13,color:'#9a8e84',lineHeight:1.7}}>כדי להשתמש בחיפוש עסקאות נדלן, יש להתקין את ה-Extension תחילה</div>
-        </div>
-      </div>
-    );
-  }
-
-  return(
-    <div style={{padding:'28px 32px',animation:'fadeIn 0.3s ease'}}>
-      <h2 style={{fontSize:22,fontWeight:500,color:GOLD3,marginBottom:20}}>🏡 עסקאות נדל"ן</h2>
-      <div style={{...sec,maxWidth:560}}>
-        <div style={{marginBottom:18}}>
-          <label style={{fontSize:12,fontWeight:600,color:'#5a4e44',display:'block',marginBottom:6}}>מספר גוש</label>
-          <input type="number" value={gush} onChange={e=>setGush(e.target.value)}
-            onKeyDown={e=>e.key==='Enter'&&handleDownload()}
-            placeholder="לדוגמה: 4048"
-            style={{width:'100%',padding:'10px 14px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:15,fontFamily:'inherit',outline:'none',boxSizing:'border-box'}}/>
-        </div>
-        <button onClick={handleDownload} disabled={!gush.trim()||nadState==='loading'}
-          style={{width:'100%',padding:'11px',borderRadius:10,border:'none',
-            background:nadState==='done'?'#16a34a':nadState==='error'?'#dc2626':BLACK,
-            color:nadState==='done'||nadState==='error'?'#fff':GOLD,
-            cursor:!gush.trim()||nadState==='loading'?'not-allowed':'pointer',
-            fontSize:14,fontWeight:600,fontFamily:'inherit',
-            display:'flex',alignItems:'center',justifyContent:'center',gap:8,transition:'all 0.2s'}}>
-          {nadState==='loading'?<><Spinner size={14} color={GOLD}/>מוריד עסקאות...</>
-           :nadState==='done'?nadMsg
-           :nadState==='error'?`❌ שגיאה — נסה שנית`
-           :`📥 הורד עסקאות — דירת מגורים`}
-        </button>
-        <div style={{marginTop:14,padding:'10px 14px',background:'#fdfaf5',borderRadius:9,border:'1px solid #ede8e0',fontSize:12,color:'#9a8e84',lineHeight:1.7}}>
-          לאחר לחיצה יפתח אתר נדלן עם הגוש מולא אוטומטית — פתור את ה-CAPTCHA ואת שאר התהליך יעשה הסקריפט אוטומטית.
-        </div>
-      </div>
     </div>
   );
 }
@@ -4869,6 +4663,24 @@ const VISIT_FIELDS=[
   {k:'buildingViolations',l:'חריגות בניה',t:'enum',o:['יש','אין'],noOther:true},
   {k:'violationsDetail',l:'פירוט חריגות',t:'long',showIf:f=>f.buildingViolations==='יש'},
 ];
+// שדות חובה כששמאי חיצוני ("אחר") — כל השדות למעט שם מפלס/פירוט חופשי/מפרט גימור. מחזיר רשימת חוסרים.
+function missingRequiredVisitFields(f){
+  const miss=[];
+  for(const fl of VISIT_FIELDS){
+    if(!fl.k) continue;
+    if(fl.k==='divisionLevels'||fl.k==='levelSpecs') continue; // מטופלים בנפרד / אופציונליים
+    if(fl.showIf&&!fl.showIf(f)) continue;
+    const v=f[fl.k];
+    let filled;
+    if(fl.t==='check') filled=v===true;
+    else if(fl.t==='multi') filled=Array.isArray(v)?v.length>0:!!(v&&String(v).trim());
+    else filled=!!(v&&String(v).trim());
+    if(!filled) miss.push(fl.l);
+  }
+  const items0=(((f.divisionLevels||[])[0])||{}).items||[]; // חלוקה: לפחות סלון + פרמטר נוסף
+  if(!(items0.includes('סלון')&&items0.length>=2)) miss.push('חלוקה — לפחות סלון + פרמטר נוסף');
+  return miss;
+}
 // תוויות לפי סדר עמודות הגיליון A..AG (אחד לשורה — בטוח מ-RTL/bidi)
 const VISIT_COLS=[
   'חותמת זמן',
@@ -5253,6 +5065,7 @@ function VisitFormView({managed,user,isMobile,offline}){
   const renderField=fl=>{
     if(fl.sec)return null;
     if(fl.showIf&&!fl.showIf(f))return null;
+    if(fl.t==='levelSpecs'&&(f.divisionLevels||[]).length<=1)return null; // מפרט גימור לפי מפלס — רק אם הוסיפו מפלסים
     const v=f[fl.k];
     let inp;
     if(fl.t==='case') inp=<div><AutocompleteInput value={v||''} onChange={x=>set(fl.k,x)} options={caseNums} style={iS} placeholder="הקלד/בחר מספר תיק..."/>{matchedCase&&matchedCase.folder&&<div style={{fontSize:12.5,color:GOLD3,marginTop:6,fontWeight:600,background:'#fef9e8',border:`1px solid ${GOLD}55`,borderRadius:8,padding:'6px 10px'}}>📁 {matchedCase.folder}</div>}</div>;
@@ -5302,19 +5115,18 @@ function VisitFormView({managed,user,isMobile,offline}){
       const setFree=(li,free)=>setLevels(levels.map((lv,j)=>j===li?{...lv,free}:lv));
       const addLevel=()=>setLevels([...levels,{name:'',items:[]}]);
       const removeLevel=li=>setLevels(levels.filter((_,j)=>j!==li));
-      const multi=levels.length>1;
       inp=<div>
-        {levels.map((lv,li)=>{const nameReq=multi&&!(lv.name&&String(lv.name).trim());return(
+        {levels.map((lv,li)=>(
           <div key={li} style={li>0?{marginTop:10,padding:'10px 12px',border:'1px solid #ede8e0',borderRadius:10,background:'#fdfaf5'}:{marginBottom:6}}>
             <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
-              <input value={lv.name||''} onChange={e=>setName(li,e.target.value)} placeholder={multi?'שם קומה / מפלס *':'שם קומה / מפלס (אופציונלי)'} style={{...iS,fontSize:14,flex:1,borderColor:nameReq?'#dc2626':undefined}}/>
+              <input value={lv.name||''} onChange={e=>setName(li,e.target.value)} placeholder='שם קומה / מפלס / יח"ד (אופציונלי)' style={{...iS,fontSize:14,flex:1}}/>
               {li>0&&<button type="button" onClick={()=>removeLevel(li)} title="הסר קומה" style={{background:'none',border:'none',cursor:'pointer',color:'#c0392b',fontSize:16,lineHeight:1}}>🗑</button>}
             </div>
             <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>{DIVISION_OPTS.map(o=>optBtn((lv.items||[]).includes(o),()=>toggleItem(li,o),o,o))}</div>
-            <textarea value={lv.free||''} onChange={e=>setFree(li,e.target.value)} rows={2} placeholder="פירוט חופשי (הוספת נתונים)" style={{...iS,fontSize:14,marginTop:8,resize:'vertical',lineHeight:1.5}}/>
+            <textarea value={lv.free||''} onChange={e=>setFree(li,e.target.value)} rows={2} placeholder="פירוט חופשי (במידה והחדר לא קיים באפשרויות הבחירה)" style={{...iS,fontSize:14,marginTop:8,resize:'vertical',lineHeight:1.5}}/>
           </div>
-        );})}
-        <button type="button" onClick={addLevel} style={{marginTop:10,border:`1.5px dashed ${GOLD}`,background:'#fff',color:GOLD3,borderRadius:9,padding:'8px 14px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>➕ הוסף קומה / מפלס</button>
+        ))}
+        <button type="button" onClick={addLevel} style={{marginTop:10,border:`1.5px dashed ${GOLD}`,background:'#fff',color:GOLD3,borderRadius:9,padding:'8px 14px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>➕ הוסף קומה / מפלס / יח"ד</button>
       </div>;
     }
     else if(fl.t==='levelSpecs'){
@@ -5351,8 +5163,10 @@ function VisitFormView({managed,user,isMobile,offline}){
   const save=async()=>{
     setErr('');setMsg('');
     if(!String(f.caseNum||'').trim()){setErr('יש להזין מספר תיק');return;}
-    {const used=(f.divisionLevels||[]).filter(lv=>(lv.items&&lv.items.length)||(lv.free&&String(lv.free).trim())||(lv.finish&&String(lv.finish).trim())||(lv.name&&String(lv.name).trim()));
-     if(used.length>1&&used.some(lv=>!(lv.name&&String(lv.name).trim()))){setErr('כשיש יותר ממפלס אחד — חובה לרשום שם לכל מפלס (בשדה "שם קומה / מפלס")');window.scrollTo({top:0,behavior:'smooth'});return;}}
+    if(f.appraiser==='אחר'){ // שמאי חיצוני — כל השדות חובה
+      const miss=missingRequiredVisitFields(f);
+      if(miss.length){setErr('יש למלא את כל השדות. חסר: '+miss.join(', '));window.scrollTo({top:0,behavior:'smooth'});return;}
+    }
     setBusy(true);
     try{
       const d=new Date();
@@ -5878,7 +5692,6 @@ function App(){
         {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject} initialSearch={managedSearch} onSearchConsumed={()=>setManagedSearch('')} isMobile={isMobile}/>}
         {view==='tasks'&&<TasksView projects={projects} user={user} onAddTaskToProject={addTaskToProject} onAddGeneralTask={addGeneralTask} onDeleteTask={deleteGeneralTask} onCompleteTask={completeTask} isMobile={isMobile}/>}
         {view==='visit'&&<VisitFormView managed={managed} user={user} isMobile={isMobile}/>}
-        {view==='nadlan'&&<NadlanSearchView/>}
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
         {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user} managed={managed} onUpdateFolderLinks={handleUpdateFolderLinks}/>}
       </div>
