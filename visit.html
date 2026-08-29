@@ -153,6 +153,25 @@ const VISIT_FIELDS=[
   {k:'violationsDetail',l:'פירוט חריגות',t:'long',showIf:f=>f.buildingViolations==='יש'},
 ];
 
+// שמאי חיצוני — כל השדות חובה (למעט שם מפלס/פירוט חופשי/מפרט גימור). מחזיר רשימת חוסרים.
+function missingRequiredVisitFields(f){
+  const miss=[];
+  for(const fl of VISIT_FIELDS){
+    if(!fl.k) continue;
+    if(fl.k==='divisionLevels'||fl.k==='levelSpecs') continue;
+    if(fl.showIf&&!fl.showIf(f)) continue;
+    const v=f[fl.k];
+    let filled;
+    if(fl.t==='check') filled=v===true;
+    else if(fl.t==='multi') filled=Array.isArray(v)?v.length>0:!!(v&&String(v).trim());
+    else filled=!!(v&&String(v).trim());
+    if(!filled) miss.push(fl.l);
+  }
+  const items0=(((f.divisionLevels||[])[0])||{}).items||[];
+  if(!(items0.includes('סלון')&&items0.length>=2)) miss.push('חלוקה — לפחות סלון + פרמטר נוסף');
+  return miss;
+}
+
 const blankForm=()=>({visitDate:today(),divisionLevels:[{name:'',items:[]}]});
 
 function App(){
@@ -204,6 +223,7 @@ function App(){
   const renderField=fl=>{
     if(fl.sec)return <div key={fl.sec} style={{fontSize:14,fontWeight:700,color:GOLD3,margin:'20px 0 10px',paddingBottom:6,borderBottom:'1px solid #ede3d0'}}>{fl.sec}</div>;
     if(fl.showIf&&!fl.showIf(f))return null;
+    if(fl.t==='levelSpecs'&&(f.divisionLevels||[]).length<=1)return null; // מפרט גימור לפי מפלס — רק אם הוסיפו מפלסים
     const v=f[fl.k];
     let inp;
     if(fl.t==='text') inp=<input value={v||''} onChange={e=>set(fl.k,e.target.value)} style={iS}/>;
@@ -252,19 +272,18 @@ function App(){
       const setFree=(li,free)=>setLevels(levels.map((lv,j)=>j===li?{...lv,free}:lv));
       const addLevel=()=>setLevels([...levels,{name:'',items:[]}]);
       const removeLevel=li=>setLevels(levels.filter((_,j)=>j!==li));
-      const multi=levels.length>1;
       inp=<div>
-        {levels.map((lv,li)=>{const nameReq=multi&&!(lv.name&&String(lv.name).trim());return(
+        {levels.map((lv,li)=>(
           <div key={li} style={li>0?{marginTop:10,padding:'10px 12px',border:'1px solid #ede8e0',borderRadius:10,background:'#fdfaf5'}:{marginBottom:6}}>
             <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
-              <input value={lv.name||''} onChange={e=>setName(li,e.target.value)} placeholder={multi?'שם קומה / מפלס *':'שם קומה / מפלס (אופציונלי)'} style={{...iS,fontSize:14,flex:1,borderColor:nameReq?'#dc2626':undefined}}/>
+              <input value={lv.name||''} onChange={e=>setName(li,e.target.value)} placeholder='שם קומה / מפלס / יח"ד (אופציונלי)' style={{...iS,fontSize:14,flex:1}}/>
               {li>0&&<button type="button" onClick={()=>removeLevel(li)} title="הסר קומה" style={{background:'none',border:'none',cursor:'pointer',color:'#c0392b',fontSize:16,lineHeight:1}}>🗑</button>}
             </div>
             <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>{DIVISION_OPTS.map(o=>optBtn((lv.items||[]).includes(o),()=>toggleItem(li,o),o,o))}</div>
-            <textarea value={lv.free||''} onChange={e=>setFree(li,e.target.value)} rows={2} placeholder="פירוט חופשי (הוספת נתונים)" style={{...iS,fontSize:14,marginTop:8,resize:'vertical',lineHeight:1.5}}/>
+            <textarea value={lv.free||''} onChange={e=>setFree(li,e.target.value)} rows={2} placeholder="פירוט חופשי (במידה והחדר לא קיים באפשרויות הבחירה)" style={{...iS,fontSize:14,marginTop:8,resize:'vertical',lineHeight:1.5}}/>
           </div>
-        );})}
-        <button type="button" onClick={addLevel} style={{marginTop:10,border:`1.5px dashed ${GOLD}`,background:'#fff',color:GOLD3,borderRadius:9,padding:'8px 14px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>➕ הוסף קומה / מפלס</button>
+        ))}
+        <button type="button" onClick={addLevel} style={{marginTop:10,border:`1.5px dashed ${GOLD}`,background:'#fff',color:GOLD3,borderRadius:9,padding:'8px 14px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>➕ הוסף קומה / מפלס / יח"ד</button>
       </div>;
     }
     else if(fl.t==='levelSpecs'){
@@ -313,8 +332,8 @@ function App(){
   const submit=async()=>{
     setErr('');
     if(!String(f.appraiserName||'').trim()){setErr('יש להזין את שם השמאי המבקר');window.scrollTo({top:0,behavior:'smooth'});return;}
-    {const used=(f.divisionLevels||[]).filter(lv=>(lv.items&&lv.items.length)||(lv.free&&String(lv.free).trim())||(lv.finish&&String(lv.finish).trim())||(lv.name&&String(lv.name).trim()));
-     if(used.length>1&&used.some(lv=>!(lv.name&&String(lv.name).trim()))){setErr('כשיש יותר ממפלס אחד — חובה לרשום שם לכל מפלס');window.scrollTo({top:0,behavior:'smooth'});return;}}
+    {const miss=missingRequiredVisitFields(f); // שמאי חיצוני — כל השדות חובה
+     if(miss.length){setErr('יש למלא את כל השדות. חסר: '+miss.join(', '));window.scrollTo({top:0,behavior:'smooth'});return;}}
     setStatus('submitting');
     try{
       // 1) העלאת הקבצים במקביל (עד 4 בו-זמנית) — הטוקן עדיין תקף
