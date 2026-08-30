@@ -67,6 +67,32 @@ function buildDivisionQ(levels){
   if(anyDiff)q=(q?q+' ':'')+'(יש לעיין בדוח הביקור לגבי שוני במפרט גימור בין המפלסים)';
   return q;
 }
+// פענוח לצורך טעינת ביקור קיים (קישור עריכה)
+function decodeLevelTexts(str){
+  const map={};String(str||'').split(' | ').forEach(part=>{const m=part.match(/^\s*מפלס\s+(\d+)[^:]*:\s*([\s\S]*)$/);if(m)map[parseInt(m[1],10)-1]=m[2].trim();});return map;
+}
+function parseDivision(o){
+  o=String(o||'').trim();if(!o)return [{name:'',items:[]}];
+  const parts=o.split(',').map(x=>x.trim()).filter(Boolean);
+  const levels=[];let cur={name:'',items:[]};let started=false;
+  parts.forEach(p=>{const ci=p.indexOf(':');
+    if(ci>-1){if(started)levels.push(cur);cur={name:p.slice(0,ci).trim(),items:[]};const fi=p.slice(ci+1).trim();if(fi)cur.items.push(fi);started=true;}
+    else{cur.items.push(p);started=true;}});
+  if(started)levels.push(cur);
+  return levels.length?levels:[{name:'',items:[]}];
+}
+// שחזור מצב הטופס משורת "ביקורים" קיימת (45 עמודות) — לקישור עריכה
+function formFromRow(r){
+  const sp=x=>String(x||'').split(', ').filter(Boolean);
+  const _lv=parseDivision(r[14]||''),_fm=decodeLevelTexts(r[15]||''),_xm=decodeLevelTexts(r[44]||'');
+  return {appraiserName:r[3]||'',gushVerify:(r[4]||'')==='בוצע',visitDate:r[5]||'',
+    elevator:r[6]||'',floor:r[7]||'',numFloors:r[8]||'',aptNum:r[9]||'',presenter:r[10]||'',presenterId:r[11]||'',
+    presenterRelation:r[12]||'',residents:r[13]||'',divisionLevels:_lv.map((l,i)=>({...l,free:_fm[i]||'',finish:_xm[i]||''})),
+    numRooms:r[17]||'',floorType:sp(r[18]),floorSize:sp(r[19]),kitchenCabinets:r[20]||'',sanitary:r[21]||'',ceramicWalls:r[22]||'',
+    windows:r[23]||'',interiorDoors:r[24]||'',ac:sp(r[25]),physical:r[26]||'',maintenance:r[27]||'',locationMatch:r[28]||'',
+    internalDivision:r[29]||'',internalDims:r[30]||'',buildingViolations:r[31]||'',violationsDetail:r[32]||'',
+    buildingType:r[34]||'',roofType:r[35]||'',buildingPhysical:r[36]||'',buildingConstruction:r[37]||'',exteriorCladding:r[38]||'',propertyType:r[39]||'',usage:r[40]||'',envDescription:r[41]||'',streetDescription:r[42]||'',locationDescription:r[43]||''};
+}
 // PUT ישיר של הבייטים ל-Drive (session URI), עם התקדמות
 function directPut(url,blob,onProg){
   return new Promise(resolve=>{
@@ -181,6 +207,7 @@ function App(){
   const [reason,setReason]=useState('');
   const [f,setF]=useState(blankForm);
   const [err,setErr]=useState('');
+  const [isEdit,setIsEdit]=useState(false); // קישור עריכה — טעינת ביקור קיים
   const [photos,setPhotos]=useState([]);
   const [progress,setProgress]=useState('');
   const set=(k,v)=>setF(s=>({...s,[k]:v}));
@@ -205,7 +232,11 @@ function App(){
       try{
         const r=await fetch(EXT_APPS_URL+'?action=visitInfo&t='+encodeURIComponent(token));
         const j=await r.json();
-        if(j&&j.ok){setInfo({caseNum:j.caseNum||'',address:j.address||'',photos:!!j.photos});setStatus('ready');}
+        if(j&&j.ok){
+          setInfo({caseNum:j.caseNum||'',address:j.address||'',photos:!!j.photos});
+          if(j.existing&&j.existing.length){setF(formFromRow(j.existing));setIsEdit(true);} // קישור עריכה — מילוי הביקור הקיים
+          setStatus('ready');
+        }
         else{setStatus('invalid');setReason(j&&j.reason?j.reason:'הקישור אינו תקף או שכבר נעשה בו שימוש');}
       }catch(e){setStatus('invalid');setReason('שגיאת תקשורת בטעינת הקישור');}
     })();
@@ -400,6 +431,11 @@ function App(){
         <div style={{fontSize:12,color:'#8a7a58',marginBottom:2}}>כתובת הנכס לביקור</div>
         <div style={{fontSize:17,fontWeight:600,color:GOLD3}}>{(info&&info.address)||'—'}</div>
       </div>
+
+      {isEdit&&<div style={{...card,background:'#eef6ff',border:'1px solid #bcd7f5'}}>
+        <div style={{fontSize:14,fontWeight:700,color:'#1e40af',marginBottom:3}}>✏️ עריכת ביקור קיים</div>
+        <div style={{fontSize:12.5,color:'#3a5a8a',lineHeight:1.6}}>הפרטים שמילאת נטענו מראש. בצע/י את התיקונים הנדרשים ושלח/י שוב — הביקור הקיים יתעדכן (לא ייווצר ביקור חדש).</div>
+      </div>}
 
       {err&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',color:'#991b1b',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:13.5}}>{err}</div>}
 
