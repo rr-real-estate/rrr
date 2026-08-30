@@ -73,7 +73,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v65'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v66'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
@@ -4997,6 +4997,25 @@ function VisitFormView({managed,user,isMobile,offline}){
     }catch(e){setLinkMsg('שגיאה ביצירת הקישור: '+e.message);}
     finally{setLinkBusy(false);}
   };
+  // ── קישור עריכה לשמאי חיצוני — פותח את הביקור הקיים לתיקון (מעדכן אותה שורה) ──
+  const [editLink,setEditLink]=React.useState(null); // {rowNum,url}
+  const genEditLink=async(h)=>{
+    try{
+      const token=(Date.now().toString(36)+Math.random().toString(36).slice(2,12)+Math.random().toString(36).slice(2,12)).replace(/[^a-z0-9]/g,'');
+      const e2=new Date();e2.setDate(e2.getDate()+14);
+      const expiry=`${e2.getFullYear()}-${p2(e2.getMonth()+1)}-${p2(e2.getDate())}`;
+      const nd=new Date();const nowStr=`${p2(nd.getDate())}/${p2(nd.getMonth()+1)}/${nd.getFullYear()}`;
+      const cn=String(h.caseNum||'').trim();
+      const mc=(managed||[]).find(c=>String(c.caseNum||'').trim()===cn);
+      const drive=(mc&&mc.driveFolderLink)||'';
+      let fid='';const fm=drive.match(/\/folders\/([-\w]+)/);if(fm){fid=fm[1];}else{const gm=drive.match(/[-\w]{25,}/);if(gm)fid=gm[0];}
+      const fullName=(mc&&mc.folder)||cn;
+      await api.append("'קישורי ביקור'",[[token,cn,fullName,expiry,false,nowStr,fid,h.rowNum]],MAAGAR_ID); // עמודה H = שורת עריכה
+      const url=new URL('visit.html?t='+token,location.href).href;
+      setEditLink({rowNum:h.rowNum,url});
+      try{await navigator.clipboard.writeText(url);}catch(_){}
+    }catch(e){alert('שגיאה ביצירת קישור העריכה: '+e.message);}
+  };
   // ── סנכרון אוטומטי של ביקורים ממתינים ──
   const doSync=React.useCallback(async()=>{
     if(!navigator.onLine){setErr('אין חיבור לאינטרנט');setTimeout(()=>setErr(''),3000);return;}
@@ -5323,10 +5342,17 @@ function VisitFormView({managed,user,isMobile,offline}){
             <span style={{fontSize:13,color:'#1a1510',fontWeight:500}}>{h.date||h.ts}</span>
             {h.appraiser&&<span style={{fontSize:12,color:'#9a8e84'}}>· {h.appraiser}</span>}
             {h.ext&&<span style={{fontSize:11,color:'#8a6d1f',background:'#fff3d6',border:'1px solid #e6c65a',borderRadius:10,padding:'1px 8px',fontWeight:600,whiteSpace:'nowrap'}}>שמאי חיצוני</span>}
-            <div style={{marginInlineStart:'auto',display:'flex',gap:6}}>
+            <div style={{marginInlineStart:'auto',display:'flex',gap:6,flexWrap:'wrap'}}>
               <button onClick={()=>editVisit(h)} title="ערוך ביקור" style={{background:'#fff',border:'1px solid #ddd0bb',borderRadius:8,padding:'4px 10px',cursor:'pointer',fontSize:12,color:'#6b5e50',fontFamily:'inherit'}}>✏️ ערוך</button>
+              {h.ext&&<button onClick={()=>genEditLink(h)} title="צור קישור שהשמאי החיצוני יתקן בו את הביקור" style={{background:'#fff',border:'1px solid #cdb8e6',borderRadius:8,padding:'4px 10px',cursor:'pointer',fontSize:12,color:'#6b21a8',fontFamily:'inherit'}}>🔗 קישור לשמאי</button>}
               <button onClick={()=>genReport(h)} title="הפק דוח מחדש" style={{background:'#fff',border:'1px solid #ddd0bb',borderRadius:8,padding:'4px 10px',cursor:'pointer',fontSize:12,color:'#6b5e50',fontFamily:'inherit'}}>📄 הפק דוח</button>
             </div>
+            {editLink&&editLink.rowNum===h.rowNum&&(
+              <div style={{flexBasis:'100%',marginTop:4,background:'#f5f0fb',border:'1px solid #e0d0f0',borderRadius:8,padding:'8px 10px'}}>
+                <div style={{fontSize:11,color:'#6b21a8',fontWeight:600,marginBottom:4}}>✓ קישור עריכה נוצר והועתק — שלח לשמאי (בתוקף 14 יום, לשימוש חד-פעמי):</div>
+                <input readOnly value={editLink.url} onFocus={e=>e.target.select()} style={{width:'100%',boxSizing:'border-box',fontSize:11,padding:'6px 8px',borderRadius:6,border:'1px solid #ddd0bb',background:'#fff',color:'#3a2a00',fontFamily:'inherit',direction:'ltr'}}/>
+              </div>
+            )}
           </div>
         ))}
       </div>}
