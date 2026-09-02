@@ -73,7 +73,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v66'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v67'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
@@ -2866,7 +2866,6 @@ function AddCaseModal({onClose,onAdd,cases}){
                 {['בביצוע','הסתיים','ממתין','בוטל'].map(s=><option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            <div><FLabel>שכר טרחה (₪)</FLabel>{inp('fee')}</div>
           </div>
         </div>
 
@@ -3392,7 +3391,7 @@ function LoginScreen({onLogin,autoLogging}){
 // ═══════════ פינת עדכונים ובקשות תכונה (דף הבית) ═══════════
 function AnnouncementsCorner({updates,userName,onRefresh,height,isMobile}){
   const isAdmin=userName==='מיכאל';
-  const [tab,setTab]=useState('news');            // news | requests
+  const [tab,setTab]=useState(isAdmin?'requests':'news');   // מיכאל — ברירת מחדל "בקשות"; שאר — "הודעות"
   const [compType,setCompType]=useState(null);    // null | 'announcement' | 'request'
   const [draft,setDraft]=useState('');
   const [busy,setBusy]=useState(false);
