@@ -73,7 +73,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v67'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v68'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
@@ -492,10 +492,24 @@ function _stopTokenRefresh(){
 const api={
   token:null,
   async get(range,id=CONFIG.SPREADSHEET_ID){
-    const r=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}`,
-      {headers:{Authorization:`Bearer ${this.token}`}});
-    if(!r.ok)throw new Error((await r.json())?.error?.message||r.statusText);
-    return(await r.json()).values||[];
+    // ניסיון חוזר עם השהיה על שגיאות זמניות (503 "service unavailable", 429, נפילות רשת)
+    const url=`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}`;
+    const delays=[600,1500,3000,5000];
+    for(let attempt=0;attempt<=delays.length;attempt++){
+      let r;
+      try{
+        r=await fetch(url,{headers:{Authorization:`Bearer ${this.token}`}});
+      }catch(netErr){
+        if(attempt<delays.length){await new Promise(res=>setTimeout(res,delays[attempt]));continue;}
+        throw netErr;
+      }
+      if(r.ok)return(await r.json()).values||[];
+      if([408,429,500,502,503,504].includes(r.status)&&attempt<delays.length){
+        await new Promise(res=>setTimeout(res,delays[attempt]));continue;
+      }
+      let msg=r.statusText;try{msg=(await r.json())?.error?.message||msg;}catch(_){}
+      throw new Error(msg);
+    }
   },
   async put(range,values,id=CONFIG.SPREADSHEET_ID){
     const r=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
