@@ -74,7 +74,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v90'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v91'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -2536,16 +2536,14 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
           <div style={{fontSize:13,color:'#9a8e84',marginTop:3,fontWeight:400}}>{filtered.length} תיקים ממתינים לפעולה חיצונית</div>
         </div>
       </div>
-      <div style={{display:'flex',gap:8,marginBottom:isMobile?16:24,flexWrap:'wrap',alignItems:'center',background:'#fff',padding:isMobile?'10px 12px':'14px 16px',borderRadius:14,border:'1px solid #e8e0d4',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-        {CLIENT_STATUSES.filter(s=>counts[s]).map(s=>{
-          const m=STATUS_META[s]||{};
-          return<button key={s} onClick={()=>setStatusFilter(statusFilter===s?'':s)}
-            style={{padding:'5px 11px',borderRadius:14,border:`1.5px solid ${statusFilter===s?m.dot||'#ccc':'#ddd0bb'}`,background:statusFilter===s?m.bg||'#f0ebe3':'#fff',cursor:'pointer',fontSize:12,fontWeight:600,color:statusFilter===s?m.fg||'#3a3228':'#6b5e50'}}>
-            {s} ({counts[s]})
-          </button>;
-        })}
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="חיפוש..." style={{...inp,flex:'1 1 180px'}}/>
-        {search&&<button onClick={()=>setSearch('')} style={{...inp,background:'#ede8e0',color:'#4b3400',border:'1px solid #ddd0bb',cursor:'pointer'}}>נקה ×</button>}
+      <div style={{display:'flex',gap:10,marginBottom:isMobile?16:24,flexWrap:'wrap',alignItems:'center',background:'#fff',padding:isMobile?'10px 12px':'14px 16px',borderRadius:14,border:'1px solid #e8e0d4',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="חיפוש..." style={{...inp,flex:1,minWidth:isMobile?0:220}}/>
+        <div style={{display:'flex',gap:4,background:'#f5f0e8',borderRadius:8,padding:3,flexWrap:'wrap'}}>
+          {[['','הכל'],...CLIENT_STATUSES.filter(s=>counts[s]).map(s=>[s,s])].map(([val,label])=>(
+            <button key={val||'all'} onClick={()=>setStatusFilter(val)} style={{padding:'4px 11px',borderRadius:6,border:'none',cursor:'pointer',fontFamily:'Heebo,sans-serif',fontSize:12,fontWeight:statusFilter===val?600:400,background:statusFilter===val?'#fff':'transparent',color:statusFilter===val?GOLD3:'#6b5e50',boxShadow:statusFilter===val?'0 1px 3px rgba(0,0,0,0.1)':'none',transition:'all 0.15s'}}>{label}</button>
+          ))}
+        </div>
+        {(search||statusFilter)&&<button onClick={()=>{setSearch('');setStatusFilter('');}} style={{...inp,background:'#ede8e0',color:'#4b3400',border:'1px solid #ddd0bb',cursor:'pointer'}}>נקה ×</button>}
       </div>
 
       {!isMobile&&viewMode==='table'&&(()=>{
@@ -3263,22 +3261,17 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
         </div>
       </div>
 
-      {/* Filters — קופסה לבנה זהה ל"פרויקטים בביצוע" */}
-      <div style={{display:'flex',gap:8,marginBottom:isMobile?16:24,flexWrap:'wrap',alignItems:'center',background:'#fff',padding:isMobile?'10px 12px':'14px 16px',borderRadius:14,border:'1px solid #e8e0d4',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-        {MANAGED_STATUSES.map(s=>{const sc=STATUS_C[s]||{};return(
-          <span key={s} onClick={()=>setF('status',filters.status===s?'':s)} style={{...sc,padding:'5px 12px',borderRadius:14,fontSize:12,fontWeight:500,cursor:'pointer',border:`1.5px solid ${filters.status===s?'currentcolor':'transparent'}`}}>
-            {s} ({cases.filter(c=>c.status===s).length})
-          </span>
-        );})}
+      {/* Filters — קופסה לבנה זהה ל"פרויקטים בביצוע": חיפוש + קבוצת סטטוס + נקה */}
+      <div style={{display:'flex',gap:10,marginBottom:isMobile?16:24,flexWrap:'wrap',alignItems:'center',background:'#fff',padding:isMobile?'10px 12px':'14px 16px',borderRadius:14,border:'1px solid #e8e0d4',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="חיפוש חופשי..."
-          style={{...inp,flex:'1 1 180px'}}/>
-        {sel('bank','בנק')}
-        {sel('city','עיר')}
-        {sel('purpose','מטרה')}
-        {sel('propType','סוג נכס')}
-        {sel('advisor','יועץ')}
+          style={{...inp,flex:1,minWidth:isMobile?0:220}}/>
+        <div style={{display:'flex',gap:4,background:'#f5f0e8',borderRadius:8,padding:3,flexWrap:'wrap'}}>
+          {[['','הכל'],...MANAGED_STATUSES.map(s=>[s,s])].map(([val,label])=>(
+            <button key={val||'all'} onClick={()=>setF('status',val)} style={{padding:'4px 11px',borderRadius:6,border:'none',cursor:'pointer',fontFamily:'Heebo,sans-serif',fontSize:12,fontWeight:filters.status===val?600:400,background:filters.status===val?'#fff':'transparent',color:filters.status===val?GOLD3:'#6b5e50',boxShadow:filters.status===val?'0 1px 3px rgba(0,0,0,0.1)':'none',transition:'all 0.15s'}}>{label}</button>
+          ))}
+        </div>
         {anyFilter&&<button onClick={()=>{setSearch('');setFilters({status:'',bank:'',city:'',purpose:'',propType:'',advisor:''});}}
-          style={{...inp,background:'#ede8e0',color:'#4b3400',border:'1px solid #ddd0bb',cursor:'pointer'}}>נקה הכל ×</button>}
+          style={{...inp,background:'#ede8e0',color:'#4b3400',border:'1px solid #ddd0bb',cursor:'pointer'}}>נקה ×</button>}
       </div>
 
       {viewMode==='cards'&&(
