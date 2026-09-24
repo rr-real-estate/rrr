@@ -73,7 +73,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v74'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v75'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
@@ -1577,6 +1577,21 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
         if(onUpdateCase)onUpdateCase(matchedCase._row,{status:newStatus});
       }
       if(newStatus==='הסתיים'||newStatus==='בוטל'){
+        // ניקוי לשונית "ראשי" בסגירה/ביטול: משימות פתוחות → "בוצע" (עוברות להיסטוריה),
+        // איפוס סטטוס הטיפול (Z) ותאריך לביצוע — כדי שלא יישארו משימות רפאים על תיק שכבר לא נראה.
+        const base=formRef.current||project;
+        const clean={...base};
+        ['yossi','michael','feigi'].forEach(field=>{
+          String(clean[field]||'').split('\n').map(l=>l.trim()).filter(Boolean).forEach(line=>{
+            const {historyEntry}=computeCompletion(clean,field,line,_currentUserName);
+            clean.taskHistory=appendHistory(clean.taskHistory,historyEntry);
+          });
+          clean[field]='';
+        });
+        clean.status='';    // סטטוס טיפול (עמודה Z) — ריק
+        clean.dueDate='';   // תאריך לביצוע — ריק
+        clean.expected='';  // צפי לסיום (נגזר) — מתאפס יחד
+        await saveWorkToManaged(clean);
         // אין מחיקה — השורה נשמרת ב"ניהול תיקים" (היסטוריה מלאה). התיק רק יוצא מהתצוגה הפעילה.
         if(onDeleteProject)onDeleteProject(project._row);
         onClose();
