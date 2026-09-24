@@ -74,7 +74,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v80'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v81'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -648,6 +648,56 @@ function DriveIcon({size=16}){
       <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
       <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
       <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+    </svg>
+  );
+}
+// ═══════════════ ICON SYSTEM — אייקוני קו אחידים (מחליף אמוג'ים) ═══════════════
+const ICON_PATHS={
+  home:'M3 10.8 12 3l9 7.8M5.5 9.4V20a1 1 0 0 0 1 1H10v-5.5h4V21h3.5a1 1 0 0 0 1-1V9.4',
+  folder:'M3 7.5A1.5 1.5 0 0 1 4.5 6h4.2l1.8 2h8A1.5 1.5 0 0 1 20 9.5v8A1.5 1.5 0 0 1 18.5 19h-14A1.5 1.5 0 0 1 3 17.5Z',
+  folderOpen:'M3 7.5A1.5 1.5 0 0 1 4.5 6h4.2l1.8 2h8A1.5 1.5 0 0 1 20 9.5M3 8l1.6 9.5A1 1 0 0 0 5.6 18h12.2a1 1 0 0 0 1-.8L21 10H5.2a1.5 1.5 0 0 0-1.5 1.2Z',
+  hourglass:'M6 3h12M6 21h12M7 3c0 5 4 6 5 9 1-3 5-4 5-9M7 21c0-5 4-6 5-9 1 3 5 4 5 9',
+  archive:'M4 8h16M5.5 8v10.5a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V8M4 8l1.6-3.4A1 1 0 0 1 6.5 4h11a1 1 0 0 1 .9.6L20 8M10 12h4',
+  checkCircle:'M8.5 12l2.4 2.4L15.5 10M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18Z',
+  building:'M4 21V4.5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1V21M13 9h5.5a1 1 0 0 1 1 1V21M3 21h18M7 8h2.5M7 12h2.5M7 16h2.5M16 13h1M16 17h1',
+  chart:'M4 20V4M4 20h16M8 20v-6.5M12 20v-11M16 20v-8',
+  settings:'M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM19.1 12a7 7 0 0 0-.07-1l1.8-1.4-1.8-3.1-2.1.85a7 7 0 0 0-1.7-1l-.32-2.25h-3.6l-.32 2.25a7 7 0 0 0-1.7 1l-2.1-.85-1.8 3.1L6.97 11a7 7 0 0 0 0 2l-1.87 1.4 1.8 3.1 2.1-.85a7 7 0 0 0 1.7 1l.32 2.25h3.6l.32-2.25a7 7 0 0 0 1.7-1l2.1.85 1.8-3.1L19.03 13a7 7 0 0 0 .07-1Z',
+  plus:'M12 5.5v13M5.5 12h13',
+  search:'M11 17.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13ZM20 20l-3.8-3.8',
+  trash:'M4 7h16M9.5 7V5.2a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V7M6.5 7l.9 12.2a1 1 0 0 0 1 .9h7.2a1 1 0 0 0 1-.9L17.5 7M10 11v5M14 11v5',
+  pencil:'M4 20h4L19.5 8.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4ZM14 6.5l3.5 3.5',
+  calendar:'M4.5 6.5A1 1 0 0 1 5.5 5.5h13a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1ZM4.5 9.5h15M8 3.5v3M16 3.5v3',
+  phone:'M6.5 4h-1A1.5 1.5 0 0 0 4 5.5C4 13 11 20 18.5 20A1.5 1.5 0 0 0 20 18.5v-1a1 1 0 0 0-.7-1l-3-1a1 1 0 0 0-1 .3l-.9 1.1a12 12 0 0 1-5.4-5.4l1.1-.9a1 1 0 0 0 .3-1l-1-3a1 1 0 0 0-1-.7Z',
+  mail:'M4 6.5A1 1 0 0 1 5 5.5h14a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1ZM4.3 7l7.7 5.2L19.7 7',
+  link:'M9.5 14.5l5-5M9 8.5 10.2 7.3a3.4 3.4 0 0 1 4.8 4.8l-1.2 1.2M15 15.5l-1.2 1.2a3.4 3.4 0 0 1-4.8-4.8L10.2 10.7',
+  refresh:'M20 6.5v4h-4M4 17.5v-4h4M5.5 10.5a7 7 0 0 1 12.2-3.2L20 10.5M18.5 13.5a7 7 0 0 1-12.2 3.2L4 13.5',
+  grid:'M4.5 4.5h6v6h-6ZM13.5 4.5h6v6h-6ZM4.5 13.5h6v6h-6ZM13.5 13.5h6v6h-6Z',
+  list:'M8.5 6.5h11M8.5 12h11M8.5 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01',
+  chevronDown:'M6.5 9.5l5.5 5.5 5.5-5.5',
+  chevronUp:'M6.5 14.5l5.5-5.5 5.5 5.5',
+  alert:'M12 4 3 19.5h18L12 4ZM12 10v4.5M12 17.5h.01',
+  coins:'M12 8.2c3.9 0 7-1.1 7-2.5S15.9 3.2 12 3.2 5 4.3 5 5.7s3.1 2.5 7 2.5ZM5 5.7v12.6c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V5.7M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5',
+  user:'M12 12.2a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4.5 20.5a7.5 7.5 0 0 1 15 0',
+  users:'M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM2.5 20.5a6.5 6.5 0 0 1 13 0M16.5 4.3a4 4 0 0 1 0 7.7M21.5 20.5a6.5 6.5 0 0 0-4.5-6.2',
+  x:'M6.5 6.5l11 11M17.5 6.5l-11 11',
+  bell:'M6.5 9.5a5.5 5.5 0 0 1 11 0c0 4.5 1.8 5.5 1.8 5.5H4.7s1.8-1 1.8-5.5ZM10 18.5a2.2 2.2 0 0 0 4 0',
+  external:'M14 4.5h5.5V10M19.5 4.5 12 12M18 13.5V18a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5 18V8a1.5 1.5 0 0 1 1.5-1.5H11',
+  file:'M6.5 3.5h7l4 4v12a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1ZM13.5 3.5V8h4',
+  download:'M12 4.5v10M8 11l4 3.5 4-3.5M5.5 19.5h13',
+  target:'M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17ZM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM12 12h.01',
+  board:'M4.5 5.5h15v13h-15ZM4.5 10h15M10 10v8.5',
+  clock:'M12 7.5v4.7l3 1.8M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17Z',
+  message:'M4.5 6A1.5 1.5 0 0 1 6 4.5h12A1.5 1.5 0 0 1 19.5 6v8A1.5 1.5 0 0 1 18 15.5H9l-4 3.5v-3.5A1.5 1.5 0 0 1 4.5 14Z',
+  handshake:'M11 7l-2.5-1.5-4 3.5 3 3M13 7l2.5-1.5 4 3.5-3 3M8.5 12l2 2a1.4 1.4 0 0 0 2 0M12 8l-2 2M20 9l-1 6M4 9l1 6',
+  inbox:'M4.5 13.5 6 5.5a1 1 0 0 1 1-.8h10a1 1 0 0 1 1 .8l1.5 8M4.5 13.5V18a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-4.5M4.5 13.5H9a1 1 0 0 1 1 1 2 2 0 0 0 4 0 1 1 0 0 1 1-1h4.5',
+};
+function Icon({name,size=18,color='currentColor',stroke=1.7,style,className}){
+  const d=ICON_PATHS[name];
+  if(!d)return null;
+  return(
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
+      strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,display:'block',...style}}>
+      <path d={d}/>
     </svg>
   );
 }
@@ -3324,11 +3374,11 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
 // ═══════════════ BOTTOM NAV (mobile only) ════════════════════════
 function BottomNav({view,setView,counts,onOpenDrawer,loading}){
   const items=[
-    {id:'__more',  icon:'☰', label:'עוד'},
-    {id:'home',   icon:'🏠',label:'בית'},
-    {id:'projects',icon:'📁',label:'בביצוע',count:counts.active},
-    {id:'clients', icon:'⏳',label:'ממתין', count:counts.client},
-    {id:'managed', icon:'🗂',label:'תיקים'},
+    {id:'__more',  icon:'list', label:'עוד'},
+    {id:'home',   icon:'home',label:'בית'},
+    {id:'projects',icon:'folder',label:'בביצוע',count:counts.active},
+    {id:'clients', icon:'hourglass',label:'ממתין', count:counts.client},
+    {id:'managed', icon:'archive',label:'תיקים'},
   ];
   return(
     <div className="bottom-nav-bar" style={{
@@ -3353,7 +3403,7 @@ function BottomNav({view,setView,counts,onOpenDrawer,loading}){
               borderTop:`2px solid ${active&&!isMre?GOLD:'transparent'}`,
               transition:'all 0.15s',
             }}>
-            <span style={{fontSize:19,lineHeight:1}}>{item.icon}</span>
+            <Icon name={item.icon} size={20} stroke={active?1.9:1.6}/>
             <span style={{letterSpacing:'0.01em'}}>{item.label}</span>
             {(item.count||0)>0&&(
               <span style={{
@@ -3380,15 +3430,15 @@ function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,
     else{setLogoErr(true);}
   };
   const nav=[
-    {id:'home',icon:'🏠',label:'דף הבית'},
-    {id:'projects',icon:'📁',label:'פרויקטים בביצוע',count:counts.active},
-    {id:'clients',icon:'⏳',label:'ממתין ללקוח',count:counts.client},
-    {id:'managed',icon:'🗂️',label:'כלל התיקים',count:counts.managed},
-    {id:'tasks',icon:'✅',label:'משימות'},
-    {id:'visit',icon:'🏘️',label:'ביקור בנכס'},
-    ...(!isMobile?[{id:'formats',icon:'📁',label:'פורמטים ועזרים'}]:[]),
-    {id:'reports',icon:'📊',label:'דוחות'},
-    {id:'settings',icon:'⚙️',label:'הגדרות'},
+    {id:'home',icon:'home',label:'דף הבית'},
+    {id:'projects',icon:'folder',label:'פרויקטים בביצוע',count:counts.active},
+    {id:'clients',icon:'hourglass',label:'ממתין ללקוח',count:counts.client},
+    {id:'managed',icon:'archive',label:'כלל התיקים',count:counts.managed},
+    {id:'tasks',icon:'checkCircle',label:'משימות'},
+    {id:'visit',icon:'building',label:'ביקור בנכס'},
+    ...(!isMobile?[{id:'formats',icon:'folderOpen',label:'פורמטים ועזרים'}]:[]),
+    {id:'reports',icon:'chart',label:'דוחות'},
+    {id:'settings',icon:'settings',label:'הגדרות'},
   ];
   const handleNav=(id)=>{
     if(id==='formats'){const p=formatsFolderPath();if(!p){alert('לא הוגדר נתיב בסיס בהגדרות');}else{openFolder(p);}return;}
@@ -3428,7 +3478,7 @@ function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,
             onMouseEnter={e=>{if(!active){e.currentTarget.style.background='rgba(255,255,255,0.05)';e.currentTarget.style.color='rgba(255,255,255,0.88)';}}}
             onMouseLeave={e=>{if(!active){e.currentTarget.style.background='transparent';e.currentTarget.style.color='rgba(255,255,255,0.6)';}}}
             >
-              <span style={{fontSize:17,flexShrink:0}}>{item.icon}</span>
+              <Icon name={item.icon} size={19} stroke={active?1.9:1.6}/>
               <span style={{flex:1}}>{item.label}</span>
               {item.count>0&&<span style={{background:active?GOLD:`${GOLD}44`,color:active?BLACK:'#fff',borderRadius:20,padding:'1px 8px',fontSize:12,fontWeight:500}}>{item.count}</span>}
               {loading&&active&&<Spinner size={13} color={GOLD}/>}
@@ -3584,7 +3634,7 @@ function AnnouncementsCorner({updates,userName,onRefresh,height,isMobile}){
     <div style={{background:'#fff',borderRadius:14,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0',height:isMobile?'auto':height,display:'flex',flexDirection:'column',overflow:'hidden'}}>
       <div style={{padding:'12px 16px 0',borderBottom:'1px solid #ede8e0',background:'#fdfaf5',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-          <span style={{fontSize:15}}>📣</span>
+          <Icon name="bell" size={16} color={GOLD3}/>
           <span style={{fontSize:13,fontWeight:600,color:'#3a2a00'}}>עדכונים ובקשות</span>
         </div>
         <div style={{display:'flex',gap:10}}>
@@ -3657,28 +3707,30 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
   const totalFee=managed.reduce((s,c)=>s+parseNum(c.fee),0);
 
   const teamStats=[
-    {name:'יוסי',role:'שמאי',count:activeProjs.filter(p=>p.yossi).length,color:'#1e40af'},
+    {name:'יוסי',role:'שמאי',count:activeProjs.filter(p=>p.yossi).length,color:'#1a1510'},
     {name:'מיכאל',role:'שמאי',count:activeProjs.filter(p=>p.michael).length,color:GOLD3},
-    {name:'פייגי',role:'מזכירה',count:activeProjs.filter(p=>p.feigi).length,color:'#7c3aed'},
+    {name:'פייגי',role:'מזכירה',count:activeProjs.filter(p=>p.feigi).length,color:'#7a6a58'},
   ];
 
   const userName=USER_BY_EMAIL[(user?.email||'').toLowerCase()]||'';
   const hour=new Date().getHours();
   const greet=hour<12?'בוקר טוב':hour<17?'צהריים טובים':'ערב טוב';
 
-  function KpiCard({icon,label,value,color,sub,onClick}){
+  function KpiCard({icon,label,value,sub,onClick}){
     return(
       <div onClick={onClick} style={{background:'#fff',borderRadius:16,padding:'22px 24px',
-        boxShadow:'0 2px 10px rgba(0,0,0,0.06),0 1px 3px rgba(0,0,0,0.04)',
+        boxShadow:'0 1px 3px rgba(0,0,0,0.05)',
         border:'1px solid #e8e0d4',flex:1,minWidth:160,
         cursor:onClick?'pointer':'default',transition:'all 0.2s cubic-bezier(0.4,0,0.2,1)',
         position:'relative',overflow:'hidden'}}
-        onMouseEnter={e=>{if(onClick){e.currentTarget.style.boxShadow='0 8px 24px rgba(0,0,0,0.12)';e.currentTarget.style.transform='translateY(-3px)';}}}
-        onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 2px 10px rgba(0,0,0,0.06),0 1px 3px rgba(0,0,0,0.04)';e.currentTarget.style.transform='none';}}>
-        <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:color,opacity:0.7,borderRadius:'16px 16px 0 0'}}/>
-        <div style={{fontSize:24,marginBottom:8,opacity:0.85}}>{icon}</div>
-        <div style={{fontSize:36,fontWeight:500,color,lineHeight:1,letterSpacing:'-0.02em'}}>{value}</div>
-        <div style={{fontSize:13,color:'#5a4e44',marginTop:7,fontWeight:500}}>{label}</div>
+        onMouseEnter={e=>{if(onClick){e.currentTarget.style.boxShadow='0 10px 26px rgba(0,0,0,0.10)';e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.borderColor='#d9c9a6';}}}
+        onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 1px 3px rgba(0,0,0,0.05)';e.currentTarget.style.transform='none';e.currentTarget.style.borderColor='#e8e0d4';}}>
+        <div style={{position:'absolute',top:0,right:0,width:44,height:2.5,background:GOLD,borderRadius:'0 16px 0 16px'}}/>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+          <Icon name={icon} size={22} color={GOLD3} stroke={1.6}/>
+        </div>
+        <div style={{fontSize:38,fontWeight:600,color:'#1a1510',lineHeight:1,letterSpacing:'-0.02em'}}>{value}</div>
+        <div style={{fontSize:13,color:'#5a4e44',marginTop:8,fontWeight:500}}>{label}</div>
         {sub&&<div style={{fontSize:11,color:'#9a8e84',marginTop:4,fontWeight:400}}>{sub}</div>}
       </div>
     );
@@ -3691,11 +3743,11 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
     const isToday=daysLeft===0;
     const person=p.yossi?'יוסי':p.michael?'מיכאל':p.feigi?'פייגי':'';
     const m=STATUS_META[p.status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
-    const rowBg=isOverdue?'#fee2e2':isToday?'#ffedd5':'#eff6ff';
-    const badgeLabel=isOverdue?`⚠️ ${Math.abs(daysLeft)} ימים`:isToday?'היום':`${daysLeft} ימים`;
-    const badgeBg=isOverdue?'#fef2f2':isToday?'#fff7ed':'#eff6ff';
-    const badgeFg=isOverdue?'#dc2626':isToday?'#d97706':'#1d4ed8';
-    const badgeBdr=isOverdue?'#fca5a5':isToday?'#fcd34d':'#bfdbfe';
+    const rowBg=isOverdue?'#fdf2f2':isToday?'#fdf6ee':'#faf8f4';
+    const badgeLabel=isOverdue?`${Math.abs(daysLeft)} ימים באיחור`:isToday?'היום':`בעוד ${daysLeft} ימים`;
+    const badgeBg=isOverdue?'#fef2f2':isToday?'#fff7ed':'#f3efe6';
+    const badgeFg=isOverdue?'#c0392b':isToday?'#b45309':'#6b5e50';
+    const badgeBdr=isOverdue?'#f0c0bb':isToday?'#f0d9a8':'#e0d8cc';
     return(
       <div style={{display:'flex',alignItems:'center',gap:10,padding:'9px 14px',borderBottom:'1px solid #f5f3ef',fontSize:13,flexWrap:'wrap',background:rowBg}}>
         <div style={{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:2,flexShrink:0}}>
@@ -3714,8 +3766,8 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
 
   const sec={background:'#fff',borderRadius:16,padding:'22px 24px',marginBottom:16,boxShadow:'0 2px 10px rgba(0,0,0,0.06)',border:'1px solid #e8e0d4'};
   const secTitle=(icon,t,count)=>(
-    <div style={{fontSize:14,fontWeight:500,color:'#3a2a00',marginBottom:16,display:'flex',alignItems:'center',gap:8,letterSpacing:'0.01em'}}>
-      <span style={{fontSize:16,opacity:0.8}}>{icon}</span>{t}
+    <div style={{fontSize:14,fontWeight:600,color:'#3a2a00',marginBottom:16,display:'flex',alignItems:'center',gap:8,letterSpacing:'0.01em'}}>
+      <Icon name={icon} size={16} color={GOLD3}/>{t}
       {count!==undefined&&<span style={{background:`${GOLD}1a`,color:GOLD3,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:500,border:`1px solid ${GOLD}33`}}>{count}</span>}
     </div>
   );
@@ -3743,14 +3795,14 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
       {/* שורת ברכה + מחוברים */}
       <div style={{marginBottom:26,display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
         <div>
-          <h2 style={{fontSize:27,fontWeight:500,color:'#1a1510',letterSpacing:'-0.02em'}}>{greet}{userName?` ${userName}`:''} 👋</h2>
+          <h2 style={{fontSize:27,fontWeight:500,color:'#1a1510',letterSpacing:'-0.02em'}}>{greet}{userName?`, ${userName}`:''}</h2>
           <div style={{fontSize:13,color:'#9a8e84',marginTop:4,fontWeight:400}}>
             {new Date().toLocaleDateString('he-IL',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}
           </div>
         </div>
         {(onlineUsers||[]).length>0&&(
           <div style={{display:'flex',alignItems:'center',gap:8,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:20,padding:'8px 16px',flexWrap:'wrap'}}>
-            <span style={{fontSize:12,color:'#15803d',fontWeight:600}}>🟢 מחובר עכשיו:</span>
+            <span style={{fontSize:12,color:'#15803d',fontWeight:600,display:'flex',alignItems:'center',gap:6}}><span style={{width:7,height:7,borderRadius:'50%',background:'#22c55e',boxShadow:'0 0 0 3px rgba(34,197,94,0.18)'}}/>מחובר עכשיו:</span>
             {onlineUsers.map(u=>(
               <span key={u} style={{fontSize:12,color:'#166534',background:'#dcfce7',borderRadius:12,padding:'2px 10px',fontWeight:500}}>{u}</span>
             ))}
@@ -3759,10 +3811,10 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
       </div>
 
       <div style={{display:'flex',gap:14,marginBottom:20,flexWrap:'wrap'}}>
-        <KpiCard icon="📁" label="פרויקטים פעילים" value={activeProjs.length} color={GOLD3}
-          sub={overdueProjs.length>0?`${overdueProjs.length} באיחור`:'הכל בזמן ✓'} onClick={()=>onSetView('projects')}/>
-        <KpiCard icon="⏳" label="ממתין ללקוח" value={clientProjs.length} color="#7c3aed" onClick={()=>onSetView('clients')}/>
-        <KpiCard icon="🗂️" label="כלל התיקים" value={managed.length} color="#1e40af"
+        <KpiCard icon="folder" label="פרויקטים פעילים" value={activeProjs.length}
+          sub={overdueProjs.length>0?`${overdueProjs.length} באיחור`:'הכל בזמן'} onClick={()=>onSetView('projects')}/>
+        <KpiCard icon="hourglass" label="ממתין ללקוח" value={clientProjs.length} onClick={()=>onSetView('clients')}/>
+        <KpiCard icon="archive" label="כלל התיקים" value={managed.length}
           onClick={()=>onSetView('managed')}/>
       </div>
 
@@ -3789,12 +3841,12 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
           return(
             <div style={{...sec,padding:0,overflow:'hidden',height:isMobile?360:480,display:'flex',flexDirection:'column'}}>
               <div style={{padding:'14px 20px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:10,background:'#fdfaf5',flexShrink:0}}>
-                <span style={{fontSize:15}}>📬</span>
+                <Icon name="inbox" size={17} color={GOLD3}/>
                 <span style={{fontSize:13,fontWeight:600,color:'#3a2a00'}}>המשימות שלי — {userName}</span>
                 <span style={{marginRight:'auto',fontSize:11,color:'#9a8e84'}}>{myTasks.length} משימות</span>
               </div>
               {myTasks.length===0?(
-                <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'#9a8e84',fontSize:13}}>אין משימות פתוחות 🎉</div>
+                <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'#9a8e84',fontSize:13}}>אין משימות פתוחות</div>
               ):(
                 <div style={{flex:1,overflowY:'auto'}}>
                   {myTasks.map((p,i)=>{
@@ -3804,9 +3856,9 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
                     const borderColor=isOverdue?'#dc2626':isToday?'#f97316':isSoon?'#d97706':'#d4cabb';
                     const dateBg=isOverdue?'#fef2f2':isToday?'#fff7ed':isSoon?'#fffbeb':'#f5f3ef';
                     const dateFg=isOverdue?'#dc2626':isToday?'#ea580c':isSoon?'#d97706':'#9a8e84';
-                    const badgeLabel=p._daysLeft===null?'ללא תאריך':isOverdue?`⚠️ ${Math.abs(p._daysLeft)} ימים`:isToday?'היום':`${p._daysLeft} ימים`;
-                    const rowBg=isOverdue?'#fee2e2':isToday?'#ffedd5':p._daysLeft!==null?'#eff6ff':'#fff';
-                    const rowBgHover=isOverdue?'#fecaca':isToday?'#fed7aa':p._daysLeft!==null?'#dbeafe':'#f5f1e8';
+                    const badgeLabel=p._daysLeft===null?'ללא תאריך':isOverdue?`${Math.abs(p._daysLeft)} ימים באיחור`:isToday?'היום':`בעוד ${p._daysLeft} ימים`;
+                    const rowBg=isOverdue?'#fdf2f2':isToday?'#fdf6ee':p._daysLeft!==null?'#faf8f4':'#fff';
+                    const rowBgHover=isOverdue?'#fbe6e4':isToday?'#f9ecdb':p._daysLeft!==null?'#f2ede4':'#f5f1e8';
                     return(
                       <div key={p._row} onClick={()=>onOpenProject&&onOpenProject(p._row)}
                         style={{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 20px',
@@ -3850,7 +3902,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
             <div style={{...sec,padding:0,overflow:'hidden',height:isMobile?360:480,display:'flex',flexDirection:'column'}}>
               {/* כותרת + ניווט */}
               <div style={{padding:'10px 16px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:8,background:'#fdfaf5',flexShrink:0}}>
-                <span style={{fontSize:15}}>📅</span>
+                <Icon name="calendar" size={16} color={GOLD3}/>
                 <span style={{fontSize:13,fontWeight:600,color:'#3a2a00',flex:1}}>{weekLabel}</span>
                 <button onClick={()=>setCalWeekOffset(o=>o-1)}
                   style={{width:26,height:26,borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',color:'#6b5e50'}}>‹</button>
@@ -3918,7 +3970,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
       </div>{/* סוף גריד 2 עמודות */}
 
       <div style={sec}>
-        {secTitle('👥','ביצועי הצוות')}
+        {secTitle('users','ביצועי הצוות')}
         <div style={{display:'flex',gap:14,flexWrap:'wrap'}}>
           {teamStats.map(({name,role,count,color})=>(
             <div key={name} style={{flex:1,minWidth:120,background:`linear-gradient(135deg,${color}08 0%,${color}03 100%)`,borderRadius:12,padding:'18px',textAlign:'center',border:`1px solid ${color}22`,position:'relative',overflow:'hidden'}}>
@@ -4020,11 +4072,12 @@ function ReportsView({managed,projects}){
   const tabBtns=[{id:'summary',label:'📊 סיכום'},{id:'insights',label:'🔍 תובנות'},{id:'stats',label:'📈 ניתוח'}];
   const inp={padding:'8px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:13,background:'#fff',outline:'none'};
   const sec={background:'#fff',borderRadius:14,padding:'20px 22px',border:'1px solid #ede8e0',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',marginBottom:16};
-  const KpiCard=({icon,label,value,sub,color})=>(
-    <div style={{background:'#fff',borderRadius:14,padding:'20px 22px',flex:1,minWidth:155,border:'1px solid #ede8e0',boxShadow:'0 2px 8px rgba(0,0,0,0.07)'}}>
-      <div style={{fontSize:24,marginBottom:6}}>{icon}</div>
-      <div style={{fontSize:26,fontWeight:500,color,lineHeight:1}}>{value}</div>
-      <div style={{fontSize:12,color:'#6b5e50',marginTop:6,fontWeight:600}}>{label}</div>
+  const KpiCard=({icon,label,value,sub})=>(
+    <div style={{background:'#fff',borderRadius:14,padding:'20px 22px',flex:1,minWidth:155,border:'1px solid #ede8e0',boxShadow:'0 1px 3px rgba(0,0,0,0.05)',position:'relative',overflow:'hidden'}}>
+      <div style={{position:'absolute',top:0,right:0,width:40,height:2.5,background:GOLD,borderRadius:'0 14px 0 14px'}}/>
+      <Icon name={icon} size={21} color={GOLD3} stroke={1.6} style={{marginBottom:10}}/>
+      <div style={{fontSize:28,fontWeight:600,color:'#1a1510',lineHeight:1,letterSpacing:'-0.02em'}}>{value}</div>
+      <div style={{fontSize:12,color:'#6b5e50',marginTop:7,fontWeight:600}}>{label}</div>
       {sub&&<div style={{fontSize:11,color:'#9a8e84',marginTop:3}}>{sub}</div>}
     </div>
   );
@@ -4046,16 +4099,16 @@ function ReportsView({managed,projects}){
       {/* ── SUMMARY ── */}
       {tab==='summary'&&<div>
         <div style={{display:'flex',gap:14,marginBottom:20,flexWrap:'wrap'}}>
-          <KpiCard icon="🗂️" label="סה״כ תיקים" value={managed.length} color={GOLD3}/>
-          <KpiCard icon="✅" label="הסתיים" value={completedCases.length} sub={`${managed.length>0?Math.round(completedCases.length/managed.length*100):0}%`} color="#059669"/>
-          <KpiCard icon="🔄" label="בביצוע" value={activeCases.length} sub={`${managed.length>0?Math.round(activeCases.length/managed.length*100):0}%`} color="#2563eb"/>
-          <KpiCard icon="⏳" label="ממתין" value={pendingCases.length} sub={`${managed.length>0?Math.round(pendingCases.length/managed.length*100):0}%`} color="#d97706"/>
-          <KpiCard icon="🚫" label="בוטל" value={canceledCases.length} sub={`${managed.length>0?Math.round(canceledCases.length/managed.length*100):0}%`} color="#991b1b"/>
+          <KpiCard icon="archive" label="סה״כ תיקים" value={managed.length}/>
+          <KpiCard icon="checkCircle" label="הסתיים" value={completedCases.length} sub={`${managed.length>0?Math.round(completedCases.length/managed.length*100):0}%`}/>
+          <KpiCard icon="refresh" label="בביצוע" value={activeCases.length} sub={`${managed.length>0?Math.round(activeCases.length/managed.length*100):0}%`}/>
+          <KpiCard icon="hourglass" label="ממתין" value={pendingCases.length} sub={`${managed.length>0?Math.round(pendingCases.length/managed.length*100):0}%`}/>
+          <KpiCard icon="x" label="בוטל" value={canceledCases.length} sub={`${managed.length>0?Math.round(canceledCases.length/managed.length*100):0}%`}/>
         </div>
 
         {/* Monthly bar chart */}
         <div style={sec}>
-          <div style={{fontSize:14,fontWeight:500,color:GOLD3,marginBottom:16}}>📅 פתיחת תיקים — 12 חודשים אחרונים</div>
+          <div style={{fontSize:14,fontWeight:600,color:GOLD3,marginBottom:16,display:'flex',alignItems:'center',gap:8,letterSpacing:'0.01em'}}><Icon name="calendar" size={16} color={GOLD3}/>פתיחת תיקים — 12 חודשים אחרונים</div>
           <div style={{display:'flex',alignItems:'flex-end',gap:5,height:110}}>
             {monthlyData.map(m=>(
               <div key={m.key} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
@@ -4069,12 +4122,12 @@ function ReportsView({managed,projects}){
 
         {/* Status breakdown */}
         <div style={sec}>
-          <div style={{fontSize:14,fontWeight:500,color:GOLD3,marginBottom:16}}>👥 ביצועי צוות — פרויקטים פעילים</div>
+          <div style={{fontSize:14,fontWeight:600,color:GOLD3,marginBottom:16,display:'flex',alignItems:'center',gap:8,letterSpacing:'0.01em'}}><Icon name="users" size={16} color={GOLD3}/>ביצועי צוות — פרויקטים פעילים</div>
           {(()=>{
             const teamData=[
-              {name:'יוסי',color:'#2563eb',icon:'👤'},
-              {name:'מיכאל',color:'#7c3aed',icon:'👤'},
-              {name:'פייגי',color:'#059669',icon:'👤'},
+              {name:'יוסי',color:'#1a1510',icon:'👤'},
+              {name:'מיכאל',color:GOLD3,icon:'👤'},
+              {name:'פייגי',color:'#7a6a58',icon:'👤'},
             ].map(t=>{
               const teamCases=managed.filter(c=>c.michael===t.name||c.folder?.includes(t.name));
               const done=managed.filter(c=>c.status==='הסתיים'&&(c.michael===t.name||c.folder?.includes(t.name))).length;
@@ -4097,7 +4150,7 @@ function ReportsView({managed,projects}){
                       <div style={{display:'flex',gap:14,fontSize:12}}>
                         <span style={{background:'#f0ebe3',borderRadius:10,padding:'2px 8px',color:'#6b5e50'}}>{t.total} תיקים</span>
                         <span style={{background:'#dcfce7',borderRadius:10,padding:'2px 8px',color:'#166534'}}>✓ {t.done} הסתיים</span>
-                        <span style={{background:'#fdf8ee',borderRadius:10,padding:'2px 8px',color:GOLD3}}>🔄 {t.active} פעיל</span>
+                        <span style={{background:'#fdf8ee',borderRadius:10,padding:'2px 8px',color:GOLD3}}>{t.active} פעיל</span>
                         <span style={{fontWeight:500,color:t.color}}>{t.pct}%</span>
                       </div>
                     </div>
@@ -4162,7 +4215,7 @@ function ReportsView({managed,projects}){
           {pipelineData.length>0&&(
             <div style={{marginTop:14,padding:'10px 14px',background:'#faf8f4',borderRadius:9,border:'1px solid #ede8e0',display:'flex',gap:20,fontSize:12,flexWrap:'wrap'}}>
               <span style={{color:'#6b5e50'}}>פעילים: <strong style={{color:GOLD3}}>{projects.filter(p=>!CLIENT_STATUSES.includes(p.status)).length}</strong></span>
-              <span style={{color:'#6b5e50'}}>ממתין ללקוח: <strong style={{color:'#7c3aed'}}>{projects.filter(p=>CLIENT_STATUSES.includes(p.status)).length}</strong></span>
+              <span style={{color:'#6b5e50'}}>ממתין ללקוח: <strong style={{color:GOLD3}}>{projects.filter(p=>CLIENT_STATUSES.includes(p.status)).length}</strong></span>
               {pipelineData.find(s=>s.count===maxPipeCount)&&<span style={{color:'#6b5e50'}}>השלב הצפוף: <strong style={{color:'#dc2626'}}>{pipelineData.find(s=>s.count===maxPipeCount).status}</strong></span>}
             </div>
           )}
@@ -4272,7 +4325,7 @@ function ReportsView({managed,projects}){
                   </div>
                 </div>
                 <div style={{height:6,background:'#f0ebe3',borderRadius:3,overflow:'hidden'}}>
-                  <div style={{height:'100%',width:`${count/maxBar*100}%`,background:'#7c3aed',borderRadius:3}}/>
+                  <div style={{height:'100%',width:`${count/maxBar*100}%`,background:GOLD3,borderRadius:3}}/>
                 </div>
               </div>
             ))}
