@@ -73,7 +73,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v75'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v76'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
@@ -1479,6 +1479,8 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const [tab,setTab]=useState('main');
   const [closingWork,setClosingWork]=useState(false);
   const [folderReminderStatus,setFolderReminderStatus]=useState(null); // סטטוס ממתין לאישור
+  const [verifyingFolder,setVerifyingFolder]=useState(false); // בדיקת מיקום התיקייה ב-Drive לפני אישור
+  const [folderVerifyErr,setFolderVerifyErr]=useState('');
   const [dueDateErr,setDueDateErr]=useState(false);
   const [visitDateErr,setVisitDateErr]=useState(false);
   const [confirmKtiva,setConfirmKtiva]=useState(false);
@@ -1601,8 +1603,26 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   };
   const handleWorkStatusChange=async(newStatus)=>{
     if(closingWork||newStatus===workStatus)return;
-    if(newStatus==='הסתיים'||newStatus==='בוטל'){setFolderReminderStatus(newStatus);return;}
+    if(newStatus==='הסתיים'||newStatus==='בוטל'){setFolderVerifyErr('');setFolderReminderStatus(newStatus);return;}
     await applyWorkStatusChange(newStatus);
+  };
+  // אימות שהתיקייה של התיק הספציפי אכן הועברה לתת-התיקייה הנכונה ב-Drive לפני אישור שינוי הסטטוס
+  const verifyFolderAndApply=async()=>{
+    const s=folderReminderStatus;
+    const folderName=String(matchedCase?.folder||project.name||'').trim();
+    const expected=s==='בוטל'?'בוטל':'פרויקטים שהושלמו';
+    setFolderVerifyErr('');setVerifyingFolder(true);
+    try{
+      const resp=await fetch(APPS_SCRIPT_URL+'?type=checkFolders');
+      const data=await resp.json();
+      const found=(data.folders||[]).find(f=>String(f.name||'').trim()===folderName);
+      if(!found){setFolderVerifyErr(`התיקייה "${folderName}" לא נמצאה ב-Drive. ודאו שהיא קיימת ובאותו שם, ואז בדקו שוב.`);setVerifyingFolder(false);return;}
+      const actual=String(found.location||'').trim();
+      if(actual!==expected){setFolderVerifyErr(`התיקייה עדיין נמצאת ב"${actual||'—'}". יש להעביר אותה אל "${expected}" ואז לבדוק שוב.`);setVerifyingFolder(false);return;}
+      // אומת — ממשיכים בשינוי הסטטוס
+      setVerifyingFolder(false);setFolderReminderStatus(null);setFolderVerifyErr('');
+      await applyWorkStatusChange(s);
+    }catch(e){setFolderVerifyErr('שגיאה בבדיקת התיקייה: '+(e.message||e)+'. נסו שוב.');setVerifyingFolder(false);}
   };
   const numMatch=project.name.match(/\b(5\d{4})\b/);
   const caseNum=numMatch?numMatch[1]:'';
@@ -1759,16 +1779,17 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
               יש להעביר את התיקייה<br/>
               <strong>"{matchedCase?.folder||project.name}"</strong><br/>
               לתיקיית <strong>{folderReminderStatus==='בוטל'?'בוטל':'פרויקטים שהושלמו'}</strong><br/>
-              <span style={{fontSize:12,color:'#9a8e84'}}>לאחר ביצוע ההעברה יש לאשר</span>
+              <span style={{fontSize:12,color:'#9a8e84'}}>לאחר ההעברה לחצו לאימות — המערכת תבדוק את מיקום התיקייה ב-Drive</span>
             </div>
+            {folderVerifyErr&&<div style={{fontSize:13,color:'#991b1b',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:10,padding:'10px 14px',marginBottom:16,lineHeight:1.6}}>⚠️ {folderVerifyErr}</div>}
             <div style={{display:'flex',gap:10,justifyContent:'center'}}>
-              <button onClick={()=>setFolderReminderStatus(null)}
-                style={{padding:'10px 22px',borderRadius:10,border:'1px solid #ddd0bb',background:'#f5f0ea',color:'#4b3400',fontSize:14,cursor:'pointer',fontFamily:'inherit'}}>
+              <button onClick={()=>{setFolderReminderStatus(null);setFolderVerifyErr('');setVerifyingFolder(false);}} disabled={verifyingFolder}
+                style={{padding:'10px 22px',borderRadius:10,border:'1px solid #ddd0bb',background:'#f5f0ea',color:'#4b3400',fontSize:14,cursor:verifyingFolder?'not-allowed':'pointer',fontFamily:'inherit',opacity:verifyingFolder?0.6:1}}>
                 ביטול
               </button>
-              <button onClick={async()=>{const s=folderReminderStatus;setFolderReminderStatus(null);await applyWorkStatusChange(s);}}
-                style={{padding:'10px 22px',borderRadius:10,border:'none',background:'#1a1510',color:GOLD,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                הועברה — אשר שינוי סטטוס
+              <button onClick={verifyFolderAndApply} disabled={verifyingFolder}
+                style={{padding:'10px 22px',borderRadius:10,border:'none',background:'#1a1510',color:GOLD,fontSize:14,fontWeight:600,cursor:verifyingFolder?'not-allowed':'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:7,opacity:verifyingFolder?0.8:1}}>
+                {verifyingFolder?<><Spinner size={12} color={GOLD}/>בודק תיקייה...</>:(folderVerifyErr?'🔍 בדוק שוב':'🔍 בדוק ואשר שינוי סטטוס')}
               </button>
             </div>
           </div>
