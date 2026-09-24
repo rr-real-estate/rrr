@@ -73,7 +73,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v69'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v70'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
@@ -1492,6 +1492,19 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const origMissingRef=useRef(project.missingDocs||'');
   const isYossi=(USER_BY_EMAIL[(user?.email||'').toLowerCase()]==='יוסי');
   const matchedCase=(managed||[]).find(c=>c.folder&&c.folder.trim()===project.name.trim());
+  // טופס מרשם (לקוח/יועץ/נכס) — נערך בלשוניות ונשמר ל"ניהול תיקים" A–X
+  const [caseForm,setCaseForm]=useState(()=>matchedCase?{...matchedCase}:null);
+  useEffect(()=>{setCaseForm(matchedCase?{...matchedCase}:null);},[matchedCase&&matchedCase._row]);
+  const setCF=(k,v)=>setCaseForm(f=>({...(f||{}),[k]:v}));
+  const saveCaseRegistry=async()=>{
+    if(!caseForm||!matchedCase)return;
+    const row=(matchedCase._raw||[]).slice(0,24);while(row.length<24)row.push('');
+    [['openDate',M.openDate],['closeDate',M.closeDate],['fee',M.fee],['caseNum',M.caseNum],['status',M.status],['folder',M.folder],
+     ['client',M.client],['phone',M.phone],['email',M.email],['advisor',M.advisor],['advisorPhone',M.advisorPhone],['advisorEmail',M.advisorEmail],
+     ['purpose',M.purpose],['propType',M.propType],['city',M.city],['street',M.street],['houseNum',M.houseNum],['aptNum',M.aptNum],
+     ['block',M.block],['parcel',M.parcel],['subParcel',M.subParcel],['bank',M.bank],['michael',M.michael]].forEach(([k,i])=>row[i]=caseForm[k]||'');
+    try{await api.put(`'ניהול תיקים'!A${matchedCase._row}:X${matchedCase._row}`,[row]);if(onUpdateCase)onUpdateCase(matchedCase._row,{...caseForm,_raw:[...row,...(matchedCase._raw||[]).slice(24)]});}catch(e){setErr(e.message);}
+  };
   const [feeReminder,setFeeReminder]=useState(false);
   useEffect(()=>{
     if(isYossi&&project.status==='בבדיקה'&&!project.fee){
@@ -1601,7 +1614,8 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const isGeneralTask=!/\b5\d{4}\b/.test(project.name||'');  // משימה כללית — ללא מספר תיק
   const panelTabs=isGeneralTask
     ?[{id:'main',label:'📋 ראשי'}]
-    :[{id:'main',label:'📋 ראשי'},{id:'docs',label:'📁 מסמכים'},{id:'visit',label:'🏠 ביקור'},{id:'fee',label:'💰 שכ"ט'}];
+    :[{id:'main',label:'📋 ראשי'},{id:'docs',label:'📁 מסמכים'},{id:'visit',label:'🏠 ביקור'},{id:'fee',label:'💰 שכ"ט'},
+      {id:'client',label:'👤 לקוח'},{id:'advisor',label:'🤝 יועץ'},{id:'property',label:'🏢 נכס'}];
   // מחיקת משימה — מותרת רק למשימות ללא שיוך לתיק
   const handleDeleteTask=async()=>{
     if(!isGeneralTask)return;
@@ -1963,6 +1977,37 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
               </div>}
             </div>
           </div>);})()}
+          {tab==='client'&&caseForm&&<div style={sec}>
+            <SectionTitle icon="👤">פרטי לקוח</SectionTitle>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div style={{gridColumn:'1/-1'}}><FLabel>שם לקוח</FLabel><input value={caseForm.client||''} onChange={e=>setCF('client',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+              <div><FLabel>נייד לקוח</FLabel><input value={caseForm.phone||''} onChange={e=>setCF('phone',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+              <div><FLabel>מייל לקוח</FLabel><input value={caseForm.email||''} onChange={e=>setCF('email',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+            </div>
+          </div>}
+          {tab==='advisor'&&caseForm&&<div style={sec}>
+            <SectionTitle icon="🤝">פרטי יועץ משכנתאות</SectionTitle>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div style={{gridColumn:'1/-1'}}><FLabel>שם יועץ</FLabel><input value={caseForm.advisor||''} onChange={e=>setCF('advisor',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+              <div><FLabel>נייד יועץ</FLabel><input value={caseForm.advisorPhone||''} onChange={e=>setCF('advisorPhone',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+              <div><FLabel>מייל יועץ</FLabel><input value={caseForm.advisorEmail||''} onChange={e=>setCF('advisorEmail',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+            </div>
+          </div>}
+          {tab==='property'&&caseForm&&<div style={sec}>
+            <SectionTitle icon="🏢">פרטי הנכס</SectionTitle>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div><FLabel>ישוב / עיר</FLabel><input value={caseForm.city||''} onChange={e=>setCF('city',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+              <div><FLabel>בנק</FLabel><input value={caseForm.bank||''} onChange={e=>setCF('bank',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+              <div><FLabel>רחוב</FLabel><input value={caseForm.street||''} onChange={e=>setCF('street',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+              <div><FLabel>מס' בית</FLabel><input value={caseForm.houseNum||''} onChange={e=>setCF('houseNum',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+              <div><FLabel>מס' דירה</FLabel><input value={caseForm.aptNum||''} onChange={e=>setCF('aptNum',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+              <div><FLabel>גוש</FLabel><input value={caseForm.block||''} onChange={e=>setCF('block',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+              <div><FLabel>חלקה</FLabel><input value={caseForm.parcel||''} onChange={e=>setCF('parcel',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+              <div><FLabel>תת חלקה</FLabel><input value={caseForm.subParcel||''} onChange={e=>setCF('subParcel',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+              <div><FLabel>מטרת עבודה</FLabel><input value={caseForm.purpose||''} onChange={e=>setCF('purpose',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+              <div><FLabel>סוג נכס</FLabel><input value={caseForm.propType||''} onChange={e=>setCF('propType',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
+            </div>
+          </div>}
         </div>
       </div>
       {confirmKtiva&&(
