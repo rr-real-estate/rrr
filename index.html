@@ -74,7 +74,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v89'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v90'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -2530,23 +2530,21 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
 
   return(
     <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18,flexWrap:'wrap',gap:8}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:8}}>
         <div>
-          <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:GOLD3}}>ממתין ללקוח</h2>
-          <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{filtered.length} תיקים ממתינים לפעולה חיצונית</div>
-        </div>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-          {CLIENT_STATUSES.filter(s=>counts[s]).map(s=>{
-            const m=STATUS_META[s]||{};
-            return<button key={s} onClick={()=>setStatusFilter(statusFilter===s?'':s)}
-              style={{padding:'5px 11px',borderRadius:14,border:`1.5px solid ${statusFilter===s?m.dot||'#ccc':'#ddd0bb'}`,background:statusFilter===s?m.bg||'#f0ebe3':'#fff',cursor:'pointer',fontSize:12,fontWeight:600,color:statusFilter===s?m.fg||'#3a3228':'#6b5e50'}}>
-              {s} ({counts[s]})
-            </button>;
-          })}
+          <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:'#1a1510',letterSpacing:'-0.01em'}}>ממתין ללקוח</h2>
+          <div style={{fontSize:13,color:'#9a8e84',marginTop:3,fontWeight:400}}>{filtered.length} תיקים ממתינים לפעולה חיצונית</div>
         </div>
       </div>
-      <div style={{display:'flex',gap:10,marginBottom:22,alignItems:'center'}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="חיפוש..." style={{...inp,flex:1}}/>
+      <div style={{display:'flex',gap:8,marginBottom:isMobile?16:24,flexWrap:'wrap',alignItems:'center',background:'#fff',padding:isMobile?'10px 12px':'14px 16px',borderRadius:14,border:'1px solid #e8e0d4',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+        {CLIENT_STATUSES.filter(s=>counts[s]).map(s=>{
+          const m=STATUS_META[s]||{};
+          return<button key={s} onClick={()=>setStatusFilter(statusFilter===s?'':s)}
+            style={{padding:'5px 11px',borderRadius:14,border:`1.5px solid ${statusFilter===s?m.dot||'#ccc':'#ddd0bb'}`,background:statusFilter===s?m.bg||'#f0ebe3':'#fff',cursor:'pointer',fontSize:12,fontWeight:600,color:statusFilter===s?m.fg||'#3a3228':'#6b5e50'}}>
+            {s} ({counts[s]})
+          </button>;
+        })}
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="חיפוש..." style={{...inp,flex:'1 1 180px'}}/>
         {search&&<button onClick={()=>setSearch('')} style={{...inp,background:'#ede8e0',color:'#4b3400',border:'1px solid #ddd0bb',cursor:'pointer'}}>נקה ×</button>}
       </div>
 
@@ -3249,31 +3247,31 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
         setAdding(false);
       }}/>}
 
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:12}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:12}}>
         <div>
-          <h2 style={{fontSize:22,fontWeight:500,color:GOLD3}}>כלל התיקים</h2>
-          <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{filtered.length} מתוך {cases.length} תיקים</div>
+          <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:'#1a1510',letterSpacing:'-0.01em'}}>כלל התיקים</h2>
+          <div style={{fontSize:13,color:'#9a8e84',marginTop:3,fontWeight:400}}>{filtered.length} מתוך {cases.length} תיקים</div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-          {MANAGED_STATUSES.map(s=>{const sc=STATUS_C[s]||{};return(
-            <span key={s} onClick={()=>setF('status',filters.status===s?'':s)} style={{...sc,padding:'5px 12px',borderRadius:14,fontSize:12,fontWeight:500,cursor:'pointer',border:`1.5px solid ${filters.status===s?'currentcolor':'transparent'}`}}>
-              {s} ({cases.filter(c=>c.status===s).length})
-            </span>
-          );})}
           <div style={{display:'flex',border:'1px solid #ddd0bb',borderRadius:9,overflow:'hidden'}}>
-            <button onClick={()=>setViewMode('cards')} title="תצוגת כרטיסים" style={{padding:'8px 12px',border:'none',background:viewMode==='cards'?BLACK:'#fff',color:viewMode==='cards'?GOLD:'#6b5e50',cursor:'pointer',fontSize:15}}>▦</button>
-            <button onClick={()=>setViewMode('table')} title="תצוגת טבלה" style={{padding:'8px 12px',border:'none',borderRight:'1px solid #ede8e0',background:viewMode==='table'?BLACK:'#fff',color:viewMode==='table'?GOLD:'#6b5e50',cursor:'pointer',fontSize:15}}>☰</button>
+            <button onClick={()=>setViewMode('cards')} title="תצוגת כרטיסים" style={{padding:'8px 12px',border:'none',background:viewMode==='cards'?BLACK:'#fff',color:viewMode==='cards'?GOLD:'#6b5e50',cursor:'pointer',fontSize:15,display:'flex'}}><Icon name="grid" size={16}/></button>
+            <button onClick={()=>setViewMode('table')} title="תצוגת טבלה" style={{padding:'8px 12px',border:'none',borderRight:'1px solid #ede8e0',background:viewMode==='table'?BLACK:'#fff',color:viewMode==='table'?GOLD:'#6b5e50',cursor:'pointer',fontSize:15,display:'flex'}}><Icon name="list" size={16}/></button>
           </div>
           <button onClick={()=>setAdding(true)} style={{padding:'9px 18px',borderRadius:10,border:'none',background:BLACK,color:GOLD,fontWeight:500,cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(0,0,0,0.15)'}}>
-            הוסף תיק
+            <Icon name="plus" size={15}/>הוסף תיק
           </button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
+      {/* Filters — קופסה לבנה זהה ל"פרויקטים בביצוע" */}
+      <div style={{display:'flex',gap:8,marginBottom:isMobile?16:24,flexWrap:'wrap',alignItems:'center',background:'#fff',padding:isMobile?'10px 12px':'14px 16px',borderRadius:14,border:'1px solid #e8e0d4',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+        {MANAGED_STATUSES.map(s=>{const sc=STATUS_C[s]||{};return(
+          <span key={s} onClick={()=>setF('status',filters.status===s?'':s)} style={{...sc,padding:'5px 12px',borderRadius:14,fontSize:12,fontWeight:500,cursor:'pointer',border:`1.5px solid ${filters.status===s?'currentcolor':'transparent'}`}}>
+            {s} ({cases.filter(c=>c.status===s).length})
+          </span>
+        );})}
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="חיפוש חופשי..."
-          style={{...inp,flex:'1 1 200px'}}/>
+          style={{...inp,flex:'1 1 180px'}}/>
         {sel('bank','בנק')}
         {sel('city','עיר')}
         {sel('purpose','מטרה')}
