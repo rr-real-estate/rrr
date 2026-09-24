@@ -74,7 +74,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v86'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v87'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -1408,10 +1408,10 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,task
   return(
     <div onClick={e=>onClick&&onClick(e)} style={{
       background:'#fff',borderRadius:14,padding:'18px 20px',cursor:'pointer',
-      boxShadow:'0 2px 8px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)',
-      borderRight:`4px solid ${m.dot}`,
+      boxShadow:'0 1px 3px rgba(0,0,0,0.05)',
+      border:'1px solid #ece5d8',
       transition:'all 0.18s cubic-bezier(0.4,0,0.2,1)',
-      outline:overdue?'1.5px solid #fca5a5':'none',
+      outline:overdue?'1.5px solid #e6b3ad':'none',
       display:'flex',flexDirection:'column',height:'100%',boxSizing:'border-box',overflow:'hidden',
     }}
     onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 8px 24px rgba(0,0,0,0.12),0 2px 8px rgba(0,0,0,0.06)';e.currentTarget.style.transform='translateY(-3px)';}}
@@ -1748,9 +1748,9 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const sec={background:'#fff',borderRadius:14,padding:18,marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
   const isGeneralTask=!/\b5\d{4}\b/.test(project.name||'');  // משימה כללית — ללא מספר תיק
   const panelTabs=isGeneralTask
-    ?[{id:'main',label:'ראשי'}]
-    :[{id:'main',label:'ראשי'},{id:'docs',label:'מסמכים'},{id:'visit',label:'ביקור'},{id:'fee',label:'שכ"ט'},
-      {id:'client',label:'לקוח'},{id:'advisor',label:'יועץ'},{id:'property',label:'נכס'}];
+    ?[{id:'main',label:'ראשי',icon:'list'}]
+    :[{id:'main',label:'ראשי',icon:'list'},{id:'docs',label:'מסמכים',icon:'folder'},{id:'visit',label:'ביקור',icon:'calendar'},{id:'fee',label:'שכ"ט',icon:'coins'},
+      {id:'client',label:'לקוח',icon:'user'},{id:'advisor',label:'יועץ',icon:'handshake'},{id:'property',label:'נכס',icon:'building'}];
   // מחיקת משימה — מותרת רק למשימות ללא שיוך לתיק
   const handleDeleteTask=async()=>{
     if(!isGeneralTask)return;
@@ -1930,10 +1930,10 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
         {/* Tabs */}
         <div style={{background:'#fff',display:'flex',borderBottom:'1px solid #e8e0d4',padding:'0 20px',flexShrink:0,overflowX:'auto',gap:4}}>
           {panelTabs.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'13px 16px',border:'none',background:'transparent',borderBottom:`2.5px solid ${tab===t.id?GOLD:'transparent'}`,color:tab===t.id?GOLD3:'#8a7a6a',fontWeight:tab===t.id?700:400,cursor:'pointer',fontSize:13,marginBottom:-1,whiteSpace:'nowrap',transition:'all 0.15s',letterSpacing:'0.01em'}}
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'13px 14px',border:'none',background:'transparent',borderBottom:`2.5px solid ${tab===t.id?GOLD:'transparent'}`,color:tab===t.id?GOLD3:'#8a7a6a',fontWeight:tab===t.id?700:400,cursor:'pointer',fontSize:13,marginBottom:-1,whiteSpace:'nowrap',transition:'all 0.15s',letterSpacing:'0.01em',display:'flex',alignItems:'center',gap:6}}
               onMouseEnter={e=>{if(tab!==t.id)e.currentTarget.style.color='#3a2a00';}}
               onMouseLeave={e=>{if(tab!==t.id)e.currentTarget.style.color='#8a7a6a';}}
-            >{t.label}</button>
+            >{t.icon&&<Icon name={t.icon} size={15}/>}{t.label}</button>
           ))}
         </div>
         {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 26px',fontSize:13,borderBottom:'1px solid #fca5a5'}}>{err}</div>}
@@ -2290,7 +2290,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
   const inp={padding:'9px 14px',borderRadius:10,border:'1px solid #e0d5c5',fontSize:14,background:'#fff',outline:'none',fontFamily:'Heebo,sans-serif',transition:'border-color 0.15s,box-shadow 0.15s'};
 
   return(
-    <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease'}}>
+    <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:1280,margin:'0 auto'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:8}}>
         <div>
           <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:'#1a1510',letterSpacing:'-0.01em'}}>פרויקטים בביצוע</h2>
@@ -2460,17 +2460,17 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
           const m=STATUS_META[status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
           const isOpen=!collapsed[status];
           return(
-            <div key={status} style={{marginBottom:18,boxShadow:'0 4px 14px rgba(0,0,0,0.13)',borderRadius:14}}>
-              <div onClick={()=>toggle(status)} style={{background:m.bg,padding:'13px 18px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:isOpen?`2px solid ${m.dot}88`:'none',borderRadius:isOpen?'14px 14px 0 0':14}}>
+            <div key={status} style={{marginBottom:16,boxShadow:'0 2px 10px rgba(0,0,0,0.07)',borderRadius:14,border:'1px solid #ece5d8'}}>
+              <div onClick={()=>toggle(status)} style={{background:'#f4efe6',padding:'12px 18px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:isOpen?'1px solid #e2d9c8':'none',borderRadius:isOpen?'13px 13px 0 0':13}}>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  <span style={{width:12,height:12,borderRadius:'50%',background:m.dot,display:'inline-block',flexShrink:0,boxShadow:`0 0 5px ${m.dot}99`}}/>
-                  <span style={{fontSize:15,fontWeight:500,color:m.fg}}>{status}</span>
-                  <span style={{background:`${m.dot}33`,color:m.fg,border:`1px solid ${m.dot}66`,borderRadius:20,padding:'2px 10px',fontSize:13,fontWeight:500}}>{items.length}</span>
+                  <span style={{width:10,height:10,borderRadius:'50%',background:m.dot,display:'inline-block',flexShrink:0}}/>
+                  <span style={{fontSize:15,fontWeight:600,color:'#2b2620'}}>{status}</span>
+                  <span style={{background:'#fff',color:'#6b5e50',border:'1px solid #e0d8cc',borderRadius:20,padding:'2px 10px',fontSize:13,fontWeight:600}}>{items.length}</span>
                 </div>
-                <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
+                <span style={{fontSize:12,color:'#8a7a6a'}}>{isOpen?'▲':'▼'}</span>
               </div>
               {isOpen&&(
-                <div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(420px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch',gridAutoRows:isMobile?'auto':'190px'}}>
+                <div style={{background:'#faf8f4',padding:'14px',display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(380px,1fr))',gap:12,borderRadius:'0 0 13px 13px',alignItems:'stretch',gridAutoRows:isMobile?'auto':'190px'}}>
                   {items.map(p=>{const _mc=(managed||[]).find(c=>c.folder&&c.folder.trim()===p.name.trim());return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}} showPdf taskScope={settings?.taskCardScope||'mine'}/>);})}
                 </div>
               )}
@@ -2529,7 +2529,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
   const inp={padding:'9px 14px',borderRadius:10,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none'};
 
   return(
-    <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease'}}>
+    <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:1280,margin:'0 auto'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18,flexWrap:'wrap',gap:8}}>
         <div>
           <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:GOLD3}}>ממתין ללקוח</h2>
@@ -2692,7 +2692,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
 
 // ═══════════════ MANAGED CASE PANEL ══════════════════════════════
 const MANAGED_STATUSES=['הסתיים','בביצוע','ממתין','בוטל'];
-const MANAGED_STATUS_C={'הסתיים':{bg:'#dcfce7',fg:'#166534',bar:'#22c55e'},'בביצוע':{bg:'#f3efe6',fg:'#1a1510',bar:'#1a1510'},'ממתין':{bg:'#ffedd5',fg:'#9a3412',bar:'#f97316'},'בוטל':{bg:'#fee2e2',fg:'#991b1b',bar:'#ef4444'}};
+const MANAGED_STATUS_C={'הסתיים':{bg:'#e7efe7',fg:'#2f6b43',bar:'#4a8c5e'},'בביצוע':{bg:'#f3efe6',fg:'#1a1510',bar:'#1a1510'},'ממתין':{bg:'#faeede',fg:'#9a5512',bar:'#c2760c'},'בוטל':{bg:'#f7e7e5',fg:'#9a3020',bar:'#c0392b'}};
 
 // כרטיס "כלל התיקים" — תצוגה חיצונית עם פרטי הנכס (נפרד מכרטיס "פרויקטים בביצוע")
 function ManagedCaseCard({cas,onClick,isMobile}){
@@ -2707,7 +2707,7 @@ function ManagedCaseCard({cas,onClick,isMobile}){
     </div>
   ):null;
   return(
-    <div onClick={onClick} style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 8px rgba(0,0,0,0.08)',border:'1px solid #ede8e0',borderRight:`4px solid ${sc.bar}`,padding:'13px 15px',cursor:'pointer',display:'flex',flexDirection:'column',gap:9,minWidth:0}}
+    <div onClick={onClick} style={{background:'#fff',borderRadius:14,boxShadow:'0 1px 3px rgba(0,0,0,0.05)',border:'1px solid #ece5d8',padding:'15px 17px',cursor:'pointer',display:'flex',flexDirection:'column',gap:9,minWidth:0}}
       onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 6px 18px rgba(0,0,0,0.14)';e.currentTarget.style.transform='translateY(-2px)';}}
       onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)';e.currentTarget.style.transform='none';}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
@@ -3291,17 +3291,17 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
             const m=MANAGED_STATUS_C[status]||{bg:'#eee',fg:'#404040',bar:'#9e9e9e'};
             const isOpen=!collapsed[status];
             return(
-              <div key={status} style={{marginBottom:16,boxShadow:'0 3px 12px rgba(0,0,0,0.10)',borderRadius:14}}>
-                <div onClick={()=>toggle(status)} style={{background:m.bg,padding:'12px 16px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:isOpen?`2px solid ${m.bar}88`:'none',borderRadius:isOpen?'14px 14px 0 0':14}}>
+              <div key={status} style={{marginBottom:16,boxShadow:'0 2px 10px rgba(0,0,0,0.07)',borderRadius:14,border:'1px solid #ece5d8'}}>
+                <div onClick={()=>toggle(status)} style={{background:'#f4efe6',padding:'12px 18px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:isOpen?'1px solid #e2d9c8':'none',borderRadius:isOpen?'13px 13px 0 0':13}}>
                   <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <span style={{width:11,height:11,borderRadius:'50%',background:m.bar,display:'inline-block',flexShrink:0,boxShadow:`0 0 5px ${m.bar}99`}}/>
-                    <span style={{fontSize:15,fontWeight:600,color:m.fg}}>{status}</span>
-                    <span style={{background:`${m.bar}22`,color:m.fg,border:`1px solid ${m.bar}55`,borderRadius:20,padding:'2px 10px',fontSize:13,fontWeight:600}}>{items.length}</span>
+                    <span style={{width:10,height:10,borderRadius:'50%',background:m.bar,display:'inline-block',flexShrink:0}}/>
+                    <span style={{fontSize:15,fontWeight:600,color:'#2b2620'}}>{status}</span>
+                    <span style={{background:'#fff',color:'#6b5e50',border:'1px solid #e0d8cc',borderRadius:20,padding:'2px 10px',fontSize:13,fontWeight:600}}>{items.length}</span>
                   </div>
-                  <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
+                  <span style={{fontSize:12,color:'#8a7a6a'}}>{isOpen?'▲':'▼'}</span>
                 </div>
                 {isOpen&&(
-                  <div style={{background:'#faf8f4',padding:14,display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(320px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch'}}>
+                  <div style={{background:'#faf8f4',padding:14,display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(380px,1fr))',gap:12,borderRadius:'0 0 13px 13px',alignItems:'stretch'}}>
                     {items.map(c=><ManagedCaseCard key={c._row} cas={c} isMobile={isMobile} onClick={()=>setSelected(c)}/>)}
                   </div>
                 )}
