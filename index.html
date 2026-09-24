@@ -73,7 +73,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v71'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v72'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
@@ -1470,7 +1470,7 @@ function ExternalLinkButton({caseNum,fullName,driveFolderLink}){
     </div>}
   </div>);
 }
-function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDeleteProject,user,taskScope}){
+function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDeleteProject,onDeleteCase,user,taskScope}){
   const isMobile=useIsMobile();
   const [form,setForm]=useState({...project});
   const [saving,setSaving]=useState(false);
@@ -1591,6 +1591,16 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   };
   const numMatch=project.name.match(/\b(5\d{4})\b/);
   const caseNum=numMatch?numMatch[1]:'';
+  // מחיקת תיק — מותרת רק לתיק האחרון שנפתח (מספר הכי גבוה), לשמירת רצף המספרים
+  const _allNums=(managed||[]).map(c=>parseInt(c.caseNum,10)).filter(n=>!isNaN(n));
+  const _maxNum=_allNums.length?Math.max(..._allNums):0;
+  const isLastCase=!!caseNum&&parseInt(caseNum,10)===_maxNum;
+  const handleDeleteCase=async()=>{
+    if(!matchedCase||!onDeleteCase)return;
+    if(!isLastCase){alert('לא ניתן למחוק — נפתחו תיקים אחרי תיק זה.\nלשמירת רצף המספרים, במקום מחיקה יש לסמן סטטוס "בוטל".');return;}
+    if(!window.confirm('למחוק לגמרי את תיק '+caseNum+'?\n(מיועד רק לתיק שנפתח בטעות — הפעולה אינה הפיכה)'))return;
+    try{await api.deleteSheetRow('ניהול תיקים',matchedCase._row);if(onDeleteCase)onDeleteCase(matchedCase._row);onClose();}catch(e){setErr(e.message);}
+  };
   // שליפת הביקור האחרון לתיק מגיליון "ביקורים": שם השמאי (עמודה C, ואם "אחר" → D) + חותמת זמן (עמודה A)
   useEffect(()=>{
     if(!caseNum){setLastVisit(null);return;}
@@ -1779,6 +1789,10 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             </div>
             <div style={{flexShrink:0,display:'flex',gap:8}}>
               {isGeneralTask&&<button onClick={handleDeleteTask} title="מחק משימה"
+                style={{background:'rgba(220,38,38,0.15)',border:'1px solid rgba(220,38,38,0.4)',borderRadius:10,width:36,height:36,color:'#fca5a5',cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}
+                onMouseEnter={e=>{e.currentTarget.style.background='rgba(220,38,38,0.3)';e.currentTarget.style.color='#fff';}}
+                onMouseLeave={e=>{e.currentTarget.style.background='rgba(220,38,38,0.15)';e.currentTarget.style.color='#fca5a5';}}>🗑</button>}
+              {!isGeneralTask&&matchedCase&&onDeleteCase&&isLastCase&&<button onClick={handleDeleteCase} title="מחק תיק (רק לתיק האחרון שנפתח בטעות)"
                 style={{background:'rgba(220,38,38,0.15)',border:'1px solid rgba(220,38,38,0.4)',borderRadius:10,width:36,height:36,color:'#fca5a5',cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}
                 onMouseEnter={e=>{e.currentTarget.style.background='rgba(220,38,38,0.3)';e.currentTarget.style.color='#fff';}}
                 onMouseLeave={e=>{e.currentTarget.style.background='rgba(220,38,38,0.15)';e.currentTarget.style.color='#fca5a5';}}>🗑</button>}
@@ -3032,6 +3046,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
   const cols=[
     {k:'caseNum',l:'#תיק',w:80},{k:'folder',l:'תיקייה',w:240},{k:'client',l:'לקוח',w:140},
     {k:'city',l:'עיר',w:90},{k:'street',l:'רחוב',w:100},{k:'houseNum',l:'מס\'',w:50},{k:'aptNum',l:'דירה',w:50},
+    {k:'block',l:'גוש',w:70},{k:'parcel',l:'חלקה',w:70},{k:'subParcel',l:'ת.חלקה',w:70},
     {k:'purpose',l:'מטרה',w:150},{k:'propType',l:'סוג נכס',w:100},{k:'rights',l:'זכויות',w:90},
     {k:'bank',l:'בנק',w:100},{k:'advisor',l:'יועץ',w:120},
     {k:'openDate',l:'פתיחה',w:85},{k:'closeDate',l:'סגירה',w:85},{k:'fee',l:'שכר טרחה',w:90},
@@ -3204,6 +3219,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
         return <ProjectDetailPanel project={proj} onClose={()=>setSelected(null)} onSave={handleSaveWork}
           managed={cases} onUpdateCase={onUpdateCase}
           onDeleteProject={(rowNum)=>{if(onDeleteProject)onDeleteProject(rowNum);setSelected(null);}}
+          onDeleteCase={(rowNum)=>{if(onDeleteCase)onDeleteCase(rowNum);setSelected(null);}}
           user={user} taskScope={settings?.taskDetailScope||'mine'}/>;
       })()}
     </div>
