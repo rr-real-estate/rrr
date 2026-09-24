@@ -74,7 +74,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v81'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v83'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -138,9 +138,10 @@ const M={openDate:0,closeDate:1,fee:2,caseNum:3,status:4,folder:5,
 const PU={name:5,status:25,yossi:26,michael:27,feigi:28,notes:29,dueDate:30,expected:31,
   advance:32,docs:33,missingDocs:34,buildingFile:35,transactions:36,visitSheet:37,visitDate:38,
   visitHours:39,visitPhone:40,visitName:41,visitRole:42,visitNotes:43,postVisitDocs:44,postVisitComplete:45,
-  fee:2,feeStatus:46,feeNotes:47,taskHistory:48,advanceAmount:49,feeCompletion:50,balance:51};
+  fee:2,feeStatus:46,feeNotes:47,taskHistory:48,advanceAmount:49,feeCompletion:50,balance:51,
+  visitAppraiser:52}; // BA — שמאי מבקר לתיאום (לניתוב ליומן)
 const WORK_FIRST_COL=25; // Z (0-based) — תחילת בלוק העבודה שנכתב ל"ניהול תיקים"
-const WORK_LAST_COL=51;  // AZ (0-based)
+const WORK_LAST_COL=52;  // BA (0-based)
 
 // ═══════════════ TASK EMAIL + NOTES DATE ════════════════════════
 // מיפוי מייל → שם (זהה ל-Apps Script)
@@ -590,6 +591,7 @@ function parseProject(row,ri){
     visitSheet:g(row,PU.visitSheet),visitDate:fmt(g(row,PU.visitDate)),
     visitHours:g(row,PU.visitHours),visitPhone:g(row,PU.visitPhone),
     visitName:g(row,PU.visitName),visitRole:g(row,PU.visitRole),visitNotes:g(row,PU.visitNotes),
+    visitAppraiser:g(row,PU.visitAppraiser),
     postVisitDocs:fmt(g(row,PU.postVisitDocs))||g(row,PU.postVisitDocs),
     postVisitComplete:fmt(g(row,PU.postVisitComplete))||g(row,PU.postVisitComplete),
     fee:g(row,PU.fee),feeStatus:g(row,PU.feeStatus),feeNotes:g(row,PU.feeNotes),
@@ -785,13 +787,42 @@ function buildWorkingRow(upd){
     upd.advance||'', upd.docs||'', upd.missingDocs||'', upd.buildingFile||'', upd.transactions||'', upd.visitSheet||'',
     upd.visitDate||'', upd.visitHours||'', upd.visitPhone||'', upd.visitName||'', upd.visitRole||'', upd.visitNotes||'',
     upd.postVisitDocs||'', upd.postVisitComplete||'', feePayStatus(upd), upd.feeNotes||'', upd.taskHistory||'',
-    upd.advanceAmount||'', upd.feeCompletion||'', feeBalanceStr(upd)
+    upd.advanceAmount||'', upd.feeCompletion||'', feeBalanceStr(upd), upd.visitAppraiser||''
   ];
 }
 // שמירת נתוני עבודה ל"ניהול תיקים": בלוק Z–AZ + שכ"ט (עמודה C). _row = שורת "ניהול תיקים".
 async function saveWorkToManaged(upd){
-  await api.put(`'ניהול תיקים'!Z${upd._row}:AZ${upd._row}`,[buildWorkingRow(upd)]);
+  await api.put(`'ניהול תיקים'!Z${upd._row}:BA${upd._row}`,[buildWorkingRow(upd)]);
   await api.put(`'ניהול תיקים'!C${upd._row}`,[[upd.fee||'']]);
+}
+
+// ── סנכרון ביקור ליומן Google (דרך Apps Script → CalendarApp) ──
+// upsert כשיש תאריך ביקור; delete כשהתאריך נמחק. יורה רק כששדות הביקור השתנו.
+function syncVisitCalendar(prev,upd){
+  try{
+    const caseNum=(String(upd.name||'').match(/\b(5\d{4})\b/)||[])[1]||'';
+    if(!caseNum)return;
+    const p=prev||{};
+    const hasVisit=!!(upd.visitDate&&String(upd.visitDate).trim());
+    const wasVisit=!!(p.visitDate&&String(p.visitDate).trim());
+    const changed=upd.visitDate!==p.visitDate||upd.visitHours!==p.visitHours||upd.visitAppraiser!==p.visitAppraiser||upd.visitPhone!==p.visitPhone||upd.visitNotes!==p.visitNotes;
+    if(!changed && !(wasVisit&&!hasVisit))return;         // אין שינוי רלוונטי
+    const parts=String(upd.name).split(' - ');
+    const address=[parts[0],parts[1]].filter(Boolean).join(', ');
+    const client=parts[2]||'';
+    const payload={type:'syncVisit',action:hasVisit?'upsert':'delete',caseNum,
+      appraiser:upd.visitAppraiser||'',date:upd.visitDate||'',hours:upd.visitHours||'',
+      address,phone:upd.visitPhone||'',notes:upd.visitNotes||'',client};
+    fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)}).catch(()=>{});
+  }catch(e){}
+}
+// מחיקת אירוע יומן לפי שם התיק (בעת ביטול תיק)
+function deleteVisitCalendar(name){
+  try{
+    const caseNum=(String(name||'').match(/\b(5\d{4})\b/)||[])[1]||'';
+    if(!caseNum)return;
+    fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'syncVisit',action:'delete',caseNum})}).catch(()=>{});
+  }catch(e){}
 }
 
 // ═══════════════ RICH EDITOR (contenteditable) ══════════════════════
@@ -1649,6 +1680,8 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
         clean.dueDate='';   // תאריך לביצוע — ריק
         clean.expected='';  // צפי לסיום (נגזר) — מתאפס יחד
         await saveWorkToManaged(clean);
+        // ביטול תיק → הסרת אירוע הביקור מהיומן (סיום = הביקור כבר בוצע, משאירים)
+        if(newStatus==='בוטל')deleteVisitCalendar(project.name);
         // אין מחיקה — השורה נשמרת ב"ניהול תיקים" (היסטוריה מלאה). התיק רק יוצא מהתצוגה הפעילה.
         if(onDeleteProject)onDeleteProject(project._row);
         onClose();
@@ -2027,6 +2060,15 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 <div><FLabel>שעות</FLabel>{inp('visitHours')}</div>
                 <div><FLabel>נייד לתיאום</FLabel>{inp('visitPhone')}</div>
                 <div><FLabel>שם לתיאום</FLabel>{inp('visitName')}</div>
+                <div><FLabel>שמאי מבקר</FLabel>
+                  <select value={form.visitAppraiser||''} onChange={e=>{set('visitAppraiser',e.target.value);autoSave();}}
+                    style={{...iS,fontFamily:'inherit',cursor:'pointer',color:form.visitAppraiser?'#1a1510':'#9a8e84'}}>
+                    <option value="">— בחר —</option>
+                    <option value="מיכאל">מיכאל</option>
+                    <option value="יוסי">יוסי</option>
+                    <option value="חיצוני">שמאי חיצוני</option>
+                  </select>
+                </div>
                 <div style={{gridColumn:'1/-1'}}><FLabel>שיוך לנכס</FLabel>
                   <AutocompleteInput value={form.visitRole||''} onChange={v=>{set('visitRole',v);autoSave();}}
                     options={VISIT_ROLE_OPTS.filter(Boolean)}
@@ -2232,6 +2274,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
     sendTaskEmails(prev,finalUpd,user?.email).catch(()=>{});
     if(finalUpd.status!==prev.status&&managed)syncStatusToManaged(managed,finalUpd.name,finalUpd.status,onUpdateCase).catch(()=>{});
     if(managed)sendMissingDocsEmailFn(finalUpd,prev,managed).catch(()=>{});
+    syncVisitCalendar(prev,finalUpd);
     // בכתיבה — הפעלת אוטומציית שמאות (טריגר: שינוי סטטוס לבכתיבה בעמודה G)
     if(finalUpd.status==='בכתיבה'&&prev.status!=='בכתיבה'){
       const tikNum=(finalUpd.name.match(/\b(5\d{4})\b/)||[])[1];
@@ -2481,6 +2524,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
     sendTaskEmails(prev,finalUpd,user?.email).catch(()=>{});
     if(finalUpd.status!==prev.status&&managed)syncStatusToManaged(managed,finalUpd.name,finalUpd.status,onUpdateCase).catch(()=>{});
     if(managed)sendMissingDocsEmailFn(finalUpd,prev,managed).catch(()=>{});
+    syncVisitCalendar(prev,finalUpd);
     if(finalUpd.status==='בכתיבה'&&prev.status!=='בכתיבה'){
       const tikNum=(finalUpd.name.match(/\b(5\d{4})\b/)||[])[1];
       if(tikNum)fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'ktiva',tikNum})}).catch(()=>{});
@@ -3193,7 +3237,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
       {adding&&<AddCaseModal cases={cases} onClose={()=>setAdding(false)} onAdd={async(form)=>{
         // נוסחת שם תיקייה זהה ל-Apps Script: O - P Q - G - D
         const folder=`${form.city||''} - ${[form.street,form.houseNum].filter(Boolean).join(' ')} - ${form.client||''} - ${form.caseNum||''}`;
-        const row=new Array(52).fill(''); // שורה מאוחדת: מרשם A–Y + עבודה Z–AZ
+        const row=new Array(53).fill(''); // שורה מאוחדת: מרשם A–Y + עבודה Z–BA
         row[M.caseNum]=form.caseNum;row[M.client]=form.client;row[M.openDate]=fmt(form.openDate)||form.openDate;
         row[M.status]=form.status;row[M.city]=form.city;row[M.street]=form.street;
         row[M.houseNum]=form.houseNum;row[M.aptNum]=form.aptNum;row[M.purpose]=form.purpose;
@@ -3207,7 +3251,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
         const _bp2=localStorage.getItem('folderBasePath')||'';
         if(_bp2&&folder){row[M.folderLink]=buildFolderPath(_bp2,folder,form.status||'');}
         const newRowNum=cases.length+2;
-        await api.put(`'ניהול תיקים'!A${newRowNum}:AZ${newRowNum}`,[row]);
+        await api.put(`'ניהול תיקים'!A${newRowNum}:BA${newRowNum}`,[row]);
         onAddCase({...form,_row:newRowNum,_raw:row,folder,closeDate:'',michael:''});
         // יצירת תיקייה ב-Drive
         if(folder)fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'newFolder',folderName:folder})}).catch(()=>{});
@@ -3359,6 +3403,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
           sendTaskEmails(prev,upd,user?.email).catch(()=>{});
           if(upd.status!==prev.status)syncStatusToManaged(cases,upd.name,upd.status,onUpdateCase).catch(()=>{});
           sendMissingDocsEmailFn(upd,prev,cases).catch(()=>{});
+          syncVisitCalendar(prev,upd);
           if(upd.status==='בכתיבה'&&prev.status!=='בכתיבה'){const tk=(upd.name.match(/\b(5\d{4})\b/)||[])[1];if(tk)fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'ktiva',tikNum:tk})}).catch(()=>{});}
         };
         return <ProjectDetailPanel project={proj} onClose={()=>setSelected(null)} onSave={handleSaveWork}
@@ -5695,7 +5740,7 @@ function App(){
   const loadAll=useCallback(async()=>{
     setLoading(true);setError('');
     try{
-      const rows=await api.get("'ניהול תיקים'!A2:AZ"); // מקור מאוחד — מרשם + נתוני עבודה
+      const rows=await api.get("'ניהול תיקים'!A2:BA"); // מקור מאוחד — מרשם + נתוני עבודה
       const {managed,projects}=buildCasesFromManaged(rows);
       setProjects(projects);
       setManaged(managed);
@@ -5707,7 +5752,7 @@ function App(){
   const silentRefresh=useCallback(async()=>{
     if(!api.token)return;
     try{
-      const rows=await api.get("'ניהול תיקים'!A2:AZ");
+      const rows=await api.get("'ניהול תיקים'!A2:BA");
       const {managed,projects}=buildCasesFromManaged(rows);
       setProjects(projects);
       setManaged(managed);
@@ -5789,7 +5834,7 @@ function App(){
   },[projects,updateProject]);
   // משימה כללית — שורה חדשה ב"ניהול תיקים" (שם=F, משימה בבלוק העבודה, ללא מספר תיק)
   const addGeneralTask=useCallback(async(field,text,due)=>{
-    const row=new Array(52).fill('');
+    const row=new Array(53).fill('');
     row[PU.name]=text;                                        // F = שם/תיקייה
     row[PU[field]]=stampTask(text,_currentUserName,due);      // AA/AB/AC = משימה
     if(due)row[PU.dueDate]=due;                               // AE
