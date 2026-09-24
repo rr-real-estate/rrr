@@ -73,7 +73,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v72'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v73'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
@@ -3003,6 +3003,8 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
   const [adding,setAdding]=useState(false);
   const [sortKey,setSortKey]=useState('caseNum');
   const [sortDir,setSortDir]=useState('desc');
+  const [viewMode,setViewMode]=useState(()=>localStorage.getItem('managedViewMode')||'cards');
+  useEffect(()=>{try{localStorage.setItem('managedViewMode',viewMode);}catch(e){}},[viewMode]);
   const PAGE=500;
 
   const setF=(k,v)=>setFilters(f=>({...f,[k]:v}));
@@ -3096,6 +3098,10 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
               {s} ({cases.filter(c=>c.status===s).length})
             </span>
           );})}
+          <div style={{display:'flex',border:'1px solid #ddd0bb',borderRadius:9,overflow:'hidden'}}>
+            <button onClick={()=>setViewMode('cards')} title="תצוגת כרטיסים" style={{padding:'8px 12px',border:'none',background:viewMode==='cards'?BLACK:'#fff',color:viewMode==='cards'?GOLD:'#6b5e50',cursor:'pointer',fontSize:15}}>▦</button>
+            <button onClick={()=>setViewMode('table')} title="תצוגת טבלה" style={{padding:'8px 12px',border:'none',borderRight:'1px solid #ede8e0',background:viewMode==='table'?BLACK:'#fff',color:viewMode==='table'?GOLD:'#6b5e50',cursor:'pointer',fontSize:15}}>☰</button>
+          </div>
           <button onClick={()=>setAdding(true)} style={{padding:'9px 18px',borderRadius:10,border:'none',background:BLACK,color:GOLD,fontWeight:500,cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(0,0,0,0.15)'}}>
             ➕ הוסף תיק
           </button>
@@ -3115,7 +3121,20 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
           style={{...inp,background:'#ede8e0',color:'#4b3400',border:'1px solid #ddd0bb',cursor:'pointer'}}>נקה הכל ×</button>}
       </div>
 
-      <div style={{background:'#fff',borderRadius:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflow:'hidden'}}>
+      {viewMode==='cards'&&(
+        paged.length===0?(
+          <div style={{padding:48,textAlign:'center',color:'#9a8e84',background:'#fff',borderRadius:16}}><div style={{fontSize:40,marginBottom:10}}>🗂️</div><div>לא נמצאו תיקים</div></div>
+        ):(
+          <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(420px,1fr))',gap:12,alignItems:'stretch',gridAutoRows:isMobile?'auto':'190px'}}>
+            {paged.map(c=>{
+              const proj=(projects||[]).find(p=>p._row===c._row)||parseProject(c._raw||[],c._row-2);
+              return <ProjectCard key={c._row} project={proj} driveLink={c.driveFolderLink||''} onClick={()=>setSelected(c)} showPdf taskScope={settings?.taskCardScope||'mine'}/>;
+            })}
+          </div>
+        )
+      )}
+
+      {viewMode==='table'&&<div style={{background:'#fff',borderRadius:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflow:'hidden'}}>
         <div style={{overflowX:'auto'}}>
           <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
             <thead>
@@ -3202,7 +3221,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
             <button disabled={page>=total-1} onClick={()=>setPage(p=>p+1)} style={{padding:'6px 14px',borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:page>=total-1?'not-allowed':'pointer',opacity:page>=total-1?0.4:1,fontSize:13}}>הבא</button>
           </div>
         </div>}
-      </div>
+      </div>}
 
       {selected&&(()=>{
         // אותו כרטיס עשיר כמו ב"פרויקטים בביצוע" — בונה project מהתיק (פעיל מ-projects, שהושלם מ-_raw)
