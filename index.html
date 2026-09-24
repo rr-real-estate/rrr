@@ -74,7 +74,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v85'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v86'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -715,8 +715,8 @@ const EMOJI_ICON={'📋':'checkCircle','💬':'message','📁':'folder','📂':'
 function SectionTitle({children,icon}){
   const nm=EMOJI_ICON[icon]||(ICON_PATHS[icon]?icon:null);
   return<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14,paddingBottom:10,borderBottom:`1px solid #e8e0d4`}}>
-    {nm?<Icon name={nm} size={15} color={GOLD3} stroke={1.7}/>:(icon?<span style={{fontSize:16,opacity:0.85}}>{icon}</span>:null)}
-    <span style={{fontSize:13,fontWeight:600,color:'#3a2a00',letterSpacing:'0.03em',textTransform:'uppercase'}}>{children}</span>
+    {nm?<Icon name={nm} size={15} color="#2b2620" stroke={1.7}/>:(icon?<span style={{fontSize:16,opacity:0.85}}>{icon}</span>:null)}
+    <span style={{fontSize:13,fontWeight:600,color:'#2b2620',letterSpacing:'0.03em',textTransform:'uppercase'}}>{children}</span>
     <div style={{flex:1,height:1,background:`linear-gradient(to left, transparent, ${GOLD}33)`,marginRight:4}}/>
   </div>;
 }
@@ -1420,21 +1420,21 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,task
       {/* Title */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10,gap:6}}>
         <div style={{flex:1,minWidth:0}}>
-          {caseNum&&<span onClick={e=>{e.stopPropagation();_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={{fontSize:12,fontWeight:500,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 9px',display:'inline-flex',alignItems:'center',gap:4,marginBottom:5,userSelect:'none',cursor:'pointer'}}><span style={{width:6,height:6,borderRadius:'50%',background:'#d9af34',flexShrink:0}}/>{caseNum}</span>}
-          <div style={{fontSize:15,fontWeight:500,color:'#0d0d0d',lineHeight:1.4}}>
-            <span style={{color:GOLD}}>{city}</span>
-            {parts[1]&&<span style={{color:'#4a3e30'}}>{' — '}{parts.slice(1).join(' — ')}</span>}
+          {caseNum&&<span className="mono" onClick={e=>{e.stopPropagation();_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={{fontSize:12,fontWeight:700,color:'#1a1510',background:'#f0ece3',border:'1px solid #e0d8cc',borderRadius:8,padding:'2px 9px',display:'inline-block',marginBottom:6,userSelect:'none',cursor:'pointer',fontFamily:'JetBrains Mono,monospace'}}>{caseNum}</span>}
+          <div style={{fontSize:15,fontWeight:600,color:'#1a1510',lineHeight:1.4}}>
+            <span>{city}</span>
+            {parts[1]&&<span style={{fontWeight:500,color:'#4a3e30'}}>{' — '}{parts.slice(1).join(' — ')}</span>}
           </div>
         </div>
         {!isGeneral&&<div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
           {_folderPath&&!isMobile&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_folderPath);}}
             style={{background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontSize:15,lineHeight:1,color:'#7a6a58',borderRadius:6,transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
-            onMouseLeave={e=>e.currentTarget.style.background='none'}>📁</button>}
+            onMouseLeave={e=>e.currentTarget.style.background='none'}><Icon name="folder" size={16}/></button>}
           {showPdf&&_folderPath&&!isMobile&&<button title="פתח את כל קובצי ה-PDF שבתיקייה" onClick={e=>{e.stopPropagation();openPdfs(_folderPath);}}
             style={{background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontSize:15,lineHeight:1,color:'#7a6a58',borderRadius:6,transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
-            onMouseLeave={e=>e.currentTarget.style.background='none'}>📚</button>}
+            onMouseLeave={e=>e.currentTarget.style.background='none'}><Icon name="file" size={16}/></button>}
           {driveLink&&<a href={driveLink} target="_blank" rel="noopener noreferrer" title="פתח תיקייה בגוגל דרייב"
             onClick={e=>e.stopPropagation()}
             style={{display:'inline-flex',alignItems:'center',justifyContent:'center',background:'none',border:'none',cursor:'pointer',padding:'3px 4px',borderRadius:6,textDecoration:'none',transition:'background 0.15s'}}
@@ -3051,7 +3051,7 @@ function AddCaseModal({onClose,onAdd,cases}){
   );
   const selStyle={...iS};
   const secStyle={background:'#faf7f2',borderRadius:12,padding:14,marginBottom:12,border:'1px solid #ede5d8'};
-  const secTitle=(icon,label)=>{const nm=EMOJI_ICON[icon]||(ICON_PATHS[icon]?icon:null);return(<div style={{fontSize:11,fontWeight:600,color:GOLD3,letterSpacing:'0.1em',marginBottom:10,textTransform:'uppercase',display:'flex',alignItems:'center',gap:6}}>{nm?<Icon name={nm} size={13} color={GOLD3}/>:<span>{icon}</span>}{label}</div>);};
+  const secTitle=(icon,label)=>{const nm=EMOJI_ICON[icon]||(ICON_PATHS[icon]?icon:null);return(<div style={{fontSize:11,fontWeight:600,color:GOLD3,letterSpacing:'0.1em',marginBottom:10,textTransform:'uppercase',display:'flex',alignItems:'center',gap:6}}>{nm?<Icon name={nm} size={13} color="#2b2620"/>:<span>{icon}</span>}{label}</div>);};
   const expandBtn=(label,open,setOpen,hasErr)=>(
     <button type="button" onClick={()=>setOpen(o=>!o)} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',background:hasErr?'#fee2e2':'#f0ebe3',border:`1px solid ${hasErr?errColor:'#ddd0bb'}`,borderRadius:8,padding:'7px 12px',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:500,color:hasErr?errColor:'#5a4e44',marginTop:4}}>
       <span>{label}{hasErr?' ← שדות חובה':''}</span><span style={{fontSize:10}}>{open?'▲':'▼'}</span>
@@ -3759,7 +3759,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
         onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 1px 3px rgba(0,0,0,0.05)';e.currentTarget.style.transform='none';e.currentTarget.style.borderColor='#e8e0d4';}}>
         <div style={{position:'absolute',top:0,right:0,width:44,height:2.5,background:GOLD,borderRadius:'0 16px 0 16px'}}/>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-          <Icon name={icon} size={22} color={GOLD3} stroke={1.6}/>
+          <Icon name={icon} size={22} color="#2b2620" stroke={1.6}/>
         </div>
         <div style={{fontSize:38,fontWeight:600,color:'#1a1510',lineHeight:1,letterSpacing:'-0.02em'}}>{value}</div>
         <div style={{fontSize:13,color:'#5a4e44',marginTop:8,fontWeight:500}}>{label}</div>
@@ -3799,7 +3799,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
   const sec={background:'#fff',borderRadius:16,padding:'22px 24px',marginBottom:16,boxShadow:'0 2px 10px rgba(0,0,0,0.06)',border:'1px solid #e8e0d4'};
   const secTitle=(icon,t,count)=>(
     <div style={{fontSize:14,fontWeight:600,color:'#3a2a00',marginBottom:16,display:'flex',alignItems:'center',gap:8,letterSpacing:'0.01em'}}>
-      <Icon name={EMOJI_ICON[icon]||icon} size={16} color={GOLD3}/>{t}
+      <Icon name={EMOJI_ICON[icon]||icon} size={16} color="#2b2620"/>{t}
       {count!==undefined&&<span style={{background:`${GOLD}1a`,color:GOLD3,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:500,border:`1px solid ${GOLD}33`}}>{count}</span>}
     </div>
   );
@@ -4107,7 +4107,7 @@ function ReportsView({managed,projects}){
   const KpiCard=({icon,label,value,sub})=>(
     <div style={{background:'#fff',borderRadius:14,padding:'20px 22px',flex:1,minWidth:155,border:'1px solid #ede8e0',boxShadow:'0 1px 3px rgba(0,0,0,0.05)',position:'relative',overflow:'hidden'}}>
       <div style={{position:'absolute',top:0,right:0,width:40,height:2.5,background:GOLD,borderRadius:'0 14px 0 14px'}}/>
-      <Icon name={icon} size={21} color={GOLD3} stroke={1.6} style={{marginBottom:10}}/>
+      <Icon name={icon} size={21} color="#2b2620" stroke={1.6} style={{marginBottom:10}}/>
       <div style={{fontSize:28,fontWeight:600,color:'#1a1510',lineHeight:1,letterSpacing:'-0.02em'}}>{value}</div>
       <div style={{fontSize:12,color:'#6b5e50',marginTop:7,fontWeight:600}}>{label}</div>
       {sub&&<div style={{fontSize:11,color:'#9a8e84',marginTop:3}}>{sub}</div>}
@@ -4262,10 +4262,10 @@ function ReportsView({managed,projects}){
             :<div>
               <div style={{display:'flex',gap:12,marginBottom:18,flexWrap:'wrap'}}>
                 {[
-                  {label:'ממוצע כולל',value:overallAvgDays,unit:'ימים',bg:'#faf8f4',border:'#ede8e0',fg:GOLD3},
-                  {label:'מהיר ביותר',value:allDays.length?Math.min(...allDays):0,unit:'ימים',bg:'#f0fdf4',border:'#bbf7d0',fg:'#166534'},
-                  {label:'ארוך ביותר',value:allDays.length?Math.max(...allDays):0,unit:'ימים',bg:'#fff7ed',border:'#fed7aa',fg:'#c2410c'},
-                  {label:'תיקים שנותחו',value:closedWithDates.length,unit:'',bg:'#f5f3ff',border:'#ddd6fe',fg:'#5b21b6'},
+                  {label:'ממוצע כולל',value:overallAvgDays,unit:'ימים',bg:'#faf8f4',border:'#ede8e0',fg:'#1a1510'},
+                  {label:'מהיר ביותר',value:allDays.length?Math.min(...allDays):0,unit:'ימים',bg:'#faf8f4',border:'#ede8e0',fg:'#166534'},
+                  {label:'ארוך ביותר',value:allDays.length?Math.max(...allDays):0,unit:'ימים',bg:'#faf8f4',border:'#ede8e0',fg:'#b45309'},
+                  {label:'תיקים שנותחו',value:closedWithDates.length,unit:'',bg:'#faf8f4',border:'#ede8e0',fg:'#1a1510'},
                 ].map(({label,value,unit,bg,border,fg})=>(
                   <div key={label} style={{flex:1,minWidth:110,background:bg,borderRadius:10,padding:'14px 16px',textAlign:'center',border:`1px solid ${border}`}}>
                     <div style={{fontSize:24,fontWeight:500,color:fg}}>{value}{unit&&<span style={{fontSize:13}}> {unit}</span>}</div>
@@ -4282,11 +4282,11 @@ function ReportsView({managed,projects}){
                       <div style={{display:'flex',gap:10,flexShrink:0,alignItems:'center'}}>
                         <span style={{fontSize:11,color:'#9a8e84'}}>{count} תיקים</span>
                         <span style={{fontSize:11,color:'#b0a090'}}>({min}–{max})</span>
-                        <span style={{fontWeight:600,color:avg>overallAvgDays?'#d97706':GOLD3,minWidth:52,textAlign:'left'}}>{avg} יום</span>
+                        <span style={{fontWeight:600,color:avg>overallAvgDays?'#8a6d1f':GOLD3,minWidth:52,textAlign:'left'}}>{avg} יום</span>
                       </div>
                     </div>
                     <div style={{height:6,background:'#f0ebe3',borderRadius:3,overflow:'hidden'}}>
-                      <div style={{height:'100%',width:`${avg/maxAvgDays*100}%`,background:avg>overallAvgDays*1.3?'#f97316':avg>overallAvgDays?'#fbbf24':GOLD,borderRadius:3,transition:'width 0.5s ease'}}/>
+                      <div style={{height:'100%',width:`${avg/maxAvgDays*100}%`,background:avg>overallAvgDays?GOLD2:GOLD,borderRadius:3,transition:'width 0.5s ease'}}/>
                     </div>
                   </div>
                 ))}
@@ -4304,10 +4304,10 @@ function ReportsView({managed,projects}){
             :<div>
               {upcomingProjs.map(p=>{
                 const ov=p._dl<0,tod=p._dl===0,sn=p._dl>0&&p._dl<=7;
-                const fg=ov?'#dc2626':tod?'#ea580c':sn?'#d97706':'#4b3400';
-                const bg=ov?'#fff5f5':tod?'#fff7ed':sn?'#fffbeb':'#faf8f4';
-                const bar=ov?'#ef4444':tod?'#f97316':sn?'#fbbf24':GOLD;
-                const lbl=ov?`⚠️ ${Math.abs(p._dl)} ימים באיחור`:tod?'🔴 היום':sn?`${p._dl} ימים`:p._dl<=60?`${p._dl} ימים`:`${Math.round(p._dl/30)} חודשים`;
+                const fg=ov?'#c0392b':tod?'#b45309':sn?'#8a6d1f':'#4b3400';
+                const bg=ov?'#fdf2f2':tod?'#fdf6ee':sn?'#faf6ee':'#faf8f4';
+                const bar=ov?'#c0392b':GOLD;
+                const lbl=ov?`${Math.abs(p._dl)} ימים באיחור`:tod?'היום':sn?`בעוד ${p._dl} ימים`:p._dl<=60?`בעוד ${p._dl} ימים`:`בעוד ${Math.round(p._dl/30)} חודשים`;
                 return(
                   <div key={p._row} style={{display:'flex',alignItems:'center',gap:12,marginBottom:7,padding:'10px 14px',borderRadius:10,background:bg,border:`1px solid ${bar}25`}}>
                     <div style={{width:4,height:36,borderRadius:2,background:bar,flexShrink:0}}/>
@@ -4364,7 +4364,7 @@ function ReportsView({managed,projects}){
           </div>
         </div>
         <div style={{...sec,marginBottom:0}}>
-          <div style={{fontSize:14,fontWeight:500,color:GOLD3,marginBottom:16}}>🎯 לפי מטרת עבודה</div>
+          <div style={{fontSize:14,fontWeight:500,color:GOLD3,marginBottom:16}}>לפי מטרת עבודה</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:10}}>
             {purposeStats.map(([purpose,{count,fee}])=>{
               const pct=managed.length>0?Math.round(count/managed.length*100):0;
@@ -4395,7 +4395,7 @@ function ReportsView({managed,projects}){
 function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
   const isMobile=useIsMobile();
   const sec={background:'#fff',borderRadius:14,padding:'20px 22px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
-  const secTitle=(icon,t)=>{const nm=EMOJI_ICON[icon]||(ICON_PATHS[icon]?icon:null);return <div style={{fontSize:14,fontWeight:600,color:GOLD3,marginBottom:14,display:'flex',alignItems:'center',gap:7}}>{nm?<Icon name={nm} size={15} color={GOLD3}/>:<span style={{fontSize:17}}>{icon}</span>}{t}</div>;};
+  const secTitle=(icon,t)=>{const nm=EMOJI_ICON[icon]||(ICON_PATHS[icon]?icon:null);return <div style={{fontSize:14,fontWeight:600,color:GOLD3,marginBottom:14,display:'flex',alignItems:'center',gap:7}}>{nm?<Icon name={nm} size={15} color="#2b2620"/>:<span style={{fontSize:17}}>{icon}</span>}{t}</div>;};
   const row={display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10};
   const lbl={fontSize:13,color:'#4b3400',fontWeight:600};
   const chip=(val,cur,key)=>(
