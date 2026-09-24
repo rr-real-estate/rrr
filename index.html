@@ -73,7 +73,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v68'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v69'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
@@ -128,6 +128,14 @@ const M={openDate:0,closeDate:1,fee:2,caseNum:3,status:4,folder:5,
   client:6,phone:7,email:8,advisor:9,advisorPhone:10,advisorEmail:11,
   purpose:12,propType:13,city:14,street:15,houseNum:16,
   aptNum:17,block:18,parcel:19,subParcel:20,bank:21,michael:22,folderLink:23,driveFolderLink:24};
+// ── מיפוי מאוחד: שדות "פרויקט" (נתוני עבודה) → עמודות ב"ניהול תיקים" ──
+// A–Y (0-24) = מרשם קבוע (M). Z–AZ (25-51) = נתוני עבודה. fee=C(2) מרשם.
+const PU={name:5,status:25,yossi:26,michael:27,feigi:28,notes:29,dueDate:30,expected:31,
+  advance:32,docs:33,missingDocs:34,buildingFile:35,transactions:36,visitSheet:37,visitDate:38,
+  visitHours:39,visitPhone:40,visitName:41,visitRole:42,visitNotes:43,postVisitDocs:44,postVisitComplete:45,
+  fee:2,feeStatus:46,feeNotes:47,taskHistory:48,advanceAmount:49,feeCompletion:50,balance:51};
+const WORK_FIRST_COL=25; // Z (0-based) — תחילת בלוק העבודה שנכתב ל"ניהול תיקים"
+const WORK_LAST_COL=51;  // AZ (0-based)
 
 // ═══════════════ TASK EMAIL + NOTES DATE ════════════════════════
 // מיפוי מייל → שם (זהה ל-Apps Script)
@@ -467,7 +475,7 @@ const VISIT_ROLE_OPTS=['','בעלים','מתווך','שוכרים','חבר של 
 const BASE_CHECK=['','בוצע','לא בוצע','לא אותר','חלקי','נשלח בקשה ללקוח','התקבל','נשלחה דרישה','לא נשלחה'];
 let dynamicCheckOpts=new Set(BASE_CHECK);
 // cols 20+21 are DATE fields ("דרישת/השלמת מסמכים לאחר ביקור"), not checkboxes
-const CHECK_COLS=[P.advance,P.docs,P.buildingFile,P.transactions,P.visitSheet];
+const CHECK_COLS=[PU.advance,PU.docs,PU.buildingFile,PU.transactions,PU.visitSheet];
 const DATE_RE=/^\d{1,2}\/\d{1,2}\/\d{4}$/;
 
 // ═══════════════ TOKEN REFRESH ════════════════════════════════════
@@ -565,23 +573,24 @@ function fmt(v){if(!v)return'';const d=v instanceof Date?v:parseDate(v);if(!d)re
   return`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;}
 function g(row,i){return(i<row.length?String(row[i]||'').trim():'');}
 
+// פרסר "פרויקט" (נתוני עבודה) — קורא כעת משורת "ניהול תיקים" דרך PU. מבנה האובייקט זהה לחלוטין.
 function parseProject(row,ri){
-  const status=g(row,P.status);
+  const status=g(row,PU.status);
   CHECK_COLS.forEach(ci=>{const v=g(row,ci);if(v&&v.length<25&&!DATE_RE.test(v))dynamicCheckOpts.add(v);});
   return{_row:ri+2,_raw:[...row],
-    name:g(row,P.name),yossi:g(row,P.yossi),michael:g(row,P.michael),feigi:g(row,P.feigi),
-    notes:g(row,P.notes),dueDate:fmt(g(row,P.dueDate)),status,expected:fmt(g(row,P.expected)),
-    advance:g(row,P.advance),docs:g(row,P.docs),missingDocs:g(row,P.missingDocs),
-    buildingFile:g(row,P.buildingFile),transactions:g(row,P.transactions),
-    visitSheet:g(row,P.visitSheet),visitDate:fmt(g(row,P.visitDate)),
-    visitHours:g(row,P.visitHours),visitPhone:g(row,P.visitPhone),
-    visitName:g(row,P.visitName),visitRole:g(row,P.visitRole),visitNotes:g(row,P.visitNotes),
-    postVisitDocs:fmt(g(row,P.postVisitDocs))||g(row,P.postVisitDocs),
-    postVisitComplete:fmt(g(row,P.postVisitComplete))||g(row,P.postVisitComplete),
-    fee:g(row,P.fee),feeStatus:g(row,P.feeStatus),feeNotes:g(row,P.feeNotes),
-    advanceAmount:g(row,P.advanceAmount),feeCompletion:g(row,P.feeCompletion),balance:g(row,P.balance),
-    taskHistory:g(row,P.taskHistory),
-    _expD:parseDate(g(row,P.expected)),_dueD:parseDate(g(row,P.dueDate)),_visitD:parseDate(g(row,P.visitDate)),
+    name:g(row,PU.name),yossi:g(row,PU.yossi),michael:g(row,PU.michael),feigi:g(row,PU.feigi),
+    notes:g(row,PU.notes),dueDate:fmt(g(row,PU.dueDate)),status,expected:fmt(g(row,PU.expected)),
+    advance:g(row,PU.advance),docs:g(row,PU.docs),missingDocs:g(row,PU.missingDocs),
+    buildingFile:g(row,PU.buildingFile),transactions:g(row,PU.transactions),
+    visitSheet:g(row,PU.visitSheet),visitDate:fmt(g(row,PU.visitDate)),
+    visitHours:g(row,PU.visitHours),visitPhone:g(row,PU.visitPhone),
+    visitName:g(row,PU.visitName),visitRole:g(row,PU.visitRole),visitNotes:g(row,PU.visitNotes),
+    postVisitDocs:fmt(g(row,PU.postVisitDocs))||g(row,PU.postVisitDocs),
+    postVisitComplete:fmt(g(row,PU.postVisitComplete))||g(row,PU.postVisitComplete),
+    fee:g(row,PU.fee),feeStatus:g(row,PU.feeStatus),feeNotes:g(row,PU.feeNotes),
+    advanceAmount:g(row,PU.advanceAmount),feeCompletion:g(row,PU.feeCompletion),balance:g(row,PU.balance),
+    taskHistory:g(row,PU.taskHistory),
+    _expD:parseDate(g(row,PU.expected)),_dueD:parseDate(g(row,PU.dueDate)),_visitD:parseDate(g(row,PU.visitDate)),
   };
 }
 function parseManagedCase(row,ri){
@@ -597,6 +606,15 @@ function parseManagedCase(row,ri){
     folderLink:g(row,M.folderLink),
     driveFolderLink:g(row,M.driveFolderLink),
   };
+}
+// טעינה מאוחדת מ"ניהול תיקים" (A2:AZ): בונה managed (כל התיקים) + projects (פעילים + משימות כלליות).
+// "פעיל" = סטטוס כללי (עמודה E) שאינו הסתיים/בוטל.
+function buildCasesFromManaged(rows){
+  const all=rows||[];
+  const managed=all.map((r,i)=>parseManagedCase(r,i)).filter(c=>c.caseNum||c.client);
+  const projects=all.map((r,i)=>[r,i]).filter(([r])=>!['הסתיים','בוטל'].includes(g(r,M.status)))
+    .map(([r,i])=>parseProject(r,i)).filter(p=>p.name);
+  return {managed,projects};
 }
 
 function parseMsg(row,i){
@@ -705,21 +723,20 @@ function feePayStatus(p){
   if(paid===0)return 'טרם הוסדר תשלום';
   return (feeNum(p.fee)-paid)<=0?'תשלום הוסדר':'שולמה מקדמה';
 }
-function buildProjectRow(upd){
-  const row=[...upd._raw];
-  while(row.length<=28)row.push('');
-  [['status',P.status],['yossi',P.yossi],['michael',P.michael],['feigi',P.feigi],
-   ['notes',P.notes],['missingDocs',P.missingDocs],['dueDate',P.dueDate],['expected',P.expected],
-   ['advance',P.advance],['docs',P.docs],['buildingFile',P.buildingFile],['transactions',P.transactions],
-   ['visitSheet',P.visitSheet],['visitDate',P.visitDate],['visitHours',P.visitHours],
-   ['visitPhone',P.visitPhone],['visitName',P.visitName],['visitRole',P.visitRole],
-   ['visitNotes',P.visitNotes],['postVisitDocs',P.postVisitDocs],['postVisitComplete',P.postVisitComplete],
-   ['fee',P.fee],['feeNotes',P.feeNotes],['taskHistory',P.taskHistory],
-   ['advanceAmount',P.advanceAmount],['feeCompletion',P.feeCompletion],
-  ].forEach(([k,i])=>row[i]=upd[k]||'');
-  row[P.feeStatus]=feePayStatus(upd);   // סטטוס תשלום אוטומטי
-  row[P.balance]=feeBalanceStr(upd);    // יתרת תשלום מחושבת (ריק אם אין שכ"ט מלא)
-  return row;
+// בונה את בלוק העבודה (Z–AZ, 27 ערכים) לכתיבה ל"ניהול תיקים". feeStatus+balance מחושבים.
+function buildWorkingRow(upd){
+  return [
+    upd.status||'', upd.yossi||'', upd.michael||'', upd.feigi||'', upd.notes||'', upd.dueDate||'', upd.expected||'',
+    upd.advance||'', upd.docs||'', upd.missingDocs||'', upd.buildingFile||'', upd.transactions||'', upd.visitSheet||'',
+    upd.visitDate||'', upd.visitHours||'', upd.visitPhone||'', upd.visitName||'', upd.visitRole||'', upd.visitNotes||'',
+    upd.postVisitDocs||'', upd.postVisitComplete||'', feePayStatus(upd), upd.feeNotes||'', upd.taskHistory||'',
+    upd.advanceAmount||'', upd.feeCompletion||'', feeBalanceStr(upd)
+  ];
+}
+// שמירת נתוני עבודה ל"ניהול תיקים": בלוק Z–AZ + שכ"ט (עמודה C). _row = שורת "ניהול תיקים".
+async function saveWorkToManaged(upd){
+  await api.put(`'ניהול תיקים'!Z${upd._row}:AZ${upd._row}`,[buildWorkingRow(upd)]);
+  await api.put(`'ניהול תיקים'!C${upd._row}`,[[upd.fee||'']]);
 }
 
 // ═══════════════ RICH EDITOR (contenteditable) ══════════════════════
@@ -1547,7 +1564,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
         if(onUpdateCase)onUpdateCase(matchedCase._row,{status:newStatus});
       }
       if(newStatus==='הסתיים'||newStatus==='בוטל'){
-        await api.deleteSheetRow('פרויקטים בביצוע',project._row);
+        // אין מחיקה — השורה נשמרת ב"ניהול תיקים" (היסטוריה מלאה). התיק רק יוצא מהתצוגה הפעילה.
         if(onDeleteProject)onDeleteProject(project._row);
         onClose();
       }
@@ -1590,7 +1607,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
     if(!isGeneralTask)return;
     if(!window.confirm('למחוק את המשימה? הפעולה אינה הפיכה.'))return;
     try{
-      await api.deleteSheetRow('פרויקטים בביצוע',project._row);
+      await api.deleteSheetRow('ניהול תיקים',project._row);
       if(onDeleteProject)onDeleteProject(project._row);
       onClose();
     }catch(e){setErr(e.message);}
@@ -2061,9 +2078,8 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
     const prev=projects.find(p=>p._row===upd._row)||{};
     const finalNotes=withNoteDate(upd.notes);
     const finalUpd={...upd,notes:finalNotes};
-    const row=buildProjectRow(finalUpd);
-    await api.put(`'פרויקטים בביצוע'!A${finalUpd._row}:${colLetter(row.length)}${finalUpd._row}`,[row]);
-    onUpdate(finalUpd._row,{...finalUpd,_raw:row});
+    await saveWorkToManaged(finalUpd);
+    onUpdate(finalUpd._row,{...finalUpd});
     // אוטומציות (רקע)
     sendTaskEmails(prev,finalUpd,user?.email).catch(()=>{});
     if(finalUpd.status!==prev.status&&managed)syncStatusToManaged(managed,finalUpd.name,finalUpd.status,onUpdateCase).catch(()=>{});
@@ -2141,9 +2157,8 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
         const handleInlineSave=async(proj,field,val)=>{
           const finalVal=['yossi','michael','feigi'].includes(field)?(val&&val.trim()?stampTask(val,_currentUserName):''):val;
           const upd={...proj,[field]:finalVal};
-          const row=buildProjectRow(upd);
-          await api.put(`'פרויקטים בביצוע'!A${upd._row}:${colLetter(row.length)}${upd._row}`,[row]);
-          onUpdate(upd._row,{...upd,_raw:row});
+          await saveWorkToManaged(upd);
+          onUpdate(upd._row,{...upd});
         };
         const startEdit=(e,rowNum,field,curVal,initChar)=>{
           e.stopPropagation();
@@ -2313,9 +2328,8 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
     const prev=projects.find(p=>p._row===upd._row)||{};
     const finalNotes=withNoteDate(upd.notes);
     const finalUpd={...upd,notes:finalNotes};
-    const row=buildProjectRow(finalUpd);
-    await api.put(`'פרויקטים בביצוע'!A${finalUpd._row}:${colLetter(row.length)}${finalUpd._row}`,[row]);
-    onUpdate(finalUpd._row,{...finalUpd,_raw:row});
+    await saveWorkToManaged(finalUpd);
+    onUpdate(finalUpd._row,{...finalUpd});
     sendTaskEmails(prev,finalUpd,user?.email).catch(()=>{});
     if(finalUpd.status!==prev.status&&managed)syncStatusToManaged(managed,finalUpd.name,finalUpd.status,onUpdateCase).catch(()=>{});
     if(managed)sendMissingDocsEmailFn(finalUpd,prev,managed).catch(()=>{});
@@ -2362,9 +2376,8 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
         const handleInlineSave=async(proj,field,val)=>{
           const finalVal=['yossi','michael','feigi'].includes(field)?(val&&val.trim()?stampTask(val,_currentUserName):''):val;
           const upd={...proj,[field]:finalVal};
-          const row=buildProjectRow(upd);
-          await api.put(`'פרויקטים בביצוע'!A${upd._row}:${colLetter(row.length)}${upd._row}`,[row]);
-          onUpdate(upd._row,{...upd,_raw:row});
+          await saveWorkToManaged(upd);
+          onUpdate(upd._row,{...upd});
         };
         const startEdit=(e,rowNum,field,curVal,initChar)=>{
           e.stopPropagation();
@@ -2530,8 +2543,8 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
   const handleSave=async()=>{
     setSaving(true);setErr('');setSaved(false);
     try{
-      const row=[...form._raw];
-      while(row.length<=23)row.push('');
+      const row=(form._raw||[]).slice(0,24); // מרשם בלבד (A–X) — לא נוגעים בבלוק העבודה Z–AZ
+      while(row.length<24)row.push('');
       [[M.openDate,'openDate'],[M.closeDate,'closeDate'],[M.fee,'fee'],
        [M.caseNum,'caseNum'],[M.status,'status'],
        [M.client,'client'],[M.phone,'phone'],[M.email,'email'],
@@ -2544,21 +2557,12 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
       const _bp=localStorage.getItem('folderBasePath')||'';
       if(_bp&&cas.folder){row[M.folderLink]=buildFolderPath(_bp,cas.folder,form.status);}
       await onSave(form._row,row);
-      // If status changed TO בביצוע since last save, add to פרויקטים בביצוע
+      // אם הסטטוס השתנה ל"בביצוע" — קובעים סטטוס טיפול התחלתי (עמודה Z) באותה שורה מאוחדת.
+      // התיק יופיע בתצוגת הפרויקטים אוטומטית (סינון לפי סטטוס כללי E) ברענון הבא.
       if(form.status==='בביצוע'&&lastSavedStatusRef.current!=='בביצוע'){
-        const folder=cas.folder||'';
-        const alreadyExists=folder&&(projects||[]).some(p=>p.name&&p.name.trim()===folder.trim());
-        if(!alreadyExists&&folder){
-          try{
-            const projRow=new Array(25).fill('');
-            projRow[P.name]=folder;
-            projRow[P.status]='ממתין לקבלת מסמכים';
-            const res=await api.append("'פרויקטים בביצוע'",[projRow]);
-            const rng=res?.updates?.updatedRange||'';
-            const rm=rng.match(/(\d+)(?::[A-Z]+\d+)?$/);
-            const newRow=rm?parseInt(rm[1]):null;
-            if(newRow&&addProject)addProject(parseProject(projRow,newRow-2));
-          }catch(e2){console.warn('שגיאה בהוספת פרויקט:',e2.message);}
+        const already=(projects||[]).some(p=>p._row===cas._row);
+        if(!already&&!String(cas.workStatus||'').trim()){
+          try{ await api.put(`'ניהול תיקים'!Z${cas._row}`,[['ממתין לקבלת מסמכים']]); }catch(e2){console.warn('שגיאה בהפעלת פרויקט:',e2.message);}
         }
       }
       lastSavedStatusRef.current=form.status;
@@ -2572,18 +2576,7 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
     setDeleting(true);setErr('');
     try{
       await api.deleteSheetRow('ניהול תיקים',cas._row);
-      if(onDelete)onDelete(cas._row);
-      // also delete from פרויקטים בביצוע if exists
-      const folder=(cas.folder||'').trim();
-      if(folder){
-        const matchProj=(projects||[]).find(p=>p.name&&p.name.trim()===folder);
-        if(matchProj){
-          try{
-            await api.deleteSheetRow('פרויקטים בביצוע',matchProj._row);
-            if(onDeleteProject)onDeleteProject(matchProj._row);
-          }catch(e2){console.warn('שגיאה במחיקת פרויקט:',e2.message);}
-        }
-      }
+      if(onDelete)onDelete(cas._row);   // מוחק את התיק כולו (מרשם+עבודה) ומעדכן _row מקומית
       onClose();
     }catch(e){setErr(e.message);setDeleting(false);}
   };
@@ -3007,7 +3000,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
       {adding&&<AddCaseModal cases={cases} onClose={()=>setAdding(false)} onAdd={async(form)=>{
         // נוסחת שם תיקייה זהה ל-Apps Script: O - P Q - G - D
         const folder=`${form.city||''} - ${[form.street,form.houseNum].filter(Boolean).join(' ')} - ${form.client||''} - ${form.caseNum||''}`;
-        const row=new Array(24).fill('');
+        const row=new Array(52).fill(''); // שורה מאוחדת: מרשם A–Y + עבודה Z–AZ
         row[M.caseNum]=form.caseNum;row[M.client]=form.client;row[M.openDate]=fmt(form.openDate)||form.openDate;
         row[M.status]=form.status;row[M.city]=form.city;row[M.street]=form.street;
         row[M.houseNum]=form.houseNum;row[M.aptNum]=form.aptNum;row[M.purpose]=form.purpose;
@@ -3016,27 +3009,19 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
         row[M.advisorPhone]=form.advisorPhone;row[M.advisorEmail]=form.advisorEmail;
         row[M.block]=form.block;row[M.parcel]=form.parcel;row[M.subParcel]=form.subParcel;
         row[M.folder]=folder;
+        // תיק פעיל מתחיל בסטטוס טיפול "ממתין לקבלת מסמכים" (עמודה Z)
+        if(form.status==='בביצוע')row[PU.status]='ממתין לקבלת מסמכים';
         const _bp2=localStorage.getItem('folderBasePath')||'';
         if(_bp2&&folder){row[M.folderLink]=buildFolderPath(_bp2,folder,form.status||'');}
-        await api.put(`'ניהול תיקים'!A${cases.length+2}:${colLetter(24)}${cases.length+2}`,[row]);
-        onAddCase({...form,_row:cases.length+2,_raw:row,folder,closeDate:'',michael:''});
+        const newRowNum=cases.length+2;
+        await api.put(`'ניהול תיקים'!A${newRowNum}:AZ${newRowNum}`,[row]);
+        onAddCase({...form,_row:newRowNum,_raw:row,folder,closeDate:'',michael:''});
         // יצירת תיקייה ב-Drive
         if(folder)fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'newFolder',folderName:folder})}).catch(()=>{});
         // תיקון תאריכים + מילוי קישור Drive בעמודה Y
         if(folder)setTimeout(()=>fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'afterNewCase',folderName:folder})}).catch(()=>{}),3000);
-        // הוסף שורה לפרויקטים בביצוע אם סטטוס = בביצוע
-        if(form.status==='בביצוע'&&folder){
-          try{
-            const projRow=new Array(25).fill('');
-            projRow[P.name]=folder;
-            projRow[P.status]='ממתין לקבלת מסמכים';
-            const res=await api.append("'פרויקטים בביצוע'",[projRow]);
-            const rng=res?.updates?.updatedRange||'';
-            const rm=rng.match(/(\d+)(?::[A-Z]+\d+)?$/);
-            const newRow=rm?parseInt(rm[1]):null;
-            if(newRow&&addProject)addProject(parseProject(projRow,newRow-2));
-          }catch(e2){console.warn('שגיאה בהוספת פרויקט:',e2.message);}
-        }
+        // אם פעיל — הצג גם בתצוגת הפרויקטים (מאותה שורה מאוחדת, בלי שורה נפרדת)
+        if(form.status==='בביצוע'&&folder&&addProject)addProject(parseProject(row,newRowNum-2));
         setAdding(false);
       }}/>}
 
@@ -5491,12 +5476,10 @@ function App(){
   const loadAll=useCallback(async()=>{
     setLoading(true);setError('');
     try{
-      const [pRows,mRows]=await Promise.all([
-        api.get("'פרויקטים בביצוע'!A2:AC"),
-        api.get("'ניהול תיקים'!A2:Z"),
-      ]);
-      setProjects((pRows||[]).map((r,i)=>parseProject(r,i)).filter(p=>p.name));
-      setManaged((mRows||[]).map((r,i)=>parseManagedCase(r,i)).filter(c=>c.caseNum||c.client));
+      const rows=await api.get("'ניהול תיקים'!A2:AZ"); // מקור מאוחד — מרשם + נתוני עבודה
+      const {managed,projects}=buildCasesFromManaged(rows);
+      setProjects(projects);
+      setManaged(managed);
     }catch(e){setError('שגיאה בטעינת הנתונים: '+e.message);}
     finally{setLoading(false);}
     loadMsgsPresence();
@@ -5505,12 +5488,10 @@ function App(){
   const silentRefresh=useCallback(async()=>{
     if(!api.token)return;
     try{
-      const [pRows,mRows]=await Promise.all([
-        api.get("'פרויקטים בביצוע'!A2:AC"),
-        api.get("'ניהול תיקים'!A2:Z"),
-      ]);
-      setProjects((pRows||[]).map((r,i)=>parseProject(r,i)).filter(p=>p.name));
-      setManaged((mRows||[]).map((r,i)=>parseManagedCase(r,i)).filter(c=>c.caseNum||c.client));
+      const rows=await api.get("'ניהול תיקים'!A2:AZ");
+      const {managed,projects}=buildCasesFromManaged(rows);
+      setProjects(projects);
+      setManaged(managed);
     }catch(e){}
     loadMsgsPresence();
   },[loadMsgsPresence]);
@@ -5584,32 +5565,33 @@ function App(){
     const stamped=stampTask(text,_currentUserName,due);
     const existing=(p[field]||'').trim();
     const upd={...p,[field]:existing?existing+'\n'+stamped:stamped};
-    const row=buildProjectRow(upd);
-    await api.put(`'פרויקטים בביצוע'!A${p._row}:${colLetter(row.length)}${p._row}`,[row]);
-    updateProject(p._row,{...upd,_raw:row});
+    await saveWorkToManaged(upd);
+    updateProject(p._row,{...upd});
   },[projects,updateProject]);
-  // משימה כללית — שורה חדשה בגיליון פרויקטים בביצוע (שם = טקסט, ללא סטטוס מיוחד)
+  // משימה כללית — שורה חדשה ב"ניהול תיקים" (שם=F, משימה בבלוק העבודה, ללא מספר תיק)
   const addGeneralTask=useCallback(async(field,text,due)=>{
-    const projRow=new Array(25).fill('');
-    projRow[P.name]=text;
-    projRow[P[field]]=stampTask(text,_currentUserName,due);
-    if(due)projRow[P.dueDate]=due;
-    const res=await api.append("'פרויקטים בביצוע'",[projRow]);
+    const row=new Array(52).fill('');
+    row[PU.name]=text;                                        // F = שם/תיקייה
+    row[PU[field]]=stampTask(text,_currentUserName,due);      // AA/AB/AC = משימה
+    if(due)row[PU.dueDate]=due;                               // AE
+    const res=await api.append("'ניהול תיקים'",[row]);
     const rng=res?.updates?.updatedRange||'';
     const rm=rng.match(/(\d+)(?::[A-Z]+\d+)?$/);
     const newRow=rm?parseInt(rm[1]):null;
-    if(newRow)addProject(parseProject(projRow,newRow-2));
+    if(newRow)addProject(parseProject(row,newRow-2));
   },[addProject]);
   const updateCase=useCallback((rowNum,upd)=>{
     setManaged(ms=>ms.map(m=>m._row===rowNum?{...m,...upd}:m));
   },[]);
   const addCase=useCallback((c)=>{setManaged(ms=>[...ms,c]);},[]);
   const addProject=useCallback((p)=>{setProjects(ps=>[...ps,p]);},[]);
-  const deleteProject=useCallback((rowNum)=>{setProjects(ps=>ps.filter(p=>p._row!==rowNum).map(p=>p._row>rowNum?{...p,_row:p._row-1}:p));},[]);
-  // מחיקת משימה כללית — מוחקת את השורה מהגיליון (רק משימות ללא שיוך)
+  // הסרה מקומית מהתצוגה הפעילה בלבד (השלמה) — ללא מחיקת שורה, ולכן ללא הזזת _row
+  const deleteProject=useCallback((rowNum)=>{setProjects(ps=>ps.filter(p=>p._row!==rowNum));},[]);
+  // מחיקת משימה כללית — מוחקת שורה מ"ניהול תיקים" ומזיזה _row בשתי הרשימות
   const deleteGeneralTask=useCallback(async(rowNum)=>{
-    await api.deleteSheetRow('פרויקטים בביצוע',rowNum);
-    setProjects(ps=>ps.filter(p=>p._row!==rowNum).map(p=>p._row>rowNum?{...p,_row:p._row-1}:p));
+    await api.deleteSheetRow('ניהול תיקים',rowNum);
+    const sh=arr=>arr.filter(x=>x._row!==rowNum).map(x=>x._row>rowNum?{...x,_row:x._row-1}:x);
+    setProjects(sh);setManaged(sh);
   },[]);
   // סימון משימת תיק כבוצעה — מסיר מהשדה ומעביר להיסטוריה (עמודה Z)
   const completeTask=useCallback(async(rowNum,field,taskLine)=>{
@@ -5617,11 +5599,11 @@ function App(){
     if(!p)throw new Error('התיק לא נמצא');
     const {newField,historyEntry}=computeCompletion(p,field,taskLine,_currentUserName);
     const upd={...p,[field]:newField,taskHistory:appendHistory(p.taskHistory,historyEntry)};
-    const row=buildProjectRow(upd);
-    await api.put(`'פרויקטים בביצוע'!A${p._row}:${colLetter(row.length)}${p._row}`,[row]);
-    updateProject(p._row,{...upd,_raw:row});
+    await saveWorkToManaged(upd);
+    updateProject(p._row,{...upd});
   },[projects,updateProject]);
-  const deleteCase=useCallback((rowNum)=>{setManaged(ms=>ms.filter(m=>m._row!==rowNum).map(m=>m._row>rowNum?{...m,_row:m._row-1}:m));},[]);
+  // מחיקת תיק — מוחקת שורה מ"ניהול תיקים" ומזיזה _row בשתי הרשימות (מרשם+עבודה יחד)
+  const deleteCase=useCallback((rowNum)=>{const sh=arr=>arr.filter(x=>x._row!==rowNum).map(x=>x._row>rowNum?{...x,_row:x._row-1}:x);setManaged(sh);setProjects(sh);},[]);
   const handleUpdateFolderLinks=useCallback(async(basePath)=>{
     if(!managed.length)return;
     // כתיבה אחת — טווח רציף מהשורה הנמוכה לגבוהה
