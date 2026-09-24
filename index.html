@@ -73,7 +73,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v73'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v74'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
@@ -2572,6 +2572,40 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
 
 // ═══════════════ MANAGED CASE PANEL ══════════════════════════════
 const MANAGED_STATUSES=['הסתיים','בביצוע','ממתין','בוטל'];
+const MANAGED_STATUS_C={'הסתיים':{bg:'#dcfce7',fg:'#166534',bar:'#22c55e'},'בביצוע':{bg:'#fdf8ee',fg:'#4b3400',bar:GOLD},'ממתין':{bg:'#ffedd5',fg:'#9a3412',bar:'#f97316'},'בוטל':{bg:'#fee2e2',fg:'#991b1b',bar:'#ef4444'}};
+
+// כרטיס "כלל התיקים" — תצוגה חיצונית עם פרטי הנכס (נפרד מכרטיס "פרויקטים בביצוע")
+function ManagedCaseCard({cas,onClick,isMobile}){
+  const sc=MANAGED_STATUS_C[cas.status]||{bg:'#f0ebe3',fg:'#3a3228',bar:'#c9a44e'};
+  const gp=[cas.block,cas.parcel,cas.subParcel].filter(Boolean).join(' / ');
+  const addr=[cas.street,cas.houseNum].filter(Boolean).join(' ');
+  const title=[cas.city,addr,cas.client].filter(Boolean).join(' — ')||cas.folder||'—';
+  const Row=({l,v})=>v?(
+    <div style={{display:'flex',gap:6,fontSize:12.5,lineHeight:1.55,minWidth:0}}>
+      <span style={{color:'#9a8e84',flexShrink:0}}>{l}:</span>
+      <span style={{color:'#3a3228',fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={v}>{v}</span>
+    </div>
+  ):null;
+  return(
+    <div onClick={onClick} style={{background:'#fff',borderRadius:14,boxShadow:'0 2px 8px rgba(0,0,0,0.08)',border:'1px solid #ede8e0',borderRight:`4px solid ${sc.bar}`,padding:'13px 15px',cursor:'pointer',display:'flex',flexDirection:'column',gap:9,minWidth:0}}
+      onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 6px 18px rgba(0,0,0,0.14)';e.currentTarget.style.transform='translateY(-2px)';}}
+      onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)';e.currentTarget.style.transform='none';}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+        <span style={{...sc,padding:'3px 10px',borderRadius:12,fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>{cas.status||'—'}</span>
+        <span style={{background:'#fdf6e3',color:GOLD3,border:'1px solid #ecd9a6',borderRadius:8,padding:'2px 9px',fontSize:12,fontWeight:700,whiteSpace:'nowrap'}}>{cas.caseNum}</span>
+      </div>
+      <div style={{fontSize:14.5,fontWeight:600,color:'#1a1510',lineHeight:1.35,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={title}>{title}</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'2px 14px',minWidth:0}}>
+        <Row l="דירה" v={cas.aptNum}/>
+        <Row l="גוש/חלקה" v={gp}/>
+        <Row l="סוג נכס" v={cas.propType}/>
+        <Row l="בנק" v={cas.bank}/>
+        <Row l="מטרה" v={cas.purpose}/>
+        <Row l="יועץ" v={cas.advisor}/>
+      </div>
+    </div>
+  );
+}
 const PURPOSE_OPTIONS=['שומה אחרת להיטל השבחה','תשלומי איזון','בטוחה - רכישה','בית משפט - הערכת שווי','בדיקת התאמה להיתר','בטוחה - הערכת נכס בשיפוץ','אישור שמאי - העדר פגיעה בשכנים','בטוחה - הערכת נכס קיים','תקן 19 - טרום רכישה','בטוחה - נכס להרחבה ושיפוץ','טבלת הקצאות - תב"ע','דמי שכירות ראויים - מקוצרת','שומה להפחתת מס שבח','דמי שכירות ראויים','ניקוד דירות','דיון בית דין','שמאות פנימית'];
 const PROP_TYPE_OPTIONS=['קרקע לבניה','דירת מגורים','צמוד קרקע','צמוד קרקע - דו משפחתי','קרקע חקלאית','מחסן','בניין מגורים','דירות מגורים וחניות'];
 
@@ -3036,6 +3070,16 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
   const paged=filtered.slice(page*PAGE,(page+1)*PAGE);
   const total=Math.ceil(filtered.length/PAGE);
 
+  const [collapsed,setCollapsed]=useState({});
+  const toggle=(s)=>setCollapsed(c=>({...c,[s]:!c[s]}));
+  const managedGroups=useMemo(()=>{
+    const by={};
+    MANAGED_STATUSES.forEach(s=>{const items=filtered.filter(c=>c.status===s);if(items.length)by[s]=items;});
+    const unknown=filtered.filter(c=>!MANAGED_STATUSES.includes(c.status));
+    if(unknown.length)by['אחר']=unknown;
+    return by;
+  },[filtered]);
+
   const STATUS_C={'הסתיים':{bg:'#dcfce7',fg:'#166534'},'בביצוע':{bg:'#fdf8ee',fg:'#4b3400'},'ממתין':{bg:'#ffedd5',fg:'#9a3412'},'בוטל':{bg:'#fee2e2',fg:'#991b1b'}};
   const inp={padding:'8px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:13,background:'#fff',outline:'none'};
   const sel=(k,ph)=>(
@@ -3045,20 +3089,18 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
     </select>
   );
 
+  // תצוגת רשימה — רק עמודות רלוונטיות (זהות + פרטי נכס + סטטוס)
   const cols=[
-    {k:'caseNum',l:'#תיק',w:80},{k:'folder',l:'תיקייה',w:240},{k:'client',l:'לקוח',w:140},
+    {k:'caseNum',l:'#תיק',w:80},{k:'status',l:'סטטוס',w:90},{k:'client',l:'לקוח',w:140},
     {k:'city',l:'עיר',w:90},{k:'street',l:'רחוב',w:100},{k:'houseNum',l:'מס\'',w:50},{k:'aptNum',l:'דירה',w:50},
     {k:'block',l:'גוש',w:70},{k:'parcel',l:'חלקה',w:70},{k:'subParcel',l:'ת.חלקה',w:70},
-    {k:'purpose',l:'מטרה',w:150},{k:'propType',l:'סוג נכס',w:100},{k:'rights',l:'זכויות',w:90},
+    {k:'propType',l:'סוג נכס',w:100},{k:'purpose',l:'מטרה',w:150},
     {k:'bank',l:'בנק',w:100},{k:'advisor',l:'יועץ',w:120},
-    {k:'openDate',l:'פתיחה',w:85},{k:'closeDate',l:'סגירה',w:85},{k:'fee',l:'שכר טרחה',w:90},
-    {k:'status',l:'סטטוס',w:80},
-    {k:'phone',l:'טלפון',w:110},{k:'email',l:'מייל',w:140},
     {k:'_links',l:'קישורים',w:90},
   ];
 
   return(
-    <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease'}}>
+    <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease',maxWidth:1280,margin:'0 auto'}}>
       {adding&&<AddCaseModal cases={cases} onClose={()=>setAdding(false)} onAdd={async(form)=>{
         // נוסחת שם תיקייה זהה ל-Apps Script: O - P Q - G - D
         const folder=`${form.city||''} - ${[form.street,form.houseNum].filter(Boolean).join(' ')} - ${form.client||''} - ${form.caseNum||''}`;
@@ -3122,15 +3164,30 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
       </div>
 
       {viewMode==='cards'&&(
-        paged.length===0?(
+        Object.keys(managedGroups).length===0?(
           <div style={{padding:48,textAlign:'center',color:'#9a8e84',background:'#fff',borderRadius:16}}><div style={{fontSize:40,marginBottom:10}}>🗂️</div><div>לא נמצאו תיקים</div></div>
         ):(
-          <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(420px,1fr))',gap:12,alignItems:'stretch',gridAutoRows:isMobile?'auto':'190px'}}>
-            {paged.map(c=>{
-              const proj=(projects||[]).find(p=>p._row===c._row)||parseProject(c._raw||[],c._row-2);
-              return <ProjectCard key={c._row} project={proj} driveLink={c.driveFolderLink||''} onClick={()=>setSelected(c)} showPdf taskScope={settings?.taskCardScope||'mine'}/>;
-            })}
-          </div>
+          Object.entries(managedGroups).map(([status,items])=>{
+            const m=MANAGED_STATUS_C[status]||{bg:'#eee',fg:'#404040',bar:'#9e9e9e'};
+            const isOpen=!collapsed[status];
+            return(
+              <div key={status} style={{marginBottom:16,boxShadow:'0 3px 12px rgba(0,0,0,0.10)',borderRadius:14}}>
+                <div onClick={()=>toggle(status)} style={{background:m.bg,padding:'12px 16px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:isOpen?`2px solid ${m.bar}88`:'none',borderRadius:isOpen?'14px 14px 0 0':14}}>
+                  <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <span style={{width:11,height:11,borderRadius:'50%',background:m.bar,display:'inline-block',flexShrink:0,boxShadow:`0 0 5px ${m.bar}99`}}/>
+                    <span style={{fontSize:15,fontWeight:600,color:m.fg}}>{status}</span>
+                    <span style={{background:`${m.bar}22`,color:m.fg,border:`1px solid ${m.bar}55`,borderRadius:20,padding:'2px 10px',fontSize:13,fontWeight:600}}>{items.length}</span>
+                  </div>
+                  <span style={{fontSize:14,color:m.fg,opacity:0.55}}>{isOpen?'▲':'▼'}</span>
+                </div>
+                {isOpen&&(
+                  <div style={{background:'#faf8f4',padding:14,display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(auto-fill,minmax(320px,1fr))',gap:12,borderRadius:'0 0 14px 14px',alignItems:'stretch'}}>
+                    {items.map(c=><ManagedCaseCard key={c._row} cas={c} isMobile={isMobile} onClick={()=>setSelected(c)}/>)}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )
       )}
 
@@ -3154,59 +3211,39 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
             <tbody>
               {paged.map((c,i)=>{
                 const sc=STATUS_C[c.status]||{bg:'#f0ebe3',fg:'#3a3228'};
+                const cell=(k)=>{
+                  switch(k){
+                    case 'caseNum': return <span onClick={e=>{e.stopPropagation();_goToProject&&_goToProject(c.caseNum);}} style={{cursor:'pointer',textDecoration:'underline',textUnderlineOffset:3,color:GOLD,fontWeight:500}} title="עבור לפרויקטים בביצוע">{c.caseNum}</span>;
+                    case 'status': return c.status?<span style={{...sc,padding:'3px 8px',borderRadius:12,fontSize:11,fontWeight:500}}>{c.status}</span>:null;
+                    case 'fee': return c.fee?`₪${c.fee}`:'';
+                    case '_links': {
+                      const _bp=localStorage.getItem('folderBasePath')||'';
+                      const _fp=c.folderLink||(c.folder&&_bp?buildFolderPath(_bp,c.folder,c.status):'');
+                      const _drive=c.driveFolderLink;
+                      return(
+                        <div style={{display:'flex',gap:4}} onClick={e=>e.stopPropagation()}>
+                          {_fp&&!isMobile&&<button onClick={()=>openFolder(_fp)} title={_fp}
+                            style={{background:'none',border:'1px solid #e0d8cc',borderRadius:6,padding:'3px 7px',cursor:'pointer',fontSize:14}}>📂</button>}
+                          {_drive&&<a href={_drive} target="_blank" rel="noopener noreferrer" title="פתח בגוגל דרייב"
+                            style={{background:'#f0f6ff',border:'1px solid #c2d4ee',borderRadius:6,padding:'4px 7px',textDecoration:'none',display:'inline-flex',alignItems:'center',justifyContent:'center'}}>
+                            <DriveIcon size={15}/></a>}
+                        </div>
+                      );
+                    }
+                    default: return c[k];
+                  }
+                };
                 return(
                   <tr key={c._row} style={{borderBottom:'1px solid #ede8e0',background:i%2===0?'#fff':'#fdf9f5',cursor:'pointer',transition:'background 0.1s'}}
                     onClick={()=>setSelected(c)}
                     onMouseEnter={e=>e.currentTarget.style.background='#fdf8ee'}
                     onMouseLeave={e=>e.currentTarget.style.background=i%2===0?'#fff':'#fdf9f5'}
                   >
-                    <td style={{padding:'10px 12px',fontWeight:500,color:GOLD,whiteSpace:'nowrap'}}
-                      onClick={e=>{e.stopPropagation();_goToProject&&_goToProject(c.caseNum);}}
-                      title="עבור לפרויקטים בביצוע">
-                      <span style={{cursor:'pointer',textDecoration:'underline',textUnderlineOffset:3}}>{c.caseNum}</span>
-                    </td>
-                    <td style={{padding:'10px 12px',maxWidth:240,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:500}} title={c.folder}>{c.folder||c.client}</td>
-                    <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{c.client}</td>
-                    <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{c.city}</td>
-                    <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{c.street}</td>
-                    <td style={{padding:'10px 12px'}}>{c.houseNum}</td>
-                    <td style={{padding:'10px 12px'}}>{c.aptNum}</td>
-                    <td style={{padding:'10px 12px',maxWidth:150,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#6b5e50'}} title={c.purpose}>{c.purpose}</td>
-                    <td style={{padding:'10px 12px',whiteSpace:'nowrap',color:'#6b5e50'}}>{c.propType}</td>
-                    <td style={{padding:'10px 12px',color:'#6b5e50'}}>{c.rights}</td>
-                    <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>{c.bank}</td>
-                    <td style={{padding:'10px 12px',whiteSpace:'nowrap',color:'#6b5e50',maxWidth:130,overflow:'hidden',textOverflow:'ellipsis'}}>{c.advisor}</td>
-                    <td style={{padding:'10px 12px',whiteSpace:'nowrap',color:'#9a8e84'}}>{c.openDate}</td>
-                    <td style={{padding:'10px 12px',whiteSpace:'nowrap',color:'#9a8e84'}}>{c.closeDate}</td>
-                    <td style={{padding:'10px 12px',fontWeight:c.fee?700:400,color:c.fee?'#1a1510':'#9a8e84'}}>{c.fee?`₪${c.fee}`:''}</td>
-                    <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>
-                      {c.status&&<span style={{...sc,padding:'3px 8px',borderRadius:12,fontSize:11,fontWeight:500}}>{c.status}</span>}
-                    </td>
-                    <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>
-                      {c.phone&&<a href={`tel:${c.phone}`} onClick={e=>e.stopPropagation()} style={{color:'#4b3400',textDecoration:'none'}}>{c.phone}</a>}
-                    </td>
-                    <td style={{padding:'10px 12px',maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                      {c.email&&<a href={`mailto:${c.email}`} onClick={e=>e.stopPropagation()} style={{color:'#4b3400',textDecoration:'none',fontSize:12}}>{c.email}</a>}
-                    </td>
-                    <td style={{padding:'6px 10px',whiteSpace:'nowrap'}} onClick={e=>e.stopPropagation()}>
-                      {(()=>{
-                        const _bp=localStorage.getItem('folderBasePath')||'';
-                        const _fp=c.folderLink||(c.folder&&_bp?buildFolderPath(_bp,c.folder,c.status):'');
-                        const _drive=c.driveFolderLink;
-                        return(
-                          <div style={{display:'flex',gap:4}}>
-                            {_fp&&!isMobile&&<button onClick={()=>openFolder(_fp)} title={_fp}
-                              style={{background:'none',border:'1px solid #e0d8cc',borderRadius:6,padding:'3px 7px',cursor:'pointer',fontSize:14}}>
-                              📂
-                            </button>}
-                            {_drive&&<a href={_drive} target="_blank" rel="noopener noreferrer" title="פתח בגוגל דרייב"
-                              style={{background:'#f0f6ff',border:'1px solid #c2d4ee',borderRadius:6,padding:'4px 7px',textDecoration:'none',display:'inline-flex',alignItems:'center',justifyContent:'center'}}>
-                              <DriveIcon size={15}/>
-                            </a>}
-                          </div>
-                        );
-                      })()}
-                    </td>
+                    {cols.map(col=>(
+                      <td key={col.k} style={{padding:'10px 12px',whiteSpace:'nowrap',maxWidth:(col.w||90)+60,overflow:'hidden',textOverflow:'ellipsis',color:col.k==='purpose'||col.k==='advisor'||col.k==='propType'?'#6b5e50':'#3a3228'}} title={typeof c[col.k]==='string'?c[col.k]:undefined}>
+                        {cell(col.k)}
+                      </td>
+                    ))}
                   </tr>
                 );
               })}
