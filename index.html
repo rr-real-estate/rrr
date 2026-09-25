@@ -74,7 +74,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v91'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v92'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -4681,7 +4681,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
     return out;
   },[projects]);
 
-  const shown=entries;
+  const shown=entries.filter(e=>!e.isGeneral); // אין יותר משימות ללא שיוך לתיק
   const sorted=[...shown].sort((a,b)=>{
     const da=a._dueD?a._dueD.getTime():Infinity,db=b._dueD?b._dueD.getTime():Infinity;
     if(da!==db)return da-db;
@@ -4690,23 +4690,19 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
   });
 
   const activeNames=[...new Set((projects||[]).filter(p=>p.status!=='הסתיים'&&p.status!=='בוטל'&&p.name).map(p=>p.name))];
-  const uColor={'יוסי':'#607060','מיכאל':GOLD3,'פייגי':'#8c6239'};
+  const uColor={'יוסי':'#607060','מיכאל':GOLD3,'פייגי':'#5a5048'};
 
   const submit=async()=>{
     setErr('');setMsg('');
     if(!assignee){setErr('יש לבחור למי לשייך את המשימה');return;}
+    if(!caseName.trim()){setErr('יש לבחור תיק');return;}
     if(!taskText.trim()){setErr('יש להזין טקסט משימה');return;}
-    if(mode==='case'&&!caseName.trim()){setErr('יש לבחור תיק או לעבור למשימה כללית');return;}
     setBusy(true);
     try{
-      if(mode==='case'){
-        const p=(projects||[]).find(x=>x.name&&x.name.trim()===caseName.trim());
-        if(!p)throw new Error('התיק לא נמצא ברשימת פרויקטים בביצוע');
-        await onAddTaskToProject(p._row,UF[assignee],taskText.trim(),due);
-      }else{
-        await onAddGeneralTask(UF[assignee],taskText.trim(),due);
-      }
-      setMsg('המשימה נוספה ✓');setTaskText('');setDue('');setCaseName('');setAssignee('');
+      const p=(projects||[]).find(x=>x.name&&x.name.trim()===caseName.trim());
+      if(!p)throw new Error('התיק לא נמצא ברשימת פרויקטים בביצוע');
+      await onAddTaskToProject(p._row,UF[assignee],taskText.trim(),due);
+      setMsg('המשימה נוספה');setTaskText('');setDue('');setCaseName('');setAssignee('');
       setTimeout(()=>setMsg(''),2600);
     }catch(e){setErr(e.message);}
     finally{setBusy(false);}
@@ -4731,13 +4727,13 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
     <div style={{padding:isMobile?'16px 14px':'28px 32px',animation:'fadeIn 0.3s ease'}}>
       <div style={{marginBottom:20,display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
         <div>
-          <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:'#1a1510'}}>✅ משימות</h2>
-          <div style={{fontSize:13,color:'#9a8e84',marginTop:4}}>{sorted.length} משימות</div>
+          <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:'#1a1510',letterSpacing:'-0.01em'}}>משימות</h2>
+          <div style={{fontSize:13,color:'#9a8e84',marginTop:3,fontWeight:400}}>{sorted.length} משימות פתוחות</div>
         </div>
         <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
           <button onClick={()=>setShowForm(s=>!s)}
-            style={{background:showForm?'#fff':GOLD,color:showForm?GOLD3:'#fff',border:`1px solid ${GOLD}`,borderRadius:10,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>
-            {showForm?'✕ סגור':'פתיחת משימה חדשה'}</button>
+            style={{background:showForm?'#fff':GOLD,color:showForm?GOLD3:'#fff',border:`1px solid ${GOLD}`,borderRadius:10,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:6}}>
+            {showForm?<><Icon name="x" size={15}/>סגור</>:<><Icon name="plus" size={15}/>משימה חדשה</>}</button>
         </div>
       </div>
 
@@ -4757,17 +4753,11 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
             <input type="date" value={toISO(due)} onChange={e=>setDue(fromISO(e.target.value))} style={{...iS,cursor:'pointer'}}/>
           </div>
         </div>
-        <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
-          <button onClick={()=>setMode('case')} style={{border:`1px solid ${mode==='case'?GOLD:'#ddd0bb'}`,background:mode==='case'?`${GOLD}18`:'#fff',color:mode==='case'?GOLD3:'#7a6a58',borderRadius:9,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>משויך לתיק</button>
-          <button onClick={()=>setMode('general')} style={{border:`1px solid ${mode==='general'?GOLD:'#ddd0bb'}`,background:mode==='general'?`${GOLD}18`:'#fff',color:mode==='general'?GOLD3:'#7a6a58',borderRadius:9,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>📝 משימה כללית</button>
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:12,color:'#7a6a58',marginBottom:4,fontWeight:500}}>בחר תיק</div>
+          <AutocompleteInput value={caseName} onChange={setCaseName} options={activeNames}
+            style={iS} placeholder="הקלד שם/מספר תיק..."/>
         </div>
-        {mode==='case'&&(
-          <div style={{marginBottom:12}}>
-            <div style={{fontSize:12,color:'#7a6a58',marginBottom:4,fontWeight:500}}>בחר תיק</div>
-            <AutocompleteInput value={caseName} onChange={setCaseName} options={activeNames}
-              style={iS} placeholder="הקלד שם/מספר תיק..."/>
-          </div>
-        )}
         <div style={{marginBottom:12}}>
           <div style={{fontSize:12,color:'#7a6a58',marginBottom:4,fontWeight:500}}>תוכן המשימה</div>
           <RichEditor value={taskText} onChange={setTaskText} placeholder="מה צריך לעשות..." style={{...iS,minHeight:'3.2em'}}/>
@@ -4784,7 +4774,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
       {/* רשימת משימות */}
       <div style={{...card,padding:0,overflow:'hidden'}}>
         {sorted.length===0?(
-          <div style={{padding:44,textAlign:'center',color:'#9a8e84',fontSize:14}}>אין משימות פתוחות 🎉</div>
+          <div style={{padding:44,textAlign:'center',color:'#9a8e84',fontSize:14}}>אין משימות פתוחות</div>
         ):isMobile?(
           <div>
             {sorted.map((e,i)=>{
@@ -4794,7 +4784,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
                     <span style={{fontSize:12.5,color:e.isGeneral?'#7a6a58':'#3a2a00',background:e.isGeneral?'#f0ebe2':'transparent',border:e.isGeneral?'1px solid #ddd0bb':'none',borderRadius:20,padding:e.isGeneral?'2px 9px':0,fontWeight:500}}>{e.isGeneral?'כללי':e.caseName}</span>
                     <div style={{marginInlineStart:'auto',display:'flex',alignItems:'center',gap:8}}>
-                      {e.due&&<span style={{fontSize:12,fontWeight:600,color:overdue?'#dc2626':'#b45309'}}>🎯 {e.due}</span>}
+                      {e.due&&<span style={{fontSize:12,fontWeight:600,color:overdue?'#c0392b':'#b45309'}}>{e.due}</span>}
                       {!e.isGeneral&&<button onClick={()=>complete(e)} title="סמן כבוצע" style={{background:'#fff',border:'2px solid #bdb3a5',borderRadius:6,width:24,height:24,cursor:'pointer',fontSize:13,color:'#16a34a',fontWeight:700,lineHeight:1,display:'flex',alignItems:'center',justifyContent:'center'}}>✓</button>}
                       {e.isGeneral&&<button onClick={()=>del(e)} title="מחק משימה" style={{background:'none',border:'none',cursor:'pointer',fontSize:15,color:'#dc2626',padding:'2px 4px',lineHeight:1}}><Icon name="trash" size={15}/></button>}
                     </div>
@@ -4826,7 +4816,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
                 const overdue=e._dueD&&e._dueD<today;
                 return(
                   <tr key={i} style={{borderBottom:'1px solid #f0ebe2'}}>
-                    <td style={{padding:'10px 14px',whiteSpace:'nowrap',fontWeight:e.due?600:400,color:overdue?'#dc2626':e.due?'#b45309':'#c8bfb5'}}>{e.due?('🎯 '+e.due):'—'}</td>
+                    <td style={{padding:'10px 14px',whiteSpace:'nowrap',fontWeight:e.due?600:400,color:overdue?'#c0392b':e.due?'#b45309':'#c8bfb5'}}>{e.due||'—'}</td>
                     <td style={{padding:'10px 14px'}}>
                       {e.isGeneral
                         ? <span style={{fontSize:12,color:'#7a6a58',background:'#f0ebe2',border:'1px solid #ddd0bb',borderRadius:20,padding:'2px 9px',fontWeight:500,whiteSpace:'nowrap'}}>כללי</span>
