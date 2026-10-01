@@ -74,7 +74,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v99'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v100'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -5093,6 +5093,11 @@ function VisitFormView({managed,user,isMobile,offline}){
   const [msg,setMsg]=React.useState('');
   const [err,setErr]=React.useState('');
   const [hist,setHist]=React.useState([]);
+  // היסטוריית ביקורים — סגורה עד לחיצה; חיפוש לפי תיק / תאריך / שמאי
+  const [histOpen,setHistOpen]=React.useState(false);
+  const [hCase,setHCase]=React.useState('');
+  const [hDate,setHDate]=React.useState('');      // yyyy-mm-dd (מ-input type=date)
+  const [hApp,setHApp]=React.useState('');
   const [editRow,setEditRow]=React.useState(null);
   const [editOldDate,setEditOldDate]=React.useState('');
   const set=(k,v)=>setF(o=>({...o,[k]:v}));
@@ -5279,36 +5284,9 @@ function VisitFormView({managed,user,isMobile,offline}){
   const loadHist=React.useCallback(async()=>{
     try{const rows=await api.get("'ביקורים'!A2:AS",MAAGAR_ID);
       const arr=(rows||[]).map((r,i)=>({rowNum:i+2,row:r,ts:r[0]||'',caseNum:r[1]||'',appraiser:r[3]||r[2]||'',date:r[5]||'',web:['אתר','שמאי חיצוני'].includes(r[33]||''),ext:(r[33]||'')==='שמאי חיצוני'})).filter(x=>x.web);
-      setHist(arr.reverse().slice(0,50));
+      setHist(arr.reverse());  // כל הביקורים — החיפוש בהיסטוריה עובר על הכל
     }catch(e){/* שקט */}
   },[]);
-  // ── יצירת קישור לשמאי חיצוני ──
-  const [linkCase,setLinkCase]=React.useState('');
-  const [linkAddr,setLinkAddr]=React.useState('');
-  const [linkOut,setLinkOut]=React.useState('');
-  const [linkBusy,setLinkBusy]=React.useState(false);
-  const [linkMsg,setLinkMsg]=React.useState('');
-  const genExternalLink=async()=>{
-    const cn=String(linkCase||'').trim(), ad=String(linkAddr||'').trim();
-    if(!cn){setLinkMsg('יש להזין מספר תיק');return;}
-    setLinkBusy(true);setLinkMsg('');setLinkOut('');
-    try{
-      const token=(Date.now().toString(36)+Math.random().toString(36).slice(2,12)+Math.random().toString(36).slice(2,12)).replace(/[^a-z0-9]/g,'');
-      const e2=new Date();e2.setDate(e2.getDate()+14);
-      const expiry=`${e2.getFullYear()}-${p2(e2.getMonth()+1)}-${p2(e2.getDate())}`;
-      const nd=new Date();const nowStr=`${p2(nd.getDate())}/${p2(nd.getMonth()+1)}/${nd.getFullYear()}`;
-      // מזהה תיקיית Drive של התיק (לשמירת תמונות) — נשלף מנתוני התיקים
-      const mc=(managed||[]).find(c=>String(c.caseNum||'').trim()===cn);
-      const drive=(mc&&mc.driveFolderLink)||'';
-      let fid='';const fm=drive.match(/\/folders\/([-\w]+)/);if(fm){fid=fm[1];}else{const gm=drive.match(/[-\w]{25,}/);if(gm)fid=gm[0];}
-      const fullName=(mc&&mc.folder)||ad||cn;
-      await api.append("'קישורי ביקור'",[[token,cn,fullName,expiry,false,nowStr,fid]],MAAGAR_ID);
-      const url=new URL('visit.html?t='+token,location.href).href;
-      setLinkOut(url);
-      try{await navigator.clipboard.writeText(url);setLinkMsg('✓ הקישור נוצר והועתק');}catch(_){setLinkMsg('✓ הקישור נוצר');}
-    }catch(e){setLinkMsg('שגיאה ביצירת הקישור: '+e.message);}
-    finally{setLinkBusy(false);}
-  };
   // ── קישור עריכה לשמאי חיצוני — פותח את הביקור הקיים לתיקון (מעדכן אותה שורה) ──
   const [editLink,setEditLink]=React.useState(null); // {rowNum,url}
   const genEditLink=async(h)=>{
@@ -5627,29 +5605,42 @@ function VisitFormView({managed,user,isMobile,offline}){
           <span style={{fontSize:12,color:'#a89c90',marginRight:'auto'}}>נשמר אוטומטית במכשיר</span>
         </div>
       </div>
-      {!offline&&<div style={card}>
-        <div style={{fontSize:14,fontWeight:700,color:GOLD3,marginBottom:6}}>קישור לשמאי חיצוני</div>
-        <div style={{fontSize:12.5,color:'#9a8e84',marginBottom:12}}>צור קישור חד-פעמי למילוי דף ביקור ללא התחברות. הקישור מוגבל לתיק אחד ופג אחרי 14 יום.</div>
-        <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 2fr',gap:10,marginBottom:10}}>
-          <div>{fieldLabel('מספר תיק')}<input value={linkCase} onChange={e=>setLinkCase(e.target.value)} placeholder="לדוגמה 50489" style={iS}/></div>
-          <div>{fieldLabel('כתובת הנכס')}<input value={linkAddr} onChange={e=>setLinkAddr(e.target.value)} placeholder="רחוב, עיר" style={iS}/></div>
+      {!offline&&(()=>{
+        // תאריך ביקור → yyyy-mm-dd (בגיליון: dd/mm/yyyy או yyyy-mm-dd)
+        const ymd=s=>{s=String(s||'').trim();let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[0]:'';};
+        const apps=[...new Set(hist.map(h=>String(h.appraiser||'').trim()).filter(Boolean))].sort();
+        const anyF=hCase.trim()||hDate||hApp;
+        const list=hist.filter(h=>
+          (!hCase.trim()||String(h.caseNum||'').includes(hCase.trim()))&&
+          (!hDate||ymd(h.date)===hDate||ymd(h.ts)===hDate)&&
+          (!hApp||String(h.appraiser||'').trim()===hApp));
+        const shown=anyF?list:list.slice(0,50);   // בלי סינון — 50 האחרונים
+        const fS={padding:'7px 10px',borderRadius:8,border:`1px solid ${LINE}`,fontSize:13,fontFamily:'inherit',background:'#fdfcf9',outline:'none',minWidth:0};
+        return(
+        <div style={{...card,padding:0,overflow:'hidden'}}>
+        <button onClick={()=>setHistOpen(o=>!o)} aria-expanded={histOpen}
+          style={{width:'100%',display:'flex',alignItems:'center',gap:9,padding:'14px 18px',border:'none',borderBottom:histOpen?`1px solid ${LINE2}`:'none',background:'#fff',cursor:'pointer',fontFamily:'inherit',textAlign:'right'}}>
+          <Icon name="archive" size={17} color={GOLD2}/>
+          <span style={{fontFamily:SERIF,fontSize:17,fontWeight:500,color:INK}}>היסטוריית ביקורים</span>
+          {hist.length>0&&<span style={{fontSize:12,color:'#8f8272'}}>({hist.length})</span>}
+          <span style={{marginRight:'auto',fontSize:12,color:'#8a7a6a'}}>{histOpen?'▲':'▼'}</span>
+        </button>
+        {histOpen&&<>
+        {/* חיפוש: תיק · תאריך · שמאי */}
+        <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr 1fr':'1fr 1fr 1fr auto',gap:8,padding:'12px 18px',borderBottom:`1px solid ${LINE2}`,background:'#fbf8f2',alignItems:'center'}}>
+          <input value={hCase} onChange={e=>setHCase(e.target.value)} placeholder="מספר תיק" inputMode="numeric" style={fS}/>
+          <input type="date" value={hDate} onChange={e=>setHDate(e.target.value)} title="תאריך ביקור" style={fS}/>
+          <select value={hApp} onChange={e=>setHApp(e.target.value)} style={fS}>
+            <option value="">כל השמאים</option>
+            {apps.map(a=><option key={a} value={a}>{a}</option>)}
+          </select>
+          {anyF?<button onClick={()=>{setHCase('');setHDate('');setHApp('');}} style={{...fS,cursor:'pointer',background:'transparent',color:'#6b5e50'}}>נקה ×</button>:<span/>}
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-          <button onClick={genExternalLink} disabled={linkBusy} style={{background:linkBusy?'#c8bfb5':GOLD,color:'#fff',border:'none',borderRadius:10,padding:'10px 20px',cursor:linkBusy?'default':'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit'}}>{linkBusy?'יוצר…':'צור קישור'}</button>
-          {linkMsg&&<span style={{fontSize:13,color:linkMsg[0]==='✓'?'#16a34a':'#dc2626',fontWeight:600}}>{linkMsg}</span>}
-        </div>
-        {linkOut&&<div style={{marginTop:12,display:'flex',gap:8,alignItems:'center',background:'#f7f3ea',border:'1px solid #e6ddc7',borderRadius:9,padding:'8px 12px'}}>
-          <input readOnly value={linkOut} onFocus={e=>e.target.select()} style={{...iS,flex:1,fontSize:12.5,background:'#fff'}}/>
-          <button onClick={()=>{try{navigator.clipboard.writeText(linkOut);setLinkMsg('✓ הועתק');}catch(_){}}} style={{background:'#fff',border:'1px solid #ddd0bb',borderRadius:8,padding:'8px 12px',cursor:'pointer',fontSize:13,fontFamily:'inherit',whiteSpace:'nowrap'}}>העתק</button>
-        </div>}
-      </div>}
-
-      {!offline&&<div style={{...card,padding:0,overflow:'hidden'}}>
-        <div style={{padding:'14px 18px',borderBottom:'1px solid #ede8e0',fontSize:14,fontWeight:600,color:'#3a2a00',background:'#fdfaf5'}}>🗂️ היסטוריית ביקורים {hist.length?`(${hist.length})`:''}</div>
-        {hist.length===0?(
-          <div style={{padding:30,textAlign:'center',color:'#9a8e84',fontSize:14}}>אין ביקורים להצגה</div>
-        ):hist.map((h,i)=>(
-          <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 18px',borderBottom:i<hist.length-1?'1px solid #f0ebe2':'none',flexWrap:'wrap',background:editRow===h.rowNum?'#eff6ff':'transparent'}}>
+        {anyF&&<div style={{padding:'6px 18px',fontSize:12,color:'#8f8272',borderBottom:`1px solid ${LINE2}`}}>{list.length} ביקורים נמצאו</div>}
+        {shown.length===0?(
+          <div style={{padding:30,textAlign:'center',color:'#9a8e84',fontSize:14}}>{anyF?'לא נמצאו ביקורים':'אין ביקורים להצגה'}</div>
+        ):shown.map((h,i)=>(
+          <div key={h.rowNum} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 18px',borderBottom:i<shown.length-1?'1px solid #f0ebe2':'none',flexWrap:'wrap',background:editRow===h.rowNum?'#eff6ff':'transparent'}}>
             <span style={{fontSize:12,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 10px',fontWeight:600,whiteSpace:'nowrap'}}>תיק {h.caseNum||'—'}</span>
             <span style={{fontSize:13,color:'#1a1510',fontWeight:500}}>{h.date||h.ts}</span>
             {h.appraiser&&<span style={{fontSize:12,color:'#9a8e84'}}>· {h.appraiser}</span>}
@@ -5667,7 +5658,9 @@ function VisitFormView({managed,user,isMobile,offline}){
             )}
           </div>
         ))}
-      </div>}
+        {!anyF&&list.length>50&&<div style={{padding:'10px 18px',fontSize:12,color:'#8f8272',textAlign:'center',borderTop:`1px solid ${LINE2}`}}>מוצגים 50 הביקורים האחרונים — לביקורים ישנים יותר השתמשו בחיפוש</div>}
+        </>}
+      </div>);})()}
       </div>{/* סוף maxWidth 760 */}
     </div>
   );
