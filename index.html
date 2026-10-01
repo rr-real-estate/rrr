@@ -74,7 +74,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v93'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v94'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -819,6 +819,14 @@ function syncVisitCalendar(prev,upd){
     fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(payload)}).catch(()=>{});
   }catch(e){}
 }
+// מפתח יום מקומי yyyy-mm-dd (לא toISOString — זה UTC וגולש ליום הקודם בישראל)
+function localDayKey(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+// שלושת יומני הביקורים — תווית וצבע ללוח השנה בדף הבית
+const VISIT_CALS=[
+  {id:'yossi',label:'יוסי',color:'#1a1510'},
+  {id:'michael',label:'מיכאל',color:GOLD2},
+  {id:'general',label:'כללי',color:'#8a7a68'},
+];
 // מחיקת אירוע יומן לפי שם התיק (בעת ביטול תיק)
 function deleteVisitCalendar(name){
   try{
@@ -3795,23 +3803,41 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
     </div>
   );
 
-  // ── לוח שנה שבועי ──
+  // ── לוח שנה שבועי — אירועי שלושת יומני הביקורים (Google Calendar דרך Apps Script) ──
   const [calWeekOffset,setCalWeekOffset]=React.useState(0);
   const DAY_NAMES=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-  const tasksByDay=React.useMemo(()=>{
+  const [calHidden,setCalHidden]=React.useState({});           // {yossi:true} = מוסתר
+  const [calEvents,setCalEvents]=React.useState({});           // weekKey → [events]
+  const [calState,setCalState]=React.useState('idle');         // idle|loading|error
+  const calWeekStart=React.useMemo(()=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-d.getDay()+calWeekOffset*7);return d;},[calWeekOffset]);
+  const calWeekKey=localDayKey(calWeekStart);
+  React.useEffect(()=>{
+    if(calEvents[calWeekKey]||!api.token)return;
+    let alive=true;
+    const end=new Date(calWeekStart);end.setDate(end.getDate()+6);
+    setCalState('loading');
+    fetch(`${APPS_SCRIPT_URL}?type=visitEvents&from=${calWeekKey}&to=${localDayKey(end)}&token=${encodeURIComponent(api.token)}`)
+      .then(r=>r.json())
+      .then(j=>{if(!alive)return;if(!j.success)throw new Error(j.error||'error');setCalEvents(m=>({...m,[calWeekKey]:j.events||[]}));setCalState('idle');})
+      .catch(e=>{if(alive){console.warn('יומן ביקורים:',e.message);setCalState('error');}});
+    return()=>{alive=false;};
+  },[calWeekKey]);
+  const eventsByDay=React.useMemo(()=>{
     const map={};
-    const userFieldMap={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'};
-    const userField=userFieldMap[userName];
-    activeProjs.forEach(p=>{
-      if(userField&&!p[userField])return;
-      const d=p._dueD||p._expD;
-      if(!d)return;
-      const key=d.toISOString().split('T')[0];
-      if(!map[key])map[key]=[];
-      map[key].push(p);
+    (calEvents[calWeekKey]||[]).forEach(ev=>{
+      if(calHidden[ev.cal])return;
+      const d=ev.allDay?null:new Date(ev.start);
+      const key=ev.allDay?ev.start:localDayKey(d);
+      (map[key]=map[key]||[]).push({...ev,_t:d?d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}):''});
     });
+    Object.values(map).forEach(a=>a.sort((x,y)=>(x.allDay?'':x.start).localeCompare(y.allDay?'':y.start)));
     return map;
-  },[activeProjs,userName]);
+  },[calEvents,calWeekKey,calHidden]);
+  const openEventCase=ev=>{
+    if(!ev.caseNum||!onOpenProject)return;
+    const p=projects.find(x=>String(x.name||'').includes(ev.caseNum));
+    if(p)onOpenProject(p._row);
+  };
 
   return(
     <div style={{padding:isMobile?'16px 14px':'28px 32px',animation:'fadeIn 0.3s ease'}}>
@@ -3911,14 +3937,13 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
         {/* ── אמצע: פינת עדכונים ובקשות ── */}
         <AnnouncementsCorner updates={updates} userName={userName} onRefresh={onRefreshUpdates} height={isMobile?undefined:480} isMobile={isMobile}/>
 
-        {/* ── שמאל: לוח שנה שבועי ── */}
+        {/* ── שמאל: לוח שנה שבועי — ביקורים ── */}
         {(()=>{
           const todayD=new Date();todayD.setHours(0,0,0,0);
-          const todayKey=todayD.toISOString().split('T')[0];
-          // חשב תחילת השבוע (ראשון) עם offset שבועות
-          const weekStart=new Date(todayD);
-          weekStart.setDate(todayD.getDate()-todayD.getDay()+calWeekOffset*7);
+          const todayKey=localDayKey(todayD);
+          const weekStart=calWeekStart;
           const weekDays=Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);return d;});
+          const calColor=Object.fromEntries(VISIT_CALS.map(c=>[c.id,c.color]));
           const fmtDay=d=>`${d.getDate()}/${d.getMonth()+1}`;
           const weekLabel=`${fmtDay(weekDays[0])} – ${fmtDay(weekDays[6])}/${weekDays[6].getFullYear()}`;
           return(
@@ -3934,14 +3959,29 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
                 <button onClick={()=>setCalWeekOffset(o=>o+1)}
                   style={{width:26,height:26,borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',color:'#6b5e50'}}>›</button>
               </div>
+              {/* מקרא יומנים — לחיצה מסתירה/מציגה */}
+              <div style={{padding:'6px 12px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:6,flexShrink:0,flexWrap:'wrap'}}>
+                {VISIT_CALS.map(c=>{
+                  const off=!!calHidden[c.id];
+                  return(
+                    <button key={c.id} onClick={()=>setCalHidden(h=>({...h,[c.id]:!h[c.id]}))} title={off?'הצג':'הסתר'}
+                      style={{display:'flex',alignItems:'center',gap:5,fontSize:11,padding:'2px 9px',borderRadius:20,cursor:'pointer',fontFamily:'inherit',
+                        border:'1px solid #e0d8cc',background:off?'#fff':'#faf8f4',color:off?'#b8a898':'#3a2a00',textDecoration:off?'line-through':'none'}}>
+                      <span style={{width:8,height:8,borderRadius:'50%',background:off?'#ddd0bb':c.color}}/>{c.label}
+                    </button>
+                  );
+                })}
+                <span style={{marginRight:'auto',fontSize:10,color:calState==='error'?'#c0392b':'#9a8e84'}}>
+                  {calState==='loading'?'טוען…':calState==='error'?'שגיאה בטעינת היומן':''}
+                </span>
+              </div>
               {/* גריד 7 עמודות */}
               <div style={{flex:1,display:'grid',gridTemplateColumns:'repeat(7,1fr)',minHeight:0,overflow:'hidden'}}>
                 {weekDays.map((day,di)=>{
-                  const key=day.toISOString().split('T')[0];
-                  const dayTasks=tasksByDay[key]||[];
+                  const key=localDayKey(day);
+                  const dayEvents=eventsByDay[key]||[];
                   const isToday=key===todayKey;
                   const isPast=day<todayD;
-                  const hasOverdue=isPast&&dayTasks.length>0;
                   return(
                     <div key={key} style={{
                       borderLeft:di<6?'1px solid #f0ebe2':'none',
@@ -3965,19 +4005,23 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
                           <span style={{fontSize:11,fontWeight:isToday?700:400,color:isToday?'#fff':isPast?'#b8a898':'#2d2520'}}>{day.getDate()}</span>
                         </div>
                       </div>
-                      {/* משימות היום */}
+                      {/* ביקורי היום */}
                       <div style={{flex:1,overflowY:'auto',padding:'3px 2px',display:'flex',flexDirection:'column',gap:2}}>
-                        {dayTasks.map(p=>{
+                        {dayEvents.map((ev,ei)=>{
+                          const clickable=!!ev.caseNum;
+                          const label=String(ev.title||'').replace(/^ביקור\s*—\s*/,'');
+                          const tip=[ev.title,ev._t&&`שעה: ${ev._t}`,ev.location,ev.description].filter(Boolean).join('\n');
                           return(
-                            <div key={p._row} onClick={()=>onOpenProject&&onOpenProject(p._row)}
-                              title={p.name}
+                            <div key={ei} onClick={()=>openEventCase(ev)} title={tip}
                               style={{fontSize:9,lineHeight:1.3,padding:'2px 3px',borderRadius:4,
-                                background:'#f5f1e8',color:'#3a2a00',border:'1px solid #ddd0bb',
-                                cursor:'pointer',wordBreak:'break-word',flexShrink:0,
-                                transition:'opacity 0.1s'}}
-                              onMouseEnter={e=>e.currentTarget.style.opacity='0.75'}
-                              onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
-                              {p.name}
+                                background:'#faf8f4',color:'#3a2a00',border:'1px solid #ede8e0',
+                                borderRight:`3px solid ${calColor[ev.cal]||'#8a7a68'}`,
+                                cursor:clickable?'pointer':'default',wordBreak:'break-word',flexShrink:0,
+                                transition:'opacity 0.1s',opacity:isPast?0.6:1}}
+                              onMouseEnter={e=>{if(clickable)e.currentTarget.style.opacity='0.75';}}
+                              onMouseLeave={e=>e.currentTarget.style.opacity=isPast?'0.6':'1'}>
+                              {ev._t&&<div style={{fontWeight:700}}>{ev._t}</div>}
+                              {label}
                             </div>
                           );
                         })}
