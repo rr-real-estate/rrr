@@ -74,7 +74,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v96'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v97'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -84,6 +84,13 @@ const SAND='#f6f2ea', SAND2='#f6f4ef';
 // ── שפת עיצוב (כיוון ב׳): שחור רק בראש העמוד/כרטיס, שנהב בכל השאר, זהב בקווים דקים ──
 const SERIF="'Frank Ruhl Libre',serif";
 const INK='#14110d', IVORY='#fbf8f2', LINE='#e9e0cd', LINE2='#f1eadb', GOLD_PALE='#f3e6c4';
+// כותרת מסך אחידה (פרויקטים / ממתין / כלל התיקים / משימות / דוחות / הגדרות / ביקור)
+// כרטיסים (פרויקטים / ממתין / כלל התיקים): מסגרת דקה + הצל השחור בצד ימין שהצוות אוהב
+const CARD_SHADOW='0 1px 2px rgba(20,17,13,0.04), inset -4px 0 9px -6px rgba(20,17,13,0.4)';
+const CARD_SHADOW_HOVER='0 12px 28px -12px rgba(20,17,13,0.22), inset -4px 0 9px -6px rgba(20,17,13,0.4)';
+// מספר תיק — זהב, מרווח אותיות (כמו בראש כרטיס התיק)
+const CASE_NUM_STYLE={fontSize:12,fontWeight:600,color:GOLD2,letterSpacing:'0.08em',display:'inline-block',marginBottom:4,cursor:'pointer',userSelect:'none'};
+const pageTitle=(m)=>({fontFamily:SERIF,fontSize:m?22:28,fontWeight:500,color:INK,letterSpacing:'-0.01em',lineHeight:1.2});
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
 function loadSettings(){try{return{...DEFAULT_SETTINGS,...JSON.parse(localStorage.getItem('rrSettings')||'{}')};}catch{return DEFAULT_SETTINGS;}}
 function saveSettings(s){try{localStorage.setItem('rrSettings',JSON.stringify(s));}catch{}}
@@ -1432,9 +1439,9 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,task
 
   // תצוגת משימות בכרטיס — כל הצוות רואה את הכל
   const tasks=[
-    {n:'יוסי',v:splitTasks(project.yossi).map(t=>t.text).join(' · '),c:'#607060',k:'yossi'},
-    {n:'מיכאל',v:splitTasks(project.michael).map(t=>t.text).join(' · '),c:GOLD,k:'michael'},
-    {n:'פייגי',v:splitTasks(project.feigi).map(t=>t.text).join(' · '),c:'#5a5048',k:'feigi'},
+    {n:'יוסי',v:splitTasks(project.yossi).map(t=>t.text).join(' · '),c:INK,k:'yossi'},
+    {n:'מיכאל',v:splitTasks(project.michael).map(t=>t.text).join(' · '),c:GOLD2,k:'michael'},
+    {n:'פייגי',v:splitTasks(project.feigi).map(t=>t.text).join(' · '),c:'#8a7a68',k:'feigi'},
   ].filter(t=>t.v);
 
   const checks=[
@@ -1445,22 +1452,22 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,task
   return(
     <div onClick={e=>onClick&&onClick(e)} style={{
       background:'#fff',borderRadius:14,padding:'18px 20px',cursor:'pointer',
-      boxShadow:'0 1px 3px rgba(0,0,0,0.06), inset -4px 0 9px -6px rgba(13,13,13,0.4)',
-      border:'1px solid #e4e0d8',
+      boxShadow:CARD_SHADOW,
+      border:`1px solid ${LINE}`,
       transition:'all 0.18s cubic-bezier(0.4,0,0.2,1)',
       outline:overdue?'1.5px solid #e6b3ad':'none',
       display:'flex',flexDirection:'column',height:'100%',boxSizing:'border-box',overflow:'hidden',
     }}
-    onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 8px 24px rgba(0,0,0,0.12), inset -4px 0 9px -6px rgba(13,13,13,0.4)';e.currentTarget.style.transform='translateY(-3px)';}}
-    onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 1px 3px rgba(0,0,0,0.06), inset -4px 0 9px -6px rgba(13,13,13,0.4)';e.currentTarget.style.transform='translateY(0)';}}
+    onMouseEnter={e=>{e.currentTarget.style.boxShadow=CARD_SHADOW_HOVER;e.currentTarget.style.transform='translateY(-2px)';}}
+    onMouseLeave={e=>{e.currentTarget.style.boxShadow=CARD_SHADOW;e.currentTarget.style.transform='translateY(0)';}}
     >
       {/* Title */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10,gap:6}}>
         <div style={{flex:1,minWidth:0}}>
-          {caseNum&&<span className="mono" onClick={e=>{e.stopPropagation();_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={{fontSize:12,fontWeight:700,color:'#1a1510',background:'#f0efec',border:'1px solid #ddd8ce',borderRadius:8,padding:'2px 9px',display:'inline-block',marginBottom:6,userSelect:'none',cursor:'pointer',fontFamily:'JetBrains Mono,monospace'}}>{caseNum}</span>}
-          <div style={{fontSize:15,fontWeight:600,color:'#1a1510',lineHeight:1.4}}>
+          {caseNum&&<span onClick={e=>{e.stopPropagation();_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={CASE_NUM_STYLE}>תיק {caseNum}</span>}
+          <div style={{fontFamily:SERIF,fontSize:17,fontWeight:500,color:INK,lineHeight:1.35}}>
             <span>{city}</span>
-            {parts[1]&&<span style={{fontWeight:500,color:'#33302b'}}>{' — '}{parts.slice(1).join(' — ')}</span>}
+            {parts[1]&&<span style={{color:'#3a3228'}}>{' — '}{parts.slice(1).join(' — ')}</span>}
           </div>
         </div>
         {!isGeneral&&<div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
@@ -1490,7 +1497,7 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,task
             <div style={{display:'flex',gap:10,marginBottom:10,flexWrap:'wrap',alignItems:'center'}}>
               {project.dueDate&&(
                 <span style={{display:'flex',alignItems:'center',gap:4,fontSize:14,fontWeight:700,
-                  color:'#fff',background:'#1f1c18',borderRadius:8,padding:'3px 10px',letterSpacing:0.2}}>
+                  color:GOLD_PALE,background:INK,borderRadius:8,padding:'3px 10px',letterSpacing:0.2}}>
                   <Icon name="clock" size={13} style={{marginLeft:4,verticalAlign:'middle'}}/><span style={{fontSize:11,opacity:0.85,marginLeft:2}}>תאריך לביצוע</span> {project.dueDate}
                 </span>
               )}
@@ -2331,7 +2338,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
     <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:8}}>
         <div>
-          <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:'#1a1510',letterSpacing:'-0.01em'}}>פרויקטים בביצוע</h2>
+          <h2 style={pageTitle(isMobile)}>פרויקטים בביצוע</h2>
           <div style={{fontSize:13,color:'#9a8e84',marginTop:3,fontWeight:400}}>{filtered.length} תיקים{search.trim()?' נמצאו':' פעילים'}</div>
         </div>
       </div>
@@ -2570,7 +2577,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
     <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:8}}>
         <div>
-          <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:'#1a1510',letterSpacing:'-0.01em'}}>ממתין ללקוח</h2>
+          <h2 style={pageTitle(isMobile)}>ממתין ללקוח</h2>
           <div style={{fontSize:13,color:'#9a8e84',marginTop:3,fontWeight:400}}>{filtered.length} תיקים ממתינים לפעולה חיצונית</div>
         </div>
       </div>
@@ -2741,14 +2748,14 @@ function ManagedCaseCard({cas,onClick,isMobile}){
     </div>
   ):null;
   return(
-    <div onClick={onClick} style={{background:'#fff',borderRadius:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06), inset -4px 0 9px -6px rgba(13,13,13,0.4)',border:'1px solid #e4e0d8',padding:'18px 20px',cursor:'pointer',display:'flex',flexDirection:'column',gap:9,minWidth:0}}
-      onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 8px 24px rgba(0,0,0,0.12), inset -4px 0 9px -6px rgba(13,13,13,0.4)';e.currentTarget.style.transform='translateY(-2px)';}}
-      onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 1px 3px rgba(0,0,0,0.06), inset -4px 0 9px -6px rgba(13,13,13,0.4)';e.currentTarget.style.transform='none';}}>
+    <div onClick={onClick} style={{background:'#fff',borderRadius:14,boxShadow:CARD_SHADOW,border:`1px solid ${LINE}`,padding:'18px 20px',cursor:'pointer',display:'flex',flexDirection:'column',gap:9,minWidth:0,transition:'all 0.18s cubic-bezier(0.4,0,0.2,1)'}}
+      onMouseEnter={e=>{e.currentTarget.style.boxShadow=CARD_SHADOW_HOVER;e.currentTarget.style.transform='translateY(-2px)';}}
+      onMouseLeave={e=>{e.currentTarget.style.boxShadow=CARD_SHADOW;e.currentTarget.style.transform='none';}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+        <span style={{...CASE_NUM_STYLE,marginBottom:0}}>תיק {cas.caseNum}</span>
         <span style={{...sc,padding:'3px 10px',borderRadius:12,fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>{cas.status||'—'}</span>
-        <span className="mono" style={{background:'#f0efec',color:'#1a1510',border:'1px solid #ddd8ce',borderRadius:8,padding:'2px 9px',fontSize:12,fontWeight:700,whiteSpace:'nowrap',fontFamily:'JetBrains Mono,monospace'}}>{cas.caseNum}</span>
       </div>
-      <div style={{fontSize:14.5,fontWeight:600,color:'#1a1510',lineHeight:1.35,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={title}>{title}</div>
+      <div style={{fontFamily:SERIF,fontSize:17,fontWeight:500,color:INK,lineHeight:1.35,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={title}>{title}</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'2px 14px',minWidth:0}}>
         <Row l="דירה" v={cas.aptNum}/>
         <Row l="גוש/חלקה" v={gp}/>
@@ -2836,7 +2843,7 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
     return <input value={form[k]||''} onChange={e=>set(k,e.target.value)} style={s}/>;
   };
   const selStyle={width:'100%',padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit'};
-  const sec={background:'#fff',borderRadius:12,padding:16,marginBottom:14,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'};
+  const sec={background:'#fff',borderRadius:12,padding:16,marginBottom:14,border:`1px solid ${LINE}`};
   const tabs=[{label:'תיק'},{label:'לקוח ויועץ'},{label:'נכס'}];
 
   return(
@@ -3100,7 +3107,7 @@ function AddCaseModal({onClose,onAdd,cases}){
     <div style={{position:'fixed',inset:0,zIndex:700,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
       <div style={{background:'#fff',borderRadius:20,padding:28,width:'100%',maxWidth:620,maxHeight:'92vh',overflow:'auto',boxShadow:'0 24px 60px rgba(0,0,0,0.3)',animation:'fadeIn 0.2s ease'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-          <h2 style={{fontSize:18,fontWeight:500,color:BLACK}}>הוסף תיק חדש</h2>
+          <h2 style={{fontFamily:SERIF,fontSize:21,fontWeight:500,color:INK}}>הוסף תיק חדש</h2>
           <button onClick={onClose} style={{background:'#f0ebe3',border:'none',borderRadius:8,width:32,height:32,fontSize:18,cursor:'pointer',color:'#6b5e50',display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
         </div>
         {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 14px',borderRadius:8,fontSize:14,marginBottom:14}}>{err}</div>}
@@ -3285,7 +3292,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
 
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:12}}>
         <div>
-          <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:'#1a1510',letterSpacing:'-0.01em'}}>כלל התיקים</h2>
+          <h2 style={pageTitle(isMobile)}>כלל התיקים</h2>
           <div style={{fontSize:13,color:'#9a8e84',marginTop:3,fontWeight:400}}>{filtered.length} מתוך {cases.length} תיקים</div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
@@ -4163,7 +4170,7 @@ function ReportsView({managed,projects}){
 
   const tabBtns=[{id:'summary',label:'סיכום'},{id:'insights',label:'תובנות'},{id:'stats',label:'ניתוח'}];
   const inp={padding:'8px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:13,background:'#fff',outline:'none'};
-  const sec={background:'#fff',borderRadius:14,padding:'20px 22px',border:'1px solid #ede8e0',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',marginBottom:16};
+  const sec={background:'#fff',borderRadius:14,padding:'20px 22px',border:`1px solid ${LINE}`,marginBottom:16};
   const KpiCard=({icon,label,value,sub})=>(
     <div style={{background:'#fff',borderRadius:14,padding:'20px 22px',flex:1,minWidth:155,border:'1px solid #ede8e0',boxShadow:'0 1px 3px rgba(0,0,0,0.05)',position:'relative',overflow:'hidden'}}>
       <div style={{position:'absolute',top:0,right:0,width:40,height:2.5,background:GOLD,borderRadius:'0 14px 0 14px'}}/>
@@ -4177,7 +4184,7 @@ function ReportsView({managed,projects}){
   return(
     <div style={{padding:'24px 28px',animation:'fadeIn 0.3s ease'}}>
       <div style={{marginBottom:20}}>
-        <h2 style={{fontSize:22,fontWeight:500,color:GOLD3}}>דוחות</h2>
+        <h2 style={pageTitle(false)}>דוחות</h2>
         <div style={{fontSize:13,color:'#6b5e50',marginTop:2}}>{managed.length} תיקים במסד הנתונים</div>
       </div>
 
@@ -4454,8 +4461,8 @@ function ReportsView({managed,projects}){
 // ══════════════ SETTINGS VIEW ════════════════════════════════════
 function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
   const isMobile=useIsMobile();
-  const sec={background:'#fff',borderRadius:14,padding:'20px 22px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
-  const secTitle=(icon,t)=>{const nm=EMOJI_ICON[icon]||(ICON_PATHS[icon]?icon:null);return <div style={{fontSize:14,fontWeight:600,color:GOLD3,marginBottom:14,display:'flex',alignItems:'center',gap:7}}>{nm?<Icon name={nm} size={15} color="#2b2620"/>:<span style={{fontSize:17}}>{icon}</span>}{t}</div>;};
+  const sec={background:'#fff',borderRadius:14,padding:'20px 22px',marginBottom:16,border:`1px solid ${LINE}`};
+  const secTitle=(icon,t)=>{const nm=EMOJI_ICON[icon]||(ICON_PATHS[icon]?icon:null);return <div style={{fontFamily:SERIF,fontSize:17,fontWeight:500,color:INK,marginBottom:14,display:'flex',alignItems:'center',gap:7}}>{nm?<Icon name={nm} size={15} color={GOLD2}/>:<span style={{fontSize:17}}>{icon}</span>}{t}</div>;};
   const row={display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10};
   const lbl={fontSize:13,color:'#4b3400',fontWeight:600};
   const chip=(val,cur,key)=>(
@@ -4522,7 +4529,7 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
   };
   return(
     <div style={{padding:'28px 32px',maxWidth:720,animation:'fadeIn 0.3s ease'}}>
-      <h2 style={{fontSize:22,fontWeight:500,color:GOLD3,marginBottom:20}}>הגדרות</h2>
+      <h2 style={{...pageTitle(false),marginBottom:20}}>הגדרות</h2>
       <div style={sec}>
         {secTitle('👤','פרופיל משתמש')}
         {user&&<div style={{display:'flex',alignItems:'center',gap:14}}>
@@ -4796,7 +4803,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
     <div style={{padding:isMobile?'16px 14px':'28px 32px',animation:'fadeIn 0.3s ease'}}>
       <div style={{marginBottom:20,display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
         <div>
-          <h2 style={{fontSize:isMobile?18:22,fontWeight:500,color:'#1a1510',letterSpacing:'-0.01em'}}>משימות</h2>
+          <h2 style={pageTitle(isMobile)}>משימות</h2>
           <div style={{fontSize:13,color:'#9a8e84',marginTop:3,fontWeight:400}}>{sorted.length} משימות פתוחות</div>
         </div>
         <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
@@ -5570,7 +5577,7 @@ function VisitFormView({managed,user,isMobile,offline}){
         </div>
       </div>}
       <div style={{marginBottom:18}}>
-        <h2 style={{fontSize:isMobile?19:23,fontWeight:500,color:'#1a1510'}}>ביקור בנכס</h2>
+        <h2 style={pageTitle(isMobile)}>ביקור בנכס</h2>
         <div style={{fontSize:13,color:'#9a8e84',marginTop:4}}>מילוי דף ביקור ושמירתו לגיליון הביקורים</div>
         {draftAt&&<div style={{marginTop:10,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:9,padding:'8px 13px',fontSize:12.5,color:'#166534'}}>{draftAt}</div>}
         {(!online||pending>0)&&<div style={{marginTop:10,background:online?'#fffbeb':'#fef2f2',border:'1px solid '+(online?'#fde68a':'#fecaca'),borderRadius:9,padding:'9px 13px',fontSize:12.5,color:online?'#92400e':'#991b1b',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
