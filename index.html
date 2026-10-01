@@ -74,7 +74,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v97'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v98'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -704,7 +704,7 @@ const ICON_PATHS={
   inbox:'M4.5 13.5 6 5.5a1 1 0 0 1 1-.8h10a1 1 0 0 1 1 .8l1.5 8M4.5 13.5V18a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-4.5M4.5 13.5H9a1 1 0 0 1 1 1 2 2 0 0 0 4 0 1 1 0 0 1 1-1h4.5',
 };
 // ── מפת גוש־חלקה — הסימן הייחודי של האתר (קווי זהב דקים על רקע שחור) ──
-function ParcelMap({opacity=0.22,labels=true}){
+function ParcelMap({opacity=0.22}){
   return(
     <svg viewBox="0 0 1200 240" preserveAspectRatio="xMidYMid slice" aria-hidden="true"
       style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}>
@@ -717,10 +717,60 @@ function ParcelMap({opacity=0.22,labels=true}){
         <path d="M870 78 L1040 92 L1080 240 L920 240"/><path d="M1060 0 L1200 0 L1200 110 L1040 92"/>
         <path d="M1040 92 L1200 110 L1200 240 L1080 240"/>
       </g>
-      {labels&&<g fill={GOLD2} fillOpacity={opacity*1.5} fontFamily="Heebo" fontSize="10">
-        <text x="250" y="96">חלקה 214</text><text x="610" y="60">חלקה 87</text><text x="950" y="160">גוש 6512</text>
-      </g>}
     </svg>
+  );
+}
+// ── ראש מסך אחיד (דף הבית / פרויקטים / ממתין / כלל התיקים): רצועה שחורה + מפה + כותרת ──
+// ההורה חייב padding של '28px 32px' (מובייל '16px 14px') — הרצועה נמתחת לקצוות במרג'ין שלילי.
+const PAGE_PAD=(m)=>m?'16px 14px':'28px 32px';
+const FLOAT_H=128;   // גובה השורה הצפה (כרטיסי מדדים / חיפוש) — כך התוכן מתחיל באותו גובה בכל המסכים
+function PageHero({title,subtitle,actions,isMobile}){
+  return(
+    <div style={{position:'relative',overflow:'hidden',background:INK,
+      margin:isMobile?'-16px -14px 0':'-28px -32px 0',padding:isMobile?'24px 18px 66px':'34px 40px 76px'}}>
+      <ParcelMap/>
+      <div style={{position:'relative',display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:14}}>
+        <div>
+          <h2 style={{fontFamily:SERIF,fontSize:isMobile?27:34,fontWeight:500,color:GOLD_PALE,letterSpacing:'-0.01em',lineHeight:1.2}}>{title}</h2>
+          {subtitle&&<div style={{fontSize:13,color:'#b9a77f',marginTop:6,fontWeight:400}}>{subtitle}</div>}
+          <div style={{width:56,height:1,background:GOLD2,marginTop:14}}/>
+        </div>
+        {actions&&<div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>{actions}</div>}
+      </div>
+    </div>
+  );
+}
+// שורה צפה על קו הרצועה (במקום כרטיסי המדדים של דף הבית) — לחיפוש וסינון
+function FloatBar({children,isMobile}){
+  return(
+    <div style={{position:'relative',marginTop:-46,marginBottom:22,padding:isMobile?0:'0 8px'}}>
+      <div style={{background:'#fff',border:`1px solid ${LINE}`,borderRadius:14,boxShadow:'0 10px 30px -12px rgba(20,17,13,0.18)',
+        padding:isMobile?'12px':'16px 22px',height:isMobile?undefined:FLOAT_H,boxSizing:'border-box',
+        display:'flex',flexDirection:'column',justifyContent:'center',gap:12}}>
+        {children}
+      </div>
+    </div>
+  );
+}
+// שדה חיפוש גדול עם אייקון — שורה ראשונה ב-FloatBar
+function HeroSearch({value,onChange,placeholder='חיפוש לפי כתובת, לקוח או מספר תיק...'}){
+  return(
+    <div style={{position:'relative'}}>
+      <span style={{position:'absolute',right:14,top:'50%',transform:'translateY(-50%)',display:'flex',pointerEvents:'none'}}><Icon name="search" size={17} color="#a3957f"/></span>
+      <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+        style={{width:'100%',boxSizing:'border-box',padding:'11px 42px 11px 14px',borderRadius:10,border:`1px solid ${LINE}`,background:'#fdfcf9',fontSize:14.5,fontFamily:'Heebo,sans-serif',outline:'none'}}/>
+    </div>
+  );
+}
+// קבוצת בחירה (הכל / היום / ...) בסגנון אחיד
+function SegGroup({options,value,onChange}){
+  return(
+    <div style={{display:'flex',gap:3,background:'#f5f0e6',borderRadius:9,padding:3,flexWrap:'wrap'}}>
+      {options.map(([val,label])=>{const on=value===val;return(
+        <button key={val||'all'} onClick={()=>onChange(val)} style={{padding:'5px 12px',borderRadius:7,border:'none',cursor:'pointer',fontFamily:'Heebo,sans-serif',
+          fontSize:12.5,fontWeight:on?600:400,background:on?INK:'transparent',color:on?GOLD_PALE:'#6b5e50',transition:'all 0.15s'}}>{label}</button>
+      );})}
+    </div>
   );
 }
 function Icon({name,size=18,color='currentColor',stroke=1.7,style,className}){
@@ -1931,7 +1981,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
       <div style={{background:SAND,width:isMobile?'100vw':'min(940px,96vw)',height:isMobile?'96dvh':'94dvh',maxHeight:'100dvh',margin:isMobile?'0':'auto',borderRadius:isMobile?'16px 16px 0 0':20,overflow:'hidden',boxShadow:'0 32px 100px rgba(0,0,0,0.45)',animation:isMobile?'slideUp 0.25s ease':'zoomIn 0.2s cubic-bezier(0.4,0,0.2,1)',display:'flex',flexDirection:'column',maxWidth:'100vw',boxSizing:'border-box'}} onClick={e=>e.stopPropagation()}>
         {/* Header */}
         <div style={{position:'relative',overflow:'hidden',background:INK,padding:isMobile?'14px 16px 0':'22px 28px 0',flexShrink:0}}>
-          <ParcelMap opacity={0.16} labels={false}/>
+          <ParcelMap opacity={0.16}/>
           <div style={{position:'relative',display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
             <div style={{flex:1,minWidth:0}}>
               {caseNum&&<span onClick={()=>{_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={{fontSize:12,fontWeight:600,color:GOLD2,display:'inline-block',marginBottom:4,letterSpacing:'0.08em',cursor:'pointer'}}>תיק {caseNum}</span>}
@@ -2335,51 +2385,26 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
   const inp={padding:'9px 14px',borderRadius:10,border:'1px solid #e0d5c5',fontSize:14,background:'#fff',outline:'none',fontFamily:'Heebo,sans-serif',transition:'border-color 0.15s,box-shadow 0.15s'};
 
   return(
-    <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:8}}>
-        <div>
-          <h2 style={pageTitle(isMobile)}>פרויקטים בביצוע</h2>
-          <div style={{fontSize:13,color:'#9a8e84',marginTop:3,fontWeight:400}}>{filtered.length} תיקים{search.trim()?' נמצאו':' פעילים'}</div>
-        </div>
-      </div>
+    <div style={{padding:PAGE_PAD(isMobile),animation:'fadeIn 0.3s ease'}}>
+      <PageHero isMobile={isMobile} title="פרויקטים בביצוע"
+        subtitle={`${filtered.length} תיקים${search.trim()?' נמצאו':' פעילים'}`}/>
 
-      {/* Filters */}
-      <div style={{display:'flex',gap:10,marginBottom:isMobile?16:24,flexWrap:'wrap',background:'#fff',padding:isMobile?'10px 12px':'14px 16px',borderRadius:14,border:'1px solid #e8e0d4',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="חיפוש..."
-          style={{...inp,flex:1,minWidth:isMobile?0:220}}/>
-        {!isMobile&&<select value={personFilter} onChange={e=>setPersonFilter(e.target.value)} style={inp}>
-          <option value="">כל הנציגים</option>
-          {['יוסי','מיכאל','פייגי'].map(p=><option key={p} value={p}>{p}</option>)}
-        </select>}
-        {!isMobile&&<div style={{display:'flex',gap:4,background:'#f5f0e8',borderRadius:8,padding:3}}>
-          {[['all','הכל'],['today','היום'],['2days','יומיים'],['week','שבוע']].map(([val,label])=>(
-            <button key={val} onClick={()=>setDaysFilter(val)} style={{
-              padding:'4px 11px',borderRadius:6,border:'none',cursor:'pointer',fontFamily:'Heebo,sans-serif',
-              fontSize:12,fontWeight:daysFilter===val?600:400,
-              background:daysFilter===val?'#fff':'transparent',
-              color:daysFilter===val?GOLD3:'#6b5e50',
-              boxShadow:daysFilter===val?'0 1px 3px rgba(0,0,0,0.1)':'none',
-              transition:'all 0.15s'
-            }}>{label}</button>
-          ))}
-        </div>}
-        {/* במובייל — פילטר תאריך מקוצר */}
-        {isMobile&&<div style={{display:'flex',gap:4,background:'#f5f0e8',borderRadius:8,padding:3}}>
-          {[['all','הכל'],['today','היום'],['week','שבוע']].map(([val,label])=>(
-            <button key={val} onClick={()=>setDaysFilter(val)} style={{
-              padding:'5px 10px',borderRadius:6,border:'none',cursor:'pointer',fontFamily:'Heebo,sans-serif',
-              fontSize:12,fontWeight:daysFilter===val?600:400,
-              background:daysFilter===val?'#fff':'transparent',
-              color:daysFilter===val?GOLD3:'#6b5e50',
-              boxShadow:daysFilter===val?'0 1px 3px rgba(0,0,0,0.1)':'none',
-            }}>{label}</button>
-          ))}
-        </div>}
-        {noTaskCount>0&&<button onClick={()=>setOnlyNoTask(v=>!v)} title="תיקים פעילים ללא משימה משויכת"
-          style={{...inp,cursor:'pointer',fontWeight:600,whiteSpace:'nowrap',border:`1px solid ${onlyNoTask?'#dc2626':'#fecaca'}`,background:onlyNoTask?'#dc2626':'#fef2f2',color:onlyNoTask?'#fff':'#b91c1c'}}>⚠️ ללא משימה ({noTaskCount})</button>}
-        {(search||personFilter||daysFilter!=='all'||onlyNoTask)&&<button onClick={()=>{setSearch('');setPersonFilter('');setDaysFilter('all');setOnlyNoTask(false);}}
-          style={{...inp,background:'#f5f0e8',color:'#4b3400',border:'1px solid #d9c5a0',cursor:'pointer',fontWeight:500}}>נקה ×</button>}
-      </div>
+      {/* Filters — שורה צפה על קו הרצועה */}
+      <FloatBar isMobile={isMobile}>
+        <HeroSearch value={search} onChange={setSearch}/>
+        <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
+          {!isMobile&&<select value={personFilter} onChange={e=>setPersonFilter(e.target.value)} style={{...inp,padding:'6px 12px',fontSize:13}}>
+            <option value="">כל הנציגים</option>
+            {['יוסי','מיכאל','פייגי'].map(p=><option key={p} value={p}>{p}</option>)}
+          </select>}
+          <SegGroup value={daysFilter} onChange={setDaysFilter}
+            options={isMobile?[['all','הכל'],['today','היום'],['week','שבוע']]:[['all','הכל'],['today','היום'],['2days','יומיים'],['week','שבוע']]}/>
+          {noTaskCount>0&&<button onClick={()=>setOnlyNoTask(v=>!v)} title="תיקים פעילים ללא משימה משויכת"
+            style={{...inp,padding:'6px 12px',fontSize:12.5,cursor:'pointer',fontWeight:600,whiteSpace:'nowrap',border:`1px solid ${onlyNoTask?'#dc2626':'#fecaca'}`,background:onlyNoTask?'#dc2626':'#fef2f2',color:onlyNoTask?'#fff':'#b91c1c',display:'flex',alignItems:'center',gap:5}}><Icon name="alert" size={13}/>ללא משימה ({noTaskCount})</button>}
+          {(search||personFilter||daysFilter!=='all'||onlyNoTask)&&<button onClick={()=>{setSearch('');setPersonFilter('');setDaysFilter('all');setOnlyNoTask(false);}}
+            style={{...inp,padding:'6px 12px',fontSize:12.5,background:'transparent',color:'#6b5e50',border:`1px solid ${LINE}`,cursor:'pointer',fontWeight:500,marginRight:'auto'}}>נקה ×</button>}
+        </div>
+      </FloatBar>
 
       {/* Table view */}
       {viewMode==='table'&&(()=>{
@@ -2574,22 +2599,17 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
   const inp={padding:'9px 14px',borderRadius:10,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none'};
 
   return(
-    <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:8}}>
-        <div>
-          <h2 style={pageTitle(isMobile)}>ממתין ללקוח</h2>
-          <div style={{fontSize:13,color:'#9a8e84',marginTop:3,fontWeight:400}}>{filtered.length} תיקים ממתינים לפעולה חיצונית</div>
+    <div style={{padding:PAGE_PAD(isMobile),animation:'fadeIn 0.3s ease'}}>
+      <PageHero isMobile={isMobile} title="ממתין ללקוח" subtitle={`${filtered.length} תיקים ממתינים לפעולה חיצונית`}/>
+      <FloatBar isMobile={isMobile}>
+        <HeroSearch value={search} onChange={setSearch}/>
+        <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
+          <SegGroup value={statusFilter} onChange={setStatusFilter}
+            options={[['','הכל'],...CLIENT_STATUSES.filter(s=>counts[s]).map(s=>[s,s])]}/>
+          {(search||statusFilter)&&<button onClick={()=>{setSearch('');setStatusFilter('');}}
+            style={{...inp,padding:'6px 12px',fontSize:12.5,background:'transparent',color:'#6b5e50',border:`1px solid ${LINE}`,cursor:'pointer',marginRight:'auto'}}>נקה ×</button>}
         </div>
-      </div>
-      <div style={{display:'flex',gap:10,marginBottom:isMobile?16:24,flexWrap:'wrap',alignItems:'center',background:'#fff',padding:isMobile?'10px 12px':'14px 16px',borderRadius:14,border:'1px solid #e8e0d4',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="חיפוש..." style={{...inp,flex:1,minWidth:isMobile?0:220}}/>
-        <div style={{display:'flex',gap:4,background:'#f5f0e8',borderRadius:8,padding:3,flexWrap:'wrap'}}>
-          {[['','הכל'],...CLIENT_STATUSES.filter(s=>counts[s]).map(s=>[s,s])].map(([val,label])=>(
-            <button key={val||'all'} onClick={()=>setStatusFilter(val)} style={{padding:'4px 11px',borderRadius:6,border:'none',cursor:'pointer',fontFamily:'Heebo,sans-serif',fontSize:12,fontWeight:statusFilter===val?600:400,background:statusFilter===val?'#fff':'transparent',color:statusFilter===val?GOLD3:'#6b5e50',boxShadow:statusFilter===val?'0 1px 3px rgba(0,0,0,0.1)':'none',transition:'all 0.15s'}}>{label}</button>
-          ))}
-        </div>
-        {(search||statusFilter)&&<button onClick={()=>{setSearch('');setStatusFilter('');}} style={{...inp,background:'#ede8e0',color:'#4b3400',border:'1px solid #ddd0bb',cursor:'pointer'}}>נקה ×</button>}
-      </div>
+      </FloatBar>
 
       {!isMobile&&viewMode==='table'&&(()=>{
         const today2=new Date();today2.setHours(0,0,0,0);
@@ -3261,7 +3281,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
   ];
 
   return(
-    <div style={{padding:isMobile?'16px 14px':'24px 28px',animation:'fadeIn 0.3s ease'}}>
+    <div style={{padding:PAGE_PAD(isMobile),animation:'fadeIn 0.3s ease'}}>
       {adding&&<AddCaseModal cases={cases} onClose={()=>setAdding(false)} onAdd={async(form)=>{
         // נוסחת שם תיקייה זהה ל-Apps Script: O - P Q - G - D
         const folder=`${form.city||''} - ${[form.street,form.houseNum].filter(Boolean).join(' ')} - ${form.client||''} - ${form.caseNum||''}`;
@@ -3290,34 +3310,27 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
         setAdding(false);
       }}/>}
 
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:12}}>
-        <div>
-          <h2 style={pageTitle(isMobile)}>כלל התיקים</h2>
-          <div style={{fontSize:13,color:'#9a8e84',marginTop:3,fontWeight:400}}>{filtered.length} מתוך {cases.length} תיקים</div>
-        </div>
-        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-          <div style={{display:'flex',border:'1px solid #ddd0bb',borderRadius:9,overflow:'hidden'}}>
-            <button onClick={()=>setViewMode('cards')} title="תצוגת כרטיסים" style={{padding:'8px 12px',border:'none',background:viewMode==='cards'?BLACK:'#fff',color:viewMode==='cards'?GOLD:'#6b5e50',cursor:'pointer',fontSize:15,display:'flex'}}><Icon name="grid" size={16}/></button>
-            <button onClick={()=>setViewMode('table')} title="תצוגת טבלה" style={{padding:'8px 12px',border:'none',borderRight:'1px solid #ede8e0',background:viewMode==='table'?BLACK:'#fff',color:viewMode==='table'?GOLD:'#6b5e50',cursor:'pointer',fontSize:15,display:'flex'}}><Icon name="list" size={16}/></button>
+      <PageHero isMobile={isMobile} title="כלל התיקים" subtitle={`${filtered.length} מתוך ${cases.length} תיקים`}
+        actions={<>
+          <div style={{display:'flex',border:`1px solid ${GOLD2}59`,borderRadius:10,overflow:'hidden'}}>
+            <button onClick={()=>setViewMode('cards')} title="תצוגת כרטיסים" style={{padding:'8px 12px',border:'none',background:viewMode==='cards'?GOLD_PALE:'transparent',color:viewMode==='cards'?INK:'#d9c79c',cursor:'pointer',display:'flex'}}><Icon name="grid" size={16}/></button>
+            <button onClick={()=>setViewMode('table')} title="תצוגת טבלה" style={{padding:'8px 12px',border:'none',borderRight:`1px solid ${GOLD2}59`,background:viewMode==='table'?GOLD_PALE:'transparent',color:viewMode==='table'?INK:'#d9c79c',cursor:'pointer',display:'flex'}}><Icon name="list" size={16}/></button>
           </div>
-          <button onClick={()=>setAdding(true)} style={{padding:'9px 18px',borderRadius:10,border:'none',background:BLACK,color:GOLD,fontWeight:500,cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(0,0,0,0.15)'}}>
+          <button onClick={()=>setAdding(true)} style={{padding:'9px 18px',borderRadius:10,border:'none',background:GOLD_PALE,color:INK,fontWeight:600,cursor:'pointer',fontSize:13.5,fontFamily:'inherit',display:'flex',alignItems:'center',gap:7}}>
             <Icon name="plus" size={15}/>הוסף תיק
           </button>
-        </div>
-      </div>
+        </>}/>
 
-      {/* Filters — קופסה לבנה זהה ל"פרויקטים בביצוע": חיפוש + קבוצת סטטוס + נקה */}
-      <div style={{display:'flex',gap:10,marginBottom:isMobile?16:24,flexWrap:'wrap',alignItems:'center',background:'#fff',padding:isMobile?'10px 12px':'14px 16px',borderRadius:14,border:'1px solid #e8e0d4',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="חיפוש חופשי..."
-          style={{...inp,flex:1,minWidth:isMobile?0:220}}/>
-        <div style={{display:'flex',gap:4,background:'#f5f0e8',borderRadius:8,padding:3,flexWrap:'wrap'}}>
-          {[['','הכל'],...MANAGED_STATUSES.map(s=>[s,s])].map(([val,label])=>(
-            <button key={val||'all'} onClick={()=>setF('status',val)} style={{padding:'4px 11px',borderRadius:6,border:'none',cursor:'pointer',fontFamily:'Heebo,sans-serif',fontSize:12,fontWeight:filters.status===val?600:400,background:filters.status===val?'#fff':'transparent',color:filters.status===val?GOLD3:'#6b5e50',boxShadow:filters.status===val?'0 1px 3px rgba(0,0,0,0.1)':'none',transition:'all 0.15s'}}>{label}</button>
-          ))}
+      {/* Filters — שורה צפה על קו הרצועה: חיפוש + קבוצת סטטוס + נקה */}
+      <FloatBar isMobile={isMobile}>
+        <HeroSearch value={search} onChange={setSearch}/>
+        <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
+          <SegGroup value={filters.status} onChange={v=>setF('status',v)}
+            options={[['','הכל'],...MANAGED_STATUSES.map(s=>[s,s])]}/>
+          {anyFilter&&<button onClick={()=>{setSearch('');setFilters({status:'',bank:'',city:'',purpose:'',propType:'',advisor:''});}}
+            style={{...inp,padding:'6px 12px',fontSize:12.5,background:'transparent',color:'#6b5e50',border:`1px solid ${LINE}`,cursor:'pointer',marginRight:'auto'}}>נקה ×</button>}
         </div>
-        {anyFilter&&<button onClick={()=>{setSearch('');setFilters({status:'',bank:'',city:'',purpose:'',propType:'',advisor:''});}}
-          style={{...inp,background:'#ede8e0',color:'#4b3400',border:'1px solid #ddd0bb',cursor:'pointer'}}>נקה ×</button>}
-      </div>
+      </FloatBar>
 
       {viewMode==='cards'&&(
         Object.keys(managedGroups).length===0?(
@@ -3700,9 +3713,10 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
 
   function KpiCard({icon,label,value,sub,onClick}){
     return(
-      <div onClick={onClick} style={{background:'#fff',borderRadius:14,padding:'20px 24px',
+      <div onClick={onClick} style={{background:'#fff',borderRadius:14,padding:'18px 24px',
         boxShadow:'0 10px 30px -12px rgba(20,17,13,0.18)',
         border:`1px solid ${LINE}`,flex:1,minWidth:160,
+        height:isMobile?undefined:FLOAT_H,boxSizing:'border-box',display:'flex',flexDirection:'column',justifyContent:'center',
         cursor:onClick?'pointer':'default',transition:'all 0.2s cubic-bezier(0.4,0,0.2,1)',
         position:'relative',overflow:'hidden'}}
         onMouseEnter={e=>{if(onClick){e.currentTarget.style.boxShadow='0 16px 36px -14px rgba(20,17,13,0.26)';e.currentTarget.style.transform='translateY(-2px)';}}}
@@ -3805,20 +3819,11 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
   };
 
   return(
-    <div style={{padding:isMobile?'16px 14px':'28px 32px',animation:'fadeIn 0.3s ease'}}>
+    <div style={{padding:PAGE_PAD(isMobile),animation:'fadeIn 0.3s ease'}}>
       {/* רצועת פתיחה שחורה עם מפת גוש־חלקה: ברכה + בקשות לאתר + מחוברים */}
-      <div style={{position:'relative',overflow:'hidden',background:INK,
-        margin:isMobile?'-16px -14px 0':'-28px -32px 0',padding:isMobile?'24px 18px 66px':'34px 40px 76px'}}>
-        <ParcelMap/>
-        <div style={{position:'relative',display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:14}}>
-          <div>
-            <h2 style={{fontFamily:SERIF,fontSize:isMobile?27:34,fontWeight:500,color:GOLD_PALE,letterSpacing:'-0.01em',lineHeight:1.2}}>{greet}{userName?`, ${userName}`:''}</h2>
-            <div style={{fontSize:13,color:'#b9a77f',marginTop:6,fontWeight:400}}>
-              {new Date().toLocaleDateString('he-IL',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}
-            </div>
-            <div style={{width:56,height:1,background:GOLD2,marginTop:14}}/>
-          </div>
-          <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+      <PageHero isMobile={isMobile} title={`${greet}${userName?`, ${userName}`:''}`}
+        subtitle={new Date().toLocaleDateString('he-IL',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}
+        actions={<>
             <a href="https://myos.co.il/tasks/" target="_blank" rel="noopener noreferrer"
               style={{background:MYOS_TEAL,color:'#fff',border:'none',borderRadius:10,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',textDecoration:'none',display:'flex',alignItems:'center',gap:6}}
               title="בקשות ושדרוגים לאתר — ב-MyOS">
@@ -3831,9 +3836,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
                 ))}
               </div>
             )}
-          </div>
-        </div>
-      </div>
+        </>}/>
 
       {/* כרטיסי מדדים "צפים" על קו הרצועה */}
       <div style={{position:'relative',display:'flex',gap:16,marginTop:-46,marginBottom:22,flexWrap:'wrap',padding:isMobile?0:'0 8px'}}>
@@ -6034,10 +6037,18 @@ function App(){
       </div>}
       {/* כפתורים מרחפים — משימה / ביקור בנכס (מוסתרים גם בתוך המסכים עצמם) */}
       {!['projects','clients','managed','tasks','visit'].includes(view)&&(
-        <div style={{position:'fixed',left:16,bottom:isMobile?84:24,zIndex:450,display:'flex',flexDirection:'column',gap:12,alignItems:'flex-start'}}>
-          {[{id:'tasks',icon:'✅',label:'משימה'},{id:'visit',icon:'🏘️',label:'ביקור בנכס'}].map(fb=>(
+        <div style={{position:'fixed',left:isMobile?14:24,bottom:isMobile?84:24,zIndex:450,display:'flex',flexDirection:'column',gap:10,alignItems:'flex-start'}}>
+          {[{id:'tasks',icon:'checkCircle',label:'משימה חדשה'},{id:'visit',icon:'building',label:'ביקור בנכס'}].map(fb=>(
             <button key={fb.id} onClick={()=>setView(fb.id)} title={fb.label}
-              style={{width:56,height:56,borderRadius:'50%',border:'none',background:`linear-gradient(135deg,${GOLD} 0%,${GOLD2} 100%)`,color:'#fff',cursor:'pointer',boxShadow:'0 5px 18px rgba(0,0,0,0.3)',fontSize:24,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'inherit',padding:0}}>{fb.icon}</button>
+              style={{height:isMobile?50:46,minWidth:isMobile?50:148,padding:isMobile?0:'0 20px 0 16px',borderRadius:999,
+                border:`1px solid ${GOLD2}66`,background:INK,color:GOLD_PALE,cursor:'pointer',
+                boxShadow:'0 12px 28px -10px rgba(20,17,13,0.55)',display:'flex',alignItems:'center',justifyContent:'center',gap:9,
+                fontFamily:'inherit',fontSize:13.5,fontWeight:500,transition:'transform 0.18s, box-shadow 0.18s'}}
+              onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 16px 32px -10px rgba(20,17,13,0.65)';}}
+              onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='0 12px 28px -10px rgba(20,17,13,0.55)';}}>
+              <Icon name={fb.icon} size={isMobile?21:18} color={GOLD2} stroke={1.8}/>
+              {!isMobile&&<span>{fb.label}</span>}
+            </button>
           ))}
         </div>
       )}
