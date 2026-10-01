@@ -79,7 +79,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v101'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v102'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -96,10 +96,12 @@ const CARD_SHADOW_HOVER='0 12px 28px -12px rgba(20,17,13,0.22), inset -4px 0 9px
 // מספר תיק — זהב, מרווח אותיות (כמו בראש כרטיס התיק)
 const CASE_NUM_STYLE={fontSize:12,fontWeight:600,color:GOLD2,letterSpacing:'0.08em',display:'inline-block',marginBottom:4,cursor:'pointer',userSelect:'none'};
 const pageTitle=(m)=>({fontFamily:SERIF,fontSize:m?22:28,fontWeight:500,color:INK,letterSpacing:'-0.01em',lineHeight:1.2});
-const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
-function loadSettings(){try{return{...DEFAULT_SETTINGS,...JSON.parse(localStorage.getItem('rrSettings')||'{}')};}catch{return DEFAULT_SETTINGS;}}
-function saveSettings(s){try{localStorage.setItem('rrSettings',JSON.stringify(s));}catch{}}
-const FONT_ZOOM={small:0.88,medium:1,large:1.14};
+// הגדרות משתמש (נשמרות במכשיר — localStorage 'rrr_settings'):
+// defaultPerson ('' = כולם) · defaultDays · managedViewMode ('last'|'cards'|'table')
+// closedGroups {projects:[],clients:[],managed:[]} — קבוצות סטטוס שנפתחות סגורות · hiddenCals [] — יומנים מוסתרים בדף הבית
+const DEFAULT_SETTINGS={defaultPerson:'',defaultDays:'all'};
+// מצב התחלתי של קבוצות סגורות למסך מסוים
+const initialClosed=(settings,screen)=>Object.fromEntries(((settings?.closedGroups||{})[screen]||[]).map(s=>[s,true]));
 
 // ═══════════════ MOBILE HOOK ══════════════════════════════════════
 function isMobileLayout(){
@@ -1497,7 +1499,7 @@ function openCaseFolder(folderName,e){
   e.stopPropagation();e.preventDefault();
   window.location.href='openrr:'+getCaseBase()+'/'+folderName;
 }
-function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,taskScope}){
+function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf}){
   const [copied,setCopied]=React.useState(false);
   const isMobile=useIsMobile();
   const m=STATUS_META[project.status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
@@ -1682,7 +1684,7 @@ function ExternalLinkButton({caseNum,fullName,driveFolderLink}){
     </div>}
   </div>);
 }
-function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDeleteProject,onDeleteCase,user,taskScope}){
+function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDeleteProject,onDeleteCase,user}){
   const isMobile=useIsMobile();
   const [form,setForm]=useState({...project});
   const [saving,setSaving]=useState(false);
@@ -1827,7 +1829,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
     const expected=s==='בוטל'?'בוטל':'פרויקטים שהושלמו';
     setFolderVerifyErr('');setVerifyingFolder(true);
     try{
-      const resp=await fetch(APPS_SCRIPT_URL+'?type=checkFolder&name='+encodeURIComponent(folderName));
+      const resp=await fetch(APPS_SCRIPT_URL+'?type=checkFolder&name='+encodeURIComponent(folderName)+'&token='+encodeURIComponent(api.token||''));
       const data=await resp.json();
       if(!data||!data.found){setFolderVerifyErr(`התיקייה "${folderName}" לא נמצאה ב-Drive. ודאו שהיא קיימת ובאותו שם, ואז בדקו שוב.`);setVerifyingFolder(false);return;}
       const actual=String(data.location||'').trim();
@@ -2313,7 +2315,7 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
   const [onlyNoTask,setOnlyNoTask]=useState(false);
   const [panelProject,setPanelProject]=useState(null);
   const [panelAnchor,setPanelAnchor]=useState(null);
-  const [collapsed,setCollapsed]=useState({});
+  const [collapsed,setCollapsed]=useState(()=>initialClosed(settings,'projects'));
   const [viewMode,setViewMode]=useState('cards'); // 'cards' | 'table'
   const [colGroup,setColGroup]=useState(0); // 0=ראשי 1=מסמכים 2=ביקור 3=שכ"ט
   const [editCell,setEditCell]=useState(null); // {rowNum,field}
@@ -2560,12 +2562,12 @@ function ProjectsView({projects,onUpdate,user,managed,onUpdateCase,settings,onDe
           const isOpen=!collapsed[status];
           return(
             <StatusGroup key={status} label={status} dot={m.dot} count={items.length} isOpen={isOpen} onToggle={()=>toggle(status)} isMobile={isMobile}>
-              {items.map(p=>{const _mc=(managed||[]).find(c=>c.folder&&c.folder.trim()===p.name.trim());return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}} showPdf taskScope={settings?.taskCardScope||'mine'}/>);})}
+              {items.map(p=>{const _mc=(managed||[]).find(c=>c.folder&&c.folder.trim()===p.name.trim());return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}} showPdf/>);})}
             </StatusGroup>
           );
         })
       )}
-      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>{setPanelProject(null);setPanelAnchor(null);}} onSave={handleSave} managed={managed} onUpdateCase={onUpdateCase} onDeleteProject={(rowNum)=>{if(onDelete)onDelete(rowNum);setPanelProject(null);}} user={user} taskScope={settings?.taskDetailScope||'mine'}/>}
+      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>{setPanelProject(null);setPanelAnchor(null);}} onSave={handleSave} managed={managed} onUpdateCase={onUpdateCase} onDeleteProject={(rowNum)=>{if(onDelete)onDelete(rowNum);setPanelProject(null);}} user={user}/>}
     </div>
   );
 }
@@ -2575,7 +2577,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
   const [search,setSearch]=useState('');
   const [statusFilter,setStatusFilter]=useState('');
   const [panelProject,setPanelProject]=useState(null);
-  const [collapsed,setCollapsed]=useState({});
+  const [collapsed,setCollapsed]=useState(()=>initialClosed(settings,'clients'));
   const [viewMode,setViewMode]=useState('cards');
   const [colGroup,setColGroup]=useState(0);
   const [editCell,setEditCell]=useState(null);
@@ -2753,7 +2755,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
           );
         })
       )}
-      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} managed={managed} onUpdateCase={onUpdateCase} onDeleteProject={(rowNum)=>{if(onDelete)onDelete(rowNum);setPanelProject(null);}} user={user} taskScope={settings?.taskDetailScope||'mine'}/>}
+      {panelProject&&<ProjectDetailPanel project={panelProject} onClose={()=>setPanelProject(null)} onSave={handleSave} managed={managed} onUpdateCase={onUpdateCase} onDeleteProject={(rowNum)=>{if(onDelete)onDelete(rowNum);setPanelProject(null);}} user={user}/>}
     </div>
   );
 }
@@ -3230,7 +3232,8 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
   const [adding,setAdding]=useState(false);
   const [sortKey,setSortKey]=useState('caseNum');
   const [sortDir,setSortDir]=useState('desc');
-  const [viewMode,setViewMode]=useState(()=>localStorage.getItem('managedViewMode')||'cards');
+  // תצוגת פתיחה: לפי ההגדרות (כרטיסים / טבלה), או "הבחירה האחרונה" (ברירת מחדל)
+  const [viewMode,setViewMode]=useState(()=>{const s=settings?.managedViewMode;return(s==='cards'||s==='table')?s:(localStorage.getItem('managedViewMode')||'cards');});
   useEffect(()=>{try{localStorage.setItem('managedViewMode',viewMode);}catch(e){}},[viewMode]);
   const PAGE=500;
 
@@ -3263,7 +3266,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
   const paged=filtered.slice(page*PAGE,(page+1)*PAGE);
   const total=Math.ceil(filtered.length/PAGE);
 
-  const [collapsed,setCollapsed]=useState({});
+  const [collapsed,setCollapsed]=useState(()=>initialClosed(settings,'managed'));
   const toggle=(s)=>setCollapsed(c=>({...c,[s]:!c[s]}));
   const managedGroups=useMemo(()=>{
     const by={};
@@ -3446,7 +3449,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
           managed={cases} onUpdateCase={onUpdateCase}
           onDeleteProject={(rowNum)=>{if(onDeleteProject)onDeleteProject(rowNum);setSelected(null);}}
           onDeleteCase={(rowNum)=>{if(onDeleteCase)onDeleteCase(rowNum);setSelected(null);}}
-          user={user} taskScope={settings?.taskDetailScope||'mine'}/>;
+          user={user}/>;
       })()}
     </div>
   );
@@ -3694,7 +3697,7 @@ function LoginScreen({onLogin,autoLogging}){
 }
 
 // ═══════════════ DASHBOARD VIEW ══════════════════════════════════
-function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,onlineUsers,onPostMessage,onMarkRead,onDeleteMessage}){
+function DashboardView({projects,managed,user,settings,onSetView,onOpenProject,messages,onlineUsers,onPostMessage,onMarkRead,onDeleteMessage}){
   const isMobile=useIsMobile();
   const today=new Date();today.setHours(0,0,0,0);
   const in7=new Date(today);in7.setDate(in7.getDate()+7);
@@ -3783,7 +3786,7 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
   // ── לוח שנה שבועי — אירועי שלושת יומני הביקורים (Google Calendar דרך Apps Script) ──
   const [calWeekOffset,setCalWeekOffset]=React.useState(0);
   const DAY_NAMES=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-  const [calHidden,setCalHidden]=React.useState({});           // {yossi:true} = מוסתר
+  const [calHidden,setCalHidden]=React.useState(()=>Object.fromEntries((settings?.hiddenCals||[]).map(c=>[c,true])));  // {yossi:true} = מוסתר (התחלה לפי ההגדרות)
   const [calEvents,setCalEvents]=React.useState({});           // weekKey → [events]
   const [calState,setCalState]=React.useState('idle');         // idle|loading|error
   const calWeekStart=React.useMemo(()=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-d.getDay()+calWeekOffset*7);return d;},[calWeekOffset]);
@@ -4492,7 +4495,7 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
   const handleFillDriveLinks=async()=>{
     setFillingDrive(true);setFillDriveResult(null);
     try{
-      const resp=await fetch(APPS_SCRIPT_URL+'?type=fillDriveLinks');
+      const resp=await fetch(APPS_SCRIPT_URL+'?type=fillDriveLinks&token='+encodeURIComponent(api.token||''));
       const text=await resp.text();
       let d;try{d=JSON.parse(text);}catch(_){d={error:text};}
       setFillDriveResult(d);
@@ -4502,7 +4505,7 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
   const handleCheckFolders=async()=>{
     setChecking(true);setCheckResult(null);
     try{
-      const resp=await fetch(APPS_SCRIPT_URL+'?type=checkFolders');
+      const resp=await fetch(APPS_SCRIPT_URL+'?type=checkFolders&token='+encodeURIComponent(api.token||''));
       const data=await resp.json();
       // folders is [{name, location}]
       const driveMap={};
@@ -4538,10 +4541,57 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
     catch(e){alert('שגיאה בעדכון קישורים: '+e.message);}
     finally{setUpdatingLinks(false);}
   };
+  // ── ניווט פנימי בין אזורי ההגדרות ──
+  const isAdmin=userName==='מיכאל';
+  const [section,setSection]=React.useState('account');
+  const SECTIONS=[
+    {id:'account',icon:'user',label:'החשבון שלי'},
+    {id:'display',icon:'grid',label:'תצוגה'},
+    {id:'device',icon:'folderOpen',label:'המחשב הזה'},
+    ...(isAdmin?[{id:'admin',icon:'settings',label:'ניהול מערכת'}]:[]),
+  ];
+  // רענון מלא — מנקה את המטמון ומושך את הגרסה האחרונה (כשמישהו לא מקבל עדכון)
+  const [refreshing,setRefreshing]=React.useState(false);
+  const fullRefresh=async()=>{
+    setRefreshing(true);
+    try{
+      if('caches' in window){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));}
+      if(navigator.serviceWorker&&navigator.serviceWorker.getRegistrations){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.update().catch(()=>{})));}
+    }catch(_){}
+    location.reload();
+  };
+  // בחירה מרובה (קבוצות סגורות / יומנים מוסתרים)
+  const toggleIn=(key,sub,val)=>{
+    if(sub){const all={...(settings?.[key]||{})};const cur=all[sub]||[];all[sub]=cur.includes(val)?cur.filter(x=>x!==val):[...cur,val];onSetting(key,all);}
+    else{const cur=settings?.[key]||[];onSetting(key,cur.includes(val)?cur.filter(x=>x!==val):[...cur,val]);}
+  };
+  const pill=(on,label,onClick,key)=>(
+    <button key={key||label} onClick={onClick} style={{padding:'6px 14px',borderRadius:20,border:`1px solid ${on?INK:LINE}`,background:on?INK:'#fff',color:on?GOLD_PALE:'#5a4e44',cursor:'pointer',fontSize:13,fontWeight:on?600:400,transition:'all 0.15s',fontFamily:'Heebo,sans-serif'}}>{label}</button>
+  );
+  const hint=t=><div style={{fontSize:12.5,color:'#8f8272',marginBottom:12,lineHeight:1.6}}>{t}</div>;
+  const subLbl=t=><div style={{fontSize:12.5,fontWeight:600,color:'#5a4e44',margin:'14px 0 8px'}}>{t}</div>;
+  const PROJ_GROUPS=STATUS_ORDER.filter(s=>!CLIENT_STATUSES.includes(s));
+  const grpOn=(screen,s)=>(((settings?.closedGroups||{})[screen])||[]).includes(s);
   return(
-    <div className="page" style={{padding:PAGE_PAD(false)}}>
-      <PageHero flat title="הגדרות" subtitle={user?.name?`${user.name} · ${user.email}`:''}/>
-      <div style={{maxWidth:720}}>
+    <div className="page" style={{padding:PAGE_PAD(isMobile)}}>
+      <PageHero isMobile={isMobile} flat title="הגדרות" subtitle={user?.name?`${user.name} · ${user.email}`:''}/>
+      <div style={{display:'flex',gap:isMobile?14:28,alignItems:'flex-start',flexDirection:isMobile?'column':'row'}}>
+        {/* ניווט אזורים */}
+        <nav style={isMobile
+          ?{display:'flex',gap:6,flexWrap:'wrap'}
+          :{width:210,flexShrink:0,background:'#fff',border:`1px solid ${LINE}`,borderRadius:14,padding:8,position:'sticky',top:12}}>
+          {SECTIONS.map(s=>{const on=section===s.id;return(
+            <button key={s.id} onClick={()=>setSection(s.id)} style={{display:'flex',alignItems:'center',gap:10,width:isMobile?'auto':'100%',padding:isMobile?'7px 14px':'10px 14px',
+              border:'none',borderRadius:isMobile?20:9,cursor:'pointer',fontFamily:'inherit',fontSize:14,textAlign:'right',
+              background:on?(isMobile?INK:'#f1e7cf'):'transparent',color:on?(isMobile?GOLD_PALE:INK):'#5a4e44',fontWeight:on?600:400,
+              borderRight:isMobile?'none':`2px solid ${on?GOLD2:'transparent'}`,transition:'all 0.15s'}}>
+              <Icon name={s.icon} size={17} color={on?GOLD2:'#a3957f'}/>{s.label}
+            </button>);})}
+        </nav>
+        <div style={{flex:1,minWidth:0,maxWidth:760}}>
+
+      {/* ═══ החשבון שלי ═══ */}
+      {section==='account'&&<>
       <div style={sec}>
         {secTitle('👤','פרופיל משתמש')}
         {user&&<div style={{display:'flex',alignItems:'center',gap:14}}>
@@ -4556,45 +4606,55 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
         </div>}
       </div>
       <div style={sec}>
-        {secTitle('🖥️','תצוגה')}
-        <div style={row}><span style={lbl}>גודל גופן</span>
-          <div style={{display:'flex',gap:6}}>
-            {['small','medium','large'].map(v=><button key={v} onClick={()=>onSetting('fontSize',v)} style={{padding:'5px 14px',borderRadius:20,border:`1.5px solid ${settings?.fontSize===v?GOLD:'#ddd0bb'}`,background:settings?.fontSize===v?'#fef9e8':'#fff',color:settings?.fontSize===v?GOLD3:'#6b5e50',cursor:'pointer',fontSize:v==='small'?11:v==='large'?15:13,fontWeight:settings?.fontSize===v?700:400,fontFamily:'Heebo,sans-serif'}}>
-              {v==='small'?'קטן':v==='medium'?'רגיל':'גדול'}
-            </button>)}
-          </div>
-        </div>
+        {secTitle('settings','איפה נשמרות ההגדרות')}
+        {hint('ההגדרות באזור "תצוגה" ו"המחשב הזה" נשמרות במכשיר הזה בלבד — במחשב אחר או בטלפון אפשר לבחור הגדרות אחרות.')}
+        {hint('להגדלה או הקטנה של הטקסט באתר: Ctrl + / Ctrl − במחשב, או הגדלה בשתי אצבעות בטלפון. הדפדפן זוכר את הבחירה.')}
       </div>
-      <div style={sec}>
-        {secTitle('👤','נציג ברירת מחדל')}
-        <div style={{fontSize:12,color:'#9a8e84',marginBottom:10}}>בעת כניסה, סנן אוטומטית לפי נציג זה</div>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-          {['__auto__','','יוסי','מיכאל','פייגי'].map(v=>chip(v,settings?.defaultPerson??'__auto__','defaultPerson'))}
-        </div>
-      </div>
-      <div style={sec}>
-        {secTitle('📅','תיקי ברירת מחדל')}
-        <div style={{fontSize:12,color:'#9a8e84',marginBottom:10}}>סנן תיקים לפי תאריך לביצוע (⏰) בכניסה לאתר</div>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-          {[['all','הכל'],['today','היום'],['2days','יומיים'],['week','שבוע']].map(([val,label])=>(
-            <button key={val} onClick={()=>onSetting('defaultDays',val)} style={{
-              padding:'5px 14px',borderRadius:20,
-              border:`1.5px solid ${(settings?.defaultDays??'all')===val?GOLD:'#ddd0bb'}`,
-              background:(settings?.defaultDays??'all')===val?'#fef9e8':'#fff',
-              color:(settings?.defaultDays??'all')===val?GOLD3:'#6b5e50',
-              cursor:'pointer',fontSize:13,
-              fontWeight:(settings?.defaultDays??'all')===val?700:400,
-              transition:'all 0.15s',fontFamily:'Heebo,sans-serif'
-            }}>{label}</button>
-          ))}
-        </div>
-      </div>
+      </>}
 
-      {!isMobile&&<div style={sec}>
-        {secTitle('🗂️','חיבור לתיקיות במחשב')}
-        <div style={{fontSize:12,color:'#9a8e84',marginBottom:14,lineHeight:1.7}}>
-          מאפשר פתיחת תיקיית תיק ישירות מהאתר. צריך להגדיר פעם אחת על כל מחשב:
+      {/* ═══ תצוגה ═══ */}
+      {section==='display'&&<>
+      <div style={sec}>
+        {secTitle('folder','פרויקטים בביצוע — סינון בכניסה')}
+        {subLbl('נציג')}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {[['','כולם'],['יוסי','יוסי'],['מיכאל','מיכאל'],['פייגי','פייגי']].map(([v,l])=>pill((settings?.defaultPerson??'')===v,l,()=>onSetting('defaultPerson',v),'p'+v))}
         </div>
+        {subLbl('תאריך לביצוע')}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {[['all','הכל'],['today','היום'],['2days','יומיים'],['week','שבוע']].map(([v,l])=>pill((settings?.defaultDays??'all')===v,l,()=>onSetting('defaultDays',v),'d'+v))}
+        </div>
+      </div>
+      <div style={sec}>
+        {secTitle('list','קבוצות שנפתחות סגורות')}
+        {hint('קבוצות סטטוס שתרצה שיופיעו מקופלות כשנכנסים למסך. לחיצה על כותרת הקבוצה עדיין פותחת אותה.')}
+        {subLbl('פרויקטים בביצוע')}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{PROJ_GROUPS.map(s=>pill(grpOn('projects',s),s,()=>toggleIn('closedGroups','projects',s),'gp'+s))}</div>
+        {subLbl('ממתין ללקוח')}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{CLIENT_STATUSES.map(s=>pill(grpOn('clients',s),s,()=>toggleIn('closedGroups','clients',s),'gc'+s))}</div>
+        {subLbl('כלל התיקים')}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{MANAGED_STATUSES.map(s=>pill(grpOn('managed',s),s,()=>toggleIn('closedGroups','managed',s),'gm'+s))}</div>
+      </div>
+      <div style={sec}>
+        {secTitle('archive','כלל התיקים — תצוגת פתיחה')}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {[['last','הבחירה האחרונה'],['cards','כרטיסים'],['table','טבלה']].map(([v,l])=>pill((settings?.managedViewMode||'last')===v,l,()=>onSetting('managedViewMode',v),'m'+v))}
+        </div>
+      </div>
+      <div style={sec}>
+        {secTitle('calendar','יומן בדף הבית')}
+        {hint('יומנים שיוצגו כשנכנסים לדף הבית. אפשר תמיד להציג או להסתיר זמנית מהמקרא שביומן.')}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {VISIT_CALS.map(c=>pill(!(settings?.hiddenCals||[]).includes(c.id),c.label,()=>toggleIn('hiddenCals',null,c.id),'c'+c.id))}
+        </div>
+      </div>
+      </>}
+
+      {/* ═══ המחשב הזה ═══ */}
+      {section==='device'&&<>
+      {!isMobile&&<div style={sec}>
+        {secTitle('folderOpen','חיבור לתיקיות במחשב')}
+        {hint('מאפשר פתיחת תיקיית תיק ישירות מהאתר. צריך להגדיר פעם אחת על כל מחשב.')}
         {/* שלב 1 */}
         <div style={{marginBottom:16}}>
           <div style={{fontSize:13,fontWeight:600,color:'#3a2a00',marginBottom:6}}>שלב 1 — הגדר פרוטוקול Windows</div>
@@ -4611,9 +4671,27 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
             placeholder={'לדוגמא: G:\\תיקיות אחסון שיתופי\\שומות'}
             style={{width:'100%',padding:'9px 12px',borderRadius:9,border:'1px solid #ddd0bb',fontSize:13,fontFamily:'inherit',boxSizing:'border-box',background:'#fff',outline:'none',direction:'ltr',textAlign:'left'}}/>
         </div>
-        {/* שלב 3 */}
+      </div>}
+      <div style={sec}>
+        {secTitle('refresh','גרסה ועדכונים')}
+        <div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
+          <div style={{fontFamily:SERIF,fontSize:26,fontWeight:500,color:INK}}>{APP_VERSION}</div>
+          <div style={{flex:1,minWidth:200,fontSize:12.5,color:'#8f8272',lineHeight:1.6}}>האתר מתעדכן לבד. אם נראה שמשהו לא התעדכן — "רענון מלא" מנקה את המטמון במכשיר ומושך את הגרסה האחרונה.</div>
+          <button onClick={fullRefresh} disabled={refreshing}
+            style={{padding:'9px 18px',borderRadius:10,border:'none',background:INK,color:GOLD_PALE,cursor:refreshing?'wait':'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:7}}>
+            {refreshing?<><Spinner size={12} color={GOLD_PALE}/>מרענן...</>:<><Icon name="refresh" size={15}/>רענון מלא</>}
+          </button>
+        </div>
+      </div>
+      </>}
+
+      {/* ═══ ניהול מערכת (מיכאל בלבד) ═══ */}
+      {section==='admin'&&isAdmin&&<>
+      {!isMobile&&<div style={sec}>
+        {secTitle('link','עדכון קישורי תיקיות בגיליון')}
+        {/* עדכון עמודה X לכל התיקים */}
         <div>
-          <div style={{fontSize:13,fontWeight:600,color:'#3a2a00',marginBottom:6}}>שלב 3 — עדכן קישורים בגיליון</div>
+          <div style={{fontSize:13,fontWeight:600,color:'#3a2a00',marginBottom:6}}>כתיבת הנתיב המלא לכל התיקים</div>
           <div style={{fontSize:12,color:'#6b5e50',marginBottom:8}}>כותב את הנתיב המלא לכל תיק בעמודה X של ניהול תיקים (דורס הכל).</div>
           <button onClick={handleUpdateLinks} disabled={updatingLinks||!basePath.trim()}
             style={{padding:'8px 18px',borderRadius:9,border:'none',background:linksDone?'#16a34a':BLACK,color:linksDone?'#fff':GOLD,cursor:(updatingLinks||!basePath.trim())?'not-allowed':'pointer',fontSize:13,fontWeight:500,fontFamily:'inherit',display:'flex',alignItems:'center',gap:7,opacity:(updatingLinks||!basePath.trim())?0.6:1}}>
@@ -4621,7 +4699,6 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
           </button>
         </div>
       </div>}
-
       <div style={sec}>
         {secTitle('🔍','בדיקת עקביות תיקיות Drive')}
         <div style={{fontSize:12,color:'#9a8e84',marginBottom:12,lineHeight:1.7}}>
@@ -4725,8 +4802,10 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
             :<div style={{fontSize:12,color:'#dc2626',background:'#fee2e2',borderRadius:8,padding:'10px 14px'}}>שגיאה לא ידועה</div>
         )}
       </div>
+      </>}
 
-      </div>{/* סוף maxWidth 720 */}
+        </div>
+      </div>
     </div>
   );
 }
@@ -5983,7 +6062,7 @@ function App(){
         paddingBottom:isMobile?68:0,
       }}>
         {error&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{error}</div>}
-        {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}} messages={messages} onlineUsers={onlineUsers} onPostMessage={postMessage} onMarkRead={markRead} onDeleteMessage={deleteMessage}/>}
+        {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} settings={settings} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}} messages={messages} onlineUsers={onlineUsers} onPostMessage={postMessage} onMarkRead={markRead} onDeleteMessage={deleteMessage}/>}
         {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)} autoOpenSearch={projectSearch} onAutoOpenSearchConsumed={()=>setProjectSearch('')} isMobile={isMobile}/>}
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject} isMobile={isMobile}/>}
         {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject} initialSearch={managedSearch} onSearchConsumed={()=>setManagedSearch('')} isMobile={isMobile} user={user} settings={settings} onUpdate={updateProject}/>}
