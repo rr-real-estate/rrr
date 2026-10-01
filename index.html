@@ -16,12 +16,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500;700&family=Heebo:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{overflow:hidden;height:100%}
-body{font-family:'Heebo',sans-serif;background:#efece5;direction:rtl;color:#1a1510;font-size:14px;-webkit-font-smoothing:antialiased}
+body{font-family:'Heebo',sans-serif;background:#f6f2ea;direction:rtl;color:#1a1510;font-size:14px;-webkit-font-smoothing:antialiased}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#d9af3466;border-radius:6px}
@@ -42,7 +42,7 @@ button{font-family:'Heebo',sans-serif}
   .bottom-nav-bar{padding-bottom:env(safe-area-inset-bottom);}
 }
 /* ═══ Boot splash — מסך טעינה אחיד (ממשיך ממסך הפתיחה של האפליקציה) ═══ */
-#boot-splash{position:fixed;inset:0;z-index:100000;background:#efece5;display:flex;align-items:center;justify-content:center;opacity:1;transition:opacity .5s ease;}
+#boot-splash{position:fixed;inset:0;z-index:100000;background:#f6f2ea;display:flex;align-items:center;justify-content:center;opacity:1;transition:opacity .5s ease;}
 #boot-splash.bs-hide{opacity:0;pointer-events:none;}
 #boot-splash .bs-wrap{position:relative;display:flex;align-items:center;justify-content:center;}
 #boot-splash .bs-ring{position:absolute;width:132px;height:132px;border-radius:50%;border:3px solid rgba(217,175,52,.16);border-top-color:#d9af34;opacity:0;animation:spin .9s linear infinite;transition:opacity .45s ease;}
@@ -74,13 +74,16 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v95'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v96'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
 // ── מותג הפלטפורמה (MyOS): נייבי + טורקיז. שמור אך ורק לרכיבי MyOS (חתימת "פותח באמצעות MyOS") ──
 const MYOS_NAVY='#0e1a33', MYOS_CYAN='#2ff0e6', MYOS_TEAL='#0a5766';
-const SAND='#efece5', SAND2='#f6f4ef';
+const SAND='#f6f2ea', SAND2='#f6f4ef';
+// ── שפת עיצוב (כיוון ב׳): שחור רק בראש העמוד/כרטיס, שנהב בכל השאר, זהב בקווים דקים ──
+const SERIF="'Frank Ruhl Libre',serif";
+const INK='#14110d', IVORY='#fbf8f2', LINE='#e9e0cd', LINE2='#f1eadb', GOLD_PALE='#f3e6c4';
 const DEFAULT_SETTINGS={fontSize:'medium',defaultPerson:'__auto__',defaultDays:'all'};
 function loadSettings(){try{return{...DEFAULT_SETTINGS,...JSON.parse(localStorage.getItem('rrSettings')||'{}')};}catch{return DEFAULT_SETTINGS;}}
 function saveSettings(s){try{localStorage.setItem('rrSettings',JSON.stringify(s));}catch{}}
@@ -693,6 +696,26 @@ const ICON_PATHS={
   handshake:'M11 7l-2.5-1.5-4 3.5 3 3M13 7l2.5-1.5 4 3.5-3 3M8.5 12l2 2a1.4 1.4 0 0 0 2 0M12 8l-2 2M20 9l-1 6M4 9l1 6',
   inbox:'M4.5 13.5 6 5.5a1 1 0 0 1 1-.8h10a1 1 0 0 1 1 .8l1.5 8M4.5 13.5V18a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-4.5M4.5 13.5H9a1 1 0 0 1 1 1 2 2 0 0 0 4 0 1 1 0 0 1 1-1h4.5',
 };
+// ── מפת גוש־חלקה — הסימן הייחודי של האתר (קווי זהב דקים על רקע שחור) ──
+function ParcelMap({opacity=0.22,labels=true}){
+  return(
+    <svg viewBox="0 0 1200 240" preserveAspectRatio="xMidYMid slice" aria-hidden="true"
+      style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}>
+      <g fill="none" stroke={GOLD2} strokeWidth="1" strokeOpacity={opacity}>
+        <path d="M0 70 L150 52 L205 128 L120 205 L0 182Z"/><path d="M150 52 L320 30 L360 112 L205 128"/>
+        <path d="M320 30 L500 8 L520 96 L360 112"/><path d="M120 205 L205 128 L360 112 L385 240 L90 240"/>
+        <path d="M360 112 L520 96 L560 240 L385 240"/><path d="M500 8 L690 0 L700 84 L520 96"/>
+        <path d="M520 96 L700 84 L735 240 L560 240"/><path d="M690 0 L880 0 L870 78 L700 84"/>
+        <path d="M700 84 L870 78 L920 240 L735 240"/><path d="M880 0 L1060 0 L1040 92 L870 78"/>
+        <path d="M870 78 L1040 92 L1080 240 L920 240"/><path d="M1060 0 L1200 0 L1200 110 L1040 92"/>
+        <path d="M1040 92 L1200 110 L1200 240 L1080 240"/>
+      </g>
+      {labels&&<g fill={GOLD2} fillOpacity={opacity*1.5} fontFamily="Heebo" fontSize="10">
+        <text x="250" y="96">חלקה 214</text><text x="610" y="60">חלקה 87</text><text x="950" y="160">גוש 6512</text>
+      </g>}
+    </svg>
+  );
+}
 function Icon({name,size=18,color='currentColor',stroke=1.7,style,className}){
   const d=ICON_PATHS[name];
   if(!d)return null;
@@ -714,10 +737,9 @@ function Badge({status,size='md'}){
 const EMOJI_ICON={'📋':'checkCircle','💬':'message','📁':'folder','📂':'folderOpen','🏠':'building','🏢':'building','🏘️':'building','🏘':'building','📬':'inbox','💰':'coins','⚙️':'settings','⚙':'settings','👤':'user','👥':'users','🤝':'handshake','📦':'archive','🗂️':'archive','🗂':'archive','📊':'chart','📈':'chart','📅':'calendar','🔍':'search','🌐':'link','🔗':'link','✅':'checkCircle','⏳':'hourglass','🖥️':'grid','🎯':'target','📞':'phone','📧':'mail','🔒':'settings','➕':'plus','🔄':'refresh','🗑':'trash','✏️':'pencil','✏':'pencil','📚':'archive','🚫':'x'};
 function SectionTitle({children,icon}){
   const nm=EMOJI_ICON[icon]||(ICON_PATHS[icon]?icon:null);
-  return<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14,paddingBottom:10,borderBottom:`1px solid #e8e0d4`}}>
-    {nm?<Icon name={nm} size={15} color="#2b2620" stroke={1.7}/>:(icon?<span style={{fontSize:16,opacity:0.85}}>{icon}</span>:null)}
-    <span style={{fontSize:13,fontWeight:600,color:'#2b2620',letterSpacing:'0.03em',textTransform:'uppercase'}}>{children}</span>
-    <div style={{flex:1,height:1,background:`linear-gradient(to left, transparent, ${GOLD}33)`,marginRight:4}}/>
+  return<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14,paddingBottom:10,borderBottom:`1px solid ${LINE2}`}}>
+    {nm?<Icon name={nm} size={15} color={GOLD2} stroke={1.7}/>:(icon?<span style={{fontSize:16,opacity:0.85}}>{icon}</span>:null)}
+    <span style={{fontFamily:SERIF,fontSize:16,fontWeight:500,color:INK}}>{children}</span>
   </div>;
 }
 function FLabel({children}){return<div style={{fontSize:12,fontWeight:500,color:'#7a6a58',marginBottom:5,letterSpacing:'0.01em'}}>{children}</div>;}
@@ -1760,7 +1782,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
     return ()=>{alive=false;};
   },[caseNum]);
   const dot=STATUS_META[form.status]?.dot||GOLD;
-  const sec={background:'#fff',borderRadius:14,padding:18,marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #ede8e0'};
+  const sec={background:'#fff',borderRadius:14,padding:18,marginBottom:16,border:`1px solid ${LINE}`};
   const isGeneralTask=!/\b5\d{4}\b/.test(project.name||'');  // משימה כללית — ללא מספר תיק
   const panelTabs=isGeneralTask
     ?[{id:'main',label:'ראשי',icon:'list'}]
@@ -1899,13 +1921,14 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
           </div>
         </div>
       )}
-      <div style={{background:'#f0ede8',width:isMobile?'100vw':'min(940px,96vw)',height:isMobile?'96dvh':'94dvh',maxHeight:'100dvh',margin:isMobile?'0':'auto',borderRadius:isMobile?'16px 16px 0 0':20,overflow:'hidden',boxShadow:'0 32px 100px rgba(0,0,0,0.45)',animation:isMobile?'slideUp 0.25s ease':'zoomIn 0.2s cubic-bezier(0.4,0,0.2,1)',display:'flex',flexDirection:'column',maxWidth:'100vw',boxSizing:'border-box'}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:SAND,width:isMobile?'100vw':'min(940px,96vw)',height:isMobile?'96dvh':'94dvh',maxHeight:'100dvh',margin:isMobile?'0':'auto',borderRadius:isMobile?'16px 16px 0 0':20,overflow:'hidden',boxShadow:'0 32px 100px rgba(0,0,0,0.45)',animation:isMobile?'slideUp 0.25s ease':'zoomIn 0.2s cubic-bezier(0.4,0,0.2,1)',display:'flex',flexDirection:'column',maxWidth:'100vw',boxSizing:'border-box'}} onClick={e=>e.stopPropagation()}>
         {/* Header */}
-        <div style={{background:`linear-gradient(135deg, #0f0f0f 0%, #1a1410 100%)`,padding:isMobile?'14px 16px':'20px 26px',flexShrink:0,borderBottom:`3px solid ${dot}`}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
+        <div style={{position:'relative',overflow:'hidden',background:INK,padding:isMobile?'14px 16px 0':'22px 28px 0',flexShrink:0}}>
+          <ParcelMap opacity={0.16} labels={false}/>
+          <div style={{position:'relative',display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
             <div style={{flex:1,minWidth:0}}>
-              {caseNum&&<span onClick={()=>{_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={{fontSize:11,fontWeight:500,color:GOLD,background:`${GOLD}18`,border:`1px solid ${GOLD}55`,borderRadius:20,padding:'3px 10px',display:'inline-block',marginBottom:7,letterSpacing:'0.05em',cursor:'pointer'}}>תיק #{caseNum}</span>}
-              <div style={{fontSize:16,fontWeight:500,color:'#fff',lineHeight:1.4,marginBottom:9,letterSpacing:'-0.01em'}}>{project.name}</div>
+              {caseNum&&<span onClick={()=>{_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={{fontSize:12,fontWeight:600,color:GOLD2,display:'inline-block',marginBottom:4,letterSpacing:'0.08em',cursor:'pointer'}}>תיק {caseNum}</span>}
+              <div style={{fontFamily:SERIF,fontSize:isMobile?19:24,fontWeight:500,color:GOLD_PALE,lineHeight:1.35,marginBottom:10}}>{project.name}</div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                 <Badge status={form.status}/>
                 {matchedCase&&<select value={workStatus} onChange={e=>handleWorkStatusChange(e.target.value)} disabled={closingWork}
@@ -1941,15 +1964,15 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.1)';e.currentTarget.style.color='rgba(255,255,255,0.7)';}}>×</button>
             </div>
           </div>
-        </div>
-        {/* Tabs */}
-        <div style={{background:'#fff',display:'flex',borderBottom:'1px solid #e8e0d4',padding:'0 20px',flexShrink:0,overflowX:'auto',gap:4}}>
-          {panelTabs.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'13px 14px',border:'none',background:'transparent',borderBottom:`2.5px solid ${tab===t.id?GOLD:'transparent'}`,color:tab===t.id?GOLD3:'#8a7a6a',fontWeight:tab===t.id?700:400,cursor:'pointer',fontSize:13,marginBottom:-1,whiteSpace:'nowrap',transition:'all 0.15s',letterSpacing:'0.01em',display:'flex',alignItems:'center',gap:6}}
-              onMouseEnter={e=>{if(tab!==t.id)e.currentTarget.style.color='#3a2a00';}}
-              onMouseLeave={e=>{if(tab!==t.id)e.currentTarget.style.color='#8a7a6a';}}
-            >{t.icon&&<Icon name={t.icon} size={15}/>}{t.label}</button>
-          ))}
+          {/* Tabs — בתוך הראש השחור, קו זהב דק מתחת ללשונית הפעילה */}
+          <div style={{position:'relative',display:'flex',marginTop:isMobile?10:16,overflowX:'auto',gap:isMobile?14:24}}>
+            {panelTabs.map(t=>(
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'10px 2px 12px',border:'none',background:'transparent',borderBottom:`2px solid ${tab===t.id?GOLD2:'transparent'}`,color:tab===t.id?GOLD_PALE:'#a8987a',fontWeight:tab===t.id?600:400,cursor:'pointer',fontSize:13.5,whiteSpace:'nowrap',transition:'all 0.15s',display:'flex',alignItems:'center',gap:7}}
+                onMouseEnter={e=>{if(tab!==t.id)e.currentTarget.style.color='#e6d8b4';}}
+                onMouseLeave={e=>{if(tab!==t.id)e.currentTarget.style.color='#a8987a';}}
+              >{t.icon&&<Icon name={t.icon} size={16}/>}{t.label}</button>
+            ))}
+          </div>
         </div>
         {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 26px',fontSize:13,borderBottom:'1px solid #fca5a5'}}>{err}</div>}
         {/* Content */}
@@ -3421,8 +3444,8 @@ function BottomNav({view,setView,counts,onOpenDrawer,loading}){
   return(
     <div className="bottom-nav-bar" style={{
       position:'fixed',bottom:0,left:0,right:0,
-      background:`linear-gradient(180deg,#111008 0%,#0d0c06 100%)`,
-      borderTop:`1px solid ${GOLD}33`,
+      background:IVORY,
+      borderTop:`1px solid ${LINE}`,
       display:'flex',zIndex:300,height:60,
     }}>
       {items.map(item=>{
@@ -3434,11 +3457,11 @@ function BottomNav({view,setView,counts,onOpenDrawer,loading}){
             style={{
               flex:1,display:'flex',flexDirection:'column',alignItems:'center',
               justifyContent:'center',border:'none',
-              background:active?`${GOLD}18`:'transparent',
-              color:active?GOLD:'rgba(255,255,255,0.5)',
+              background:active?'#f1e7cf':'transparent',
+              color:active?INK:'#8f8272',fontWeight:active?600:400,
               cursor:'pointer',gap:2,fontSize:10,padding:'4px 0',
               position:'relative',fontFamily:'Heebo,sans-serif',
-              borderTop:`2px solid ${active&&!isMre?GOLD:'transparent'}`,
+              borderTop:`2px solid ${active&&!isMre?GOLD2:'transparent'}`,
               transition:'all 0.15s',
             }}>
             <Icon name={item.icon} size={20} stroke={active?1.9:1.6}/>
@@ -3446,7 +3469,7 @@ function BottomNav({view,setView,counts,onOpenDrawer,loading}){
             {(item.count||0)>0&&(
               <span style={{
                 position:'absolute',top:3,right:'calc(50% - 14px)',
-                background:GOLD,color:BLACK,borderRadius:10,
+                background:INK,color:GOLD_PALE,borderRadius:10,
                 padding:'0 5px',fontSize:9,fontWeight:700,
                 minWidth:16,textAlign:'center',lineHeight:'16px',height:16,
               }}>{item.count}</span>
@@ -3487,69 +3510,68 @@ function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,
   const inner=(
     <>
       {/* Logo */}
-      <div style={{padding:'14px 12px 12px',borderBottom:`1px solid ${GOLD}33`,display:'flex',flexDirection:'column',alignItems:'center'}}>
-        {isMobile&&<button onClick={onDrawerClose} style={{alignSelf:'flex-start',background:'transparent',border:'none',color:'rgba(255,255,255,0.4)',fontSize:22,cursor:'pointer',marginBottom:6,lineHeight:1}}>×</button>}
+      <div style={{padding:'20px 18px 16px',borderBottom:`1px solid ${LINE}`,display:'flex',flexDirection:'column',alignItems:'center'}}>
+        {isMobile&&<button onClick={onDrawerClose} style={{alignSelf:'flex-start',background:'transparent',border:'none',color:'#a3957f',fontSize:22,cursor:'pointer',marginBottom:6,lineHeight:1}}>×</button>}
         {!logoErr?(
-          <div style={{background:'#fff',borderRadius:10,padding:'8px 10px',width:'100%',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 2px 10px rgba(0,0,0,0.3)`}}>
-            <img src={logoSrc} alt="לוגו" onError={handleLogoErr} style={{width:'100%',maxWidth:170,height:54,objectFit:'contain'}}/>
-          </div>
+          <img src={logoSrc} alt="לוגו" onError={handleLogoErr} style={{width:'100%',maxWidth:180,height:52,objectFit:'contain'}}/>
         ):(
-          <div style={{background:'#fff',borderRadius:10,padding:'10px 14px',width:'100%',textAlign:'right'}}>
-            <div style={{fontSize:14,fontWeight:500,color:'#0d0d0d',letterSpacing:'-0.3px'}}>רובינשטיין רוזנטל</div>
+          <div style={{width:'100%',textAlign:'center'}}>
+            <div style={{fontFamily:SERIF,fontSize:17,fontWeight:500,color:INK}}>רובינשטיין רוזנטל</div>
             <div style={{fontSize:11,fontWeight:500,color:GOLD3}}>שמאות מקרקעין</div>
           </div>
         )}
       </div>
       {/* Nav */}
-      <nav style={{flex:1,padding:'12px 10px',overflowY:'auto'}}>
+      <nav style={{flex:1,padding:'14px 12px',overflowY:'auto'}}>
         {nav.map(item=>{
           const active=view===item.id;
           return(
             <button key={item.id} onClick={()=>handleNav(item.id)} style={{
-              display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',
-              borderRadius:10,border:'none',cursor:'pointer',marginBottom:2,fontSize:14,
-              background:active?`linear-gradient(90deg,${GOLD}28 0%,${GOLD}10 100%)`:'transparent',
-              color:active?GOLD:'rgba(255,255,255,0.6)',fontWeight:active?700:400,
-              borderRight:`3px solid ${active?GOLD:'transparent'}`,transition:'all 0.15s',textAlign:'right',
-              letterSpacing:active?'0.01em':'0',
+              display:'flex',alignItems:'center',gap:11,width:'100%',padding:'10px 14px',
+              borderRadius:0,border:'none',cursor:'pointer',marginBottom:2,fontSize:14,
+              background:active?'linear-gradient(270deg,#f1e7cf 0%,rgba(241,231,207,0) 100%)':'transparent',
+              color:active?INK:'#5a4e44',fontWeight:active?600:400,
+              borderRight:`2px solid ${active?GOLD2:'transparent'}`,transition:'all 0.15s',textAlign:'right',
             }}
-            onMouseEnter={e=>{if(!active){e.currentTarget.style.background='rgba(255,255,255,0.05)';e.currentTarget.style.color='rgba(255,255,255,0.88)';}}}
-            onMouseLeave={e=>{if(!active){e.currentTarget.style.background='transparent';e.currentTarget.style.color='rgba(255,255,255,0.6)';}}}
+            onMouseEnter={e=>{if(!active){e.currentTarget.style.background='#f3ede1';e.currentTarget.style.color=INK;}}}
+            onMouseLeave={e=>{if(!active){e.currentTarget.style.background='transparent';e.currentTarget.style.color='#5a4e44';}}}
             >
-              <Icon name={item.icon} size={19} stroke={active?1.9:1.6}/>
+              <Icon name={item.icon} size={19} stroke={active?1.9:1.6} color={active?GOLD2:'#a3957f'}/>
               <span style={{flex:1}}>{item.label}</span>
-              {item.count>0&&<span style={{background:active?GOLD:`${GOLD}44`,color:active?BLACK:'#fff',borderRadius:20,padding:'1px 8px',fontSize:12,fontWeight:500}}>{item.count}</span>}
-              {loading&&active&&<Spinner size={13} color={GOLD}/>}
+              {item.count>0&&<span style={{fontSize:11.5,fontWeight:active?700:500,color:active?GOLD2:'#8f8272'}}>{item.count}</span>}
+              {loading&&active&&<Spinner size={13} color={GOLD2}/>}
             </button>
           );
         })}
       </nav>
       {/* User */}
-      <div style={{padding:14,borderTop:`1px solid ${GOLD}22`}}>
-        {user&&<div style={{display:'flex',alignItems:'center',gap:9,marginBottom:10}}>
-          {user.picture?<img src={user.picture} style={{width:34,height:34,borderRadius:'50%',border:`1.5px solid ${GOLD}55`,flexShrink:0}} alt=""/>
-            :<div style={{width:34,height:34,borderRadius:'50%',background:GOLD,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:500,color:BLACK,flexShrink:0}}>{(user.name||'?')[0]}</div>}
+      <div style={{padding:'16px 18px',borderTop:`1px solid ${LINE}`}}>
+        {user&&<div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+          {user.picture?<img src={user.picture} style={{width:34,height:34,borderRadius:'50%',border:`1px solid ${LINE}`,flexShrink:0}} alt=""/>
+            :<div style={{width:34,height:34,borderRadius:'50%',background:INK,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:SERIF,fontSize:15,color:GOLD_PALE,flexShrink:0}}>{(user.name||'?')[0]}</div>}
           <div style={{overflow:'hidden'}}>
-            <div style={{fontSize:13,fontWeight:600,color:'#fff',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{user.name}</div>
-            <div style={{fontSize:11,color:'rgba(255,255,255,0.35)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{user.email}</div>
+            <div style={{fontSize:13,fontWeight:600,color:INK,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{user.name}</div>
+            <div style={{fontSize:11,color:'#8f8272',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{user.email}</div>
           </div>
         </div>}
-        <button onClick={onLogout} style={{width:'100%',padding:'7px',borderRadius:8,border:`1px solid ${GOLD}33`,background:'transparent',color:`${GOLD}77`,cursor:'pointer',fontSize:12,transition:'all 0.15s'}}
-          onMouseEnter={e=>{e.currentTarget.style.background=`${GOLD}18`;e.currentTarget.style.color=GOLD;}}
-          onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color=`${GOLD}77`;}}>
+        <button onClick={onLogout} style={{width:'100%',padding:'7px',borderRadius:8,border:`1px solid ${LINE}`,background:'transparent',color:'#5a4e44',cursor:'pointer',fontSize:12,transition:'all 0.15s'}}
+          onMouseEnter={e=>{e.currentTarget.style.background='#f3ede1';e.currentTarget.style.color=INK;}}
+          onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#5a4e44';}}>
           התנתקות
         </button>
-        <div style={{textAlign:'center',fontSize:10,color:'rgba(255,255,255,0.25)',marginTop:8}}>גרסה {APP_VERSION}</div>
-        <a href="https://myos.co.il" target="_blank" rel="noreferrer"
-          style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,marginTop:8,paddingTop:9,borderTop:'1px solid rgba(47,240,230,0.18)',textDecoration:'none'}}
-          title="פותח באמצעות MyOS — myos.co.il">
-          <span style={{fontSize:9.5,color:'rgba(255,255,255,0.4)'}}>פותח באמצעות</span>
-          <svg width="14" height="15" viewBox="0 -8 100 104" xmlns="http://www.w3.org/2000/svg" style={{display:'block'}} aria-label="MyOS">
-            <path d="M38 6 L20 6 L6 20 L6 80 L20 94 L80 94 L94 80 L94 20 L80 6 L62 6 L62 20 L80 34 L80 66 L62 80 L38 80 L20 66 L20 34 L38 20 Z" fill="#eff3fa"/>
-            <path d="M47 -7 L53 -7 L57 -3 L57 31 L50 38 L43 31 L43 -3 Z" fill="#2ff0e6"/>
-          </svg>
-          <span style={{fontSize:12,fontWeight:700,color:'#eff3fa',letterSpacing:'0.02em'}}>MyOS</span>
-        </a>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:10}}>
+          <span style={{fontSize:10,color:'#8f8272'}}>גרסה {APP_VERSION}</span>
+          <a href="https://myos.co.il" target="_blank" rel="noreferrer"
+            style={{display:'flex',alignItems:'center',gap:5,textDecoration:'none'}}
+            title="פותח באמצעות MyOS — myos.co.il">
+            <span style={{fontSize:9.5,color:'#8f8272'}}>פותח באמצעות</span>
+            <svg width="13" height="14" viewBox="0 -8 100 104" xmlns="http://www.w3.org/2000/svg" style={{display:'block'}} aria-label="MyOS">
+              <path d="M38 6 L20 6 L6 20 L6 80 L20 94 L80 94 L94 80 L94 20 L80 6 L62 6 L62 20 L80 34 L80 66 L62 80 L38 80 L20 66 L20 34 L38 20 Z" fill={MYOS_NAVY}/>
+              <path d="M47 -7 L53 -7 L57 -3 L57 31 L50 38 L43 31 L43 -3 Z" fill={MYOS_TEAL}/>
+            </svg>
+            <span style={{fontSize:11,fontWeight:700,color:MYOS_TEAL,letterSpacing:'0.02em'}}>MyOS</span>
+          </a>
+        </div>
       </div>
     </>
   );
@@ -3560,10 +3582,10 @@ function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,
       <>
         {drawerOpen&&<div onClick={onDrawerClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:298}}/>}
         <div style={{
-          width:260,background:`linear-gradient(180deg,#111008 0%,#0d0c06 100%)`,color:'#e8dfc9',
+          width:260,background:IVORY,color:INK,
           display:'flex',flexDirection:'column',height:'100vh',
           position:'fixed',right:0,top:0,zIndex:299,
-          borderLeft:`1px solid ${GOLD}1a`,boxShadow:'-6px 0 30px rgba(0,0,0,0.5)',
+          borderLeft:`1px solid ${LINE}`,boxShadow:'-6px 0 30px rgba(20,17,13,0.25)',
           transform:drawerOpen?'translateX(0)':'translateX(110%)',
           transition:'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
           pointerEvents:drawerOpen?'auto':'none',
@@ -3576,7 +3598,7 @@ function Sidebar({view,setView,user,onLogout,loading,counts,isMobile,drawerOpen,
 
   // דסקטופ — סיידבר קבוע
   return(
-    <div style={{width:232,background:`linear-gradient(180deg,#111008 0%,#0d0c06 100%)`,color:'#e8dfc9',display:'flex',flexDirection:'column',height:'100vh',position:'fixed',right:0,top:0,zIndex:200,borderLeft:`1px solid ${GOLD}1a`,boxShadow:'-4px 0 20px rgba(0,0,0,0.25)'}}>
+    <div style={{width:232,background:IVORY,color:INK,display:'flex',flexDirection:'column',height:'100vh',position:'fixed',right:0,top:0,zIndex:200,borderLeft:`1px solid ${LINE}`}}>
       {inner}
     </div>
   );
@@ -3671,20 +3693,18 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
 
   function KpiCard({icon,label,value,sub,onClick}){
     return(
-      <div onClick={onClick} style={{background:'#fff',borderRadius:16,padding:'22px 24px',
-        boxShadow:'0 1px 3px rgba(0,0,0,0.05)',
-        border:'1px solid #e8e0d4',flex:1,minWidth:160,
+      <div onClick={onClick} style={{background:'#fff',borderRadius:14,padding:'20px 24px',
+        boxShadow:'0 10px 30px -12px rgba(20,17,13,0.18)',
+        border:`1px solid ${LINE}`,flex:1,minWidth:160,
         cursor:onClick?'pointer':'default',transition:'all 0.2s cubic-bezier(0.4,0,0.2,1)',
         position:'relative',overflow:'hidden'}}
-        onMouseEnter={e=>{if(onClick){e.currentTarget.style.boxShadow='0 10px 26px rgba(0,0,0,0.10)';e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.borderColor='#d9c9a6';}}}
-        onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 1px 3px rgba(0,0,0,0.05)';e.currentTarget.style.transform='none';e.currentTarget.style.borderColor='#e8e0d4';}}>
-        <div style={{position:'absolute',top:0,right:0,width:44,height:2.5,background:GOLD,borderRadius:'0 16px 0 16px'}}/>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-          <Icon name={icon} size={22} color="#2b2620" stroke={1.6}/>
+        onMouseEnter={e=>{if(onClick){e.currentTarget.style.boxShadow='0 16px 36px -14px rgba(20,17,13,0.26)';e.currentTarget.style.transform='translateY(-2px)';}}}
+        onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 10px 30px -12px rgba(20,17,13,0.18)';e.currentTarget.style.transform='none';}}>
+        <div style={{fontFamily:SERIF,fontSize:42,fontWeight:500,color:INK,lineHeight:1}}>{value}</div>
+        <div style={{fontSize:13,color:'#5a4e44',marginTop:8,fontWeight:500,display:'flex',alignItems:'center',gap:6}}>
+          <Icon name={icon} size={16} color={GOLD2} stroke={1.7}/>{label}
         </div>
-        <div style={{fontSize:38,fontWeight:600,color:'#1a1510',lineHeight:1,letterSpacing:'-0.02em'}}>{value}</div>
-        <div style={{fontSize:13,color:'#5a4e44',marginTop:8,fontWeight:500}}>{label}</div>
-        {sub&&<div style={{fontSize:11,color:'#9a8e84',marginTop:4,fontWeight:400}}>{sub}</div>}
+        {sub&&<div style={{fontSize:11.5,color:sub.includes('באיחור')?'#b4532a':'#8f8272',marginTop:3,fontWeight:400}}>{sub}</div>}
       </div>
     );
   }
@@ -3717,10 +3737,13 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
     );
   }
 
-  const sec={background:'#fff',borderRadius:16,padding:'22px 24px',marginBottom:16,boxShadow:'0 2px 10px rgba(0,0,0,0.06)',border:'1px solid #e8e0d4'};
+  const sec={background:'#fff',borderRadius:14,padding:'22px 24px',marginBottom:16,border:`1px solid ${LINE}`};
+  // כותרת חלון (משימות / יומן / ביקורים) — לבנה, כותרת בסריף ואייקון זהב
+  const panelHead={padding:'14px 18px',borderBottom:`1px solid ${LINE2}`,display:'flex',alignItems:'center',gap:9,background:'#fff',flexShrink:0};
+  const panelTitle={fontFamily:SERIF,fontSize:17,fontWeight:500,color:INK};
   const secTitle=(icon,t,count)=>(
-    <div style={{fontSize:14,fontWeight:600,color:'#3a2a00',marginBottom:16,display:'flex',alignItems:'center',gap:8,letterSpacing:'0.01em'}}>
-      <Icon name={EMOJI_ICON[icon]||icon} size={16} color="#2b2620"/>{t}
+    <div style={{fontFamily:SERIF,fontSize:18,fontWeight:500,color:INK,marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
+      <Icon name={EMOJI_ICON[icon]||icon} size={16} color={GOLD2}/>{t}
       {count!==undefined&&<span style={{background:`${GOLD}1a`,color:GOLD3,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:500,border:`1px solid ${GOLD}33`}}>{count}</span>}
     </div>
   );
@@ -3776,31 +3799,37 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
 
   return(
     <div style={{padding:isMobile?'16px 14px':'28px 32px',animation:'fadeIn 0.3s ease'}}>
-      {/* שורת ברכה + מחוברים */}
-      <div style={{marginBottom:26,display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
-        <div>
-          <h2 style={{fontSize:27,fontWeight:500,color:'#1a1510',letterSpacing:'-0.02em'}}>{greet}{userName?`, ${userName}`:''}</h2>
-          <div style={{fontSize:13,color:'#9a8e84',marginTop:4,fontWeight:400}}>
-            {new Date().toLocaleDateString('he-IL',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}
-          </div>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-          <a href="https://myos.co.il/tasks/" target="_blank" rel="noopener noreferrer"
-            style={{background:MYOS_TEAL,color:'#fff',border:'none',borderRadius:10,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',textDecoration:'none',display:'flex',alignItems:'center',gap:6}}
-            title="בקשות ושדרוגים לאתר — ב-MyOS">
-            <Icon name="external" size={14}/>בקשות לאתר</a>
-          {(onlineUsers||[]).length>0&&(
-            <div style={{display:'flex',alignItems:'center',gap:8,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:20,padding:'8px 16px',flexWrap:'wrap'}}>
-              <span style={{fontSize:12,color:'#15803d',fontWeight:600,display:'flex',alignItems:'center',gap:6}}><span style={{width:7,height:7,borderRadius:'50%',background:'#22c55e',boxShadow:'0 0 0 3px rgba(34,197,94,0.18)'}}/>מחובר עכשיו:</span>
-              {onlineUsers.map(u=>(
-                <span key={u} style={{fontSize:12,color:'#166534',background:'#dcfce7',borderRadius:12,padding:'2px 10px',fontWeight:500}}>{u}</span>
-              ))}
+      {/* רצועת פתיחה שחורה עם מפת גוש־חלקה: ברכה + בקשות לאתר + מחוברים */}
+      <div style={{position:'relative',overflow:'hidden',background:INK,
+        margin:isMobile?'-16px -14px 0':'-28px -32px 0',padding:isMobile?'24px 18px 66px':'34px 40px 76px'}}>
+        <ParcelMap/>
+        <div style={{position:'relative',display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:14}}>
+          <div>
+            <h2 style={{fontFamily:SERIF,fontSize:isMobile?27:34,fontWeight:500,color:GOLD_PALE,letterSpacing:'-0.01em',lineHeight:1.2}}>{greet}{userName?`, ${userName}`:''}</h2>
+            <div style={{fontSize:13,color:'#b9a77f',marginTop:6,fontWeight:400}}>
+              {new Date().toLocaleDateString('he-IL',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}
             </div>
-          )}
+            <div style={{width:56,height:1,background:GOLD2,marginTop:14}}/>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+            <a href="https://myos.co.il/tasks/" target="_blank" rel="noopener noreferrer"
+              style={{background:MYOS_TEAL,color:'#fff',border:'none',borderRadius:10,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',textDecoration:'none',display:'flex',alignItems:'center',gap:6}}
+              title="בקשות ושדרוגים לאתר — ב-MyOS">
+              <Icon name="external" size={14}/>בקשות לאתר</a>
+            {(onlineUsers||[]).length>0&&(
+              <div style={{display:'flex',alignItems:'center',gap:8,border:`1px solid ${GOLD2}59`,borderRadius:20,padding:'7px 14px',flexWrap:'wrap',fontSize:12,color:'#d9c79c'}}>
+                <span style={{width:7,height:7,borderRadius:'50%',background:'#4ade80',boxShadow:'0 0 0 3px rgba(74,222,128,0.18)'}}/>מחובר עכשיו:
+                {onlineUsers.map((u,i)=>(
+                  <span key={u} style={{color:GOLD_PALE,fontWeight:500}}>{i>0?'· ':''}{u}</span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      <div style={{display:'flex',gap:14,marginBottom:20,flexWrap:'wrap'}}>
+      {/* כרטיסי מדדים "צפים" על קו הרצועה */}
+      <div style={{position:'relative',display:'flex',gap:16,marginTop:-46,marginBottom:22,flexWrap:'wrap',padding:isMobile?0:'0 8px'}}>
         <KpiCard icon="folder" label="פרויקטים פעילים" value={activeProjs.length}
           sub={overdueProjs.length>0?`${overdueProjs.length} באיחור`:'הכל בזמן'} onClick={()=>onSetView('projects')}/>
         <KpiCard icon="hourglass" label="ממתין ללקוח" value={clientProjs.length} onClick={()=>onSetView('clients')}/>
@@ -3831,9 +3860,9 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
             });
           return(
             <div style={{...sec,padding:0,overflow:'hidden',height:isMobile?360:480,display:'flex',flexDirection:'column'}}>
-              <div style={{padding:'14px 20px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:10,background:'#fdfaf5',flexShrink:0}}>
-                <Icon name="inbox" size={17} color={GOLD3}/>
-                <span style={{fontSize:13,fontWeight:600,color:'#3a2a00'}}>המשימות שלי — {userName}</span>
+              <div style={panelHead}>
+                <Icon name="inbox" size={17} color={GOLD2}/>
+                <span style={panelTitle}>המשימות שלי</span>
                 <span style={{marginRight:'auto',fontSize:11,color:'#9a8e84'}}>{myTasks.length} משימות</span>
               </div>
               {myTasks.length===0?(
@@ -3888,9 +3917,9 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
           return(
             <div style={{...sec,padding:0,overflow:'hidden',height:isMobile?360:480,display:'flex',flexDirection:'column'}}>
               {/* כותרת + ניווט */}
-              <div style={{padding:'10px 16px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:8,background:'#fdfaf5',flexShrink:0}}>
-                <Icon name="calendar" size={16} color={GOLD3}/>
-                <span style={{fontSize:13,fontWeight:600,color:'#3a2a00'}}>יומן</span>
+              <div style={{...panelHead,padding:'11px 18px'}}>
+                <Icon name="calendar" size={17} color={GOLD2}/>
+                <span style={panelTitle}>יומן</span>
                 <span style={{fontSize:12,color:'#9a8e84',flex:1}}>{weekLabel}</span>
                 <button onClick={()=>setCalWeekOffset(o=>o-1)}
                   style={{width:26,height:26,borderRadius:7,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',color:'#6b5e50'}}>‹</button>
@@ -3937,12 +3966,12 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
                       }}>
                         <div style={{fontSize:9,fontWeight:600,color:isToday?GOLD3:'#9a8e84',letterSpacing:'0.02em'}}>{DAY_NAMES[di]}</div>
                         <div style={{
-                          width:20,height:20,borderRadius:'50%',
-                          background:isToday?GOLD:'transparent',
+                          width:24,height:24,borderRadius:'50%',
+                          background:isToday?INK:'transparent',
                           display:'flex',alignItems:'center',justifyContent:'center',
                           margin:'2px auto 0',
                         }}>
-                          <span style={{fontSize:11,fontWeight:isToday?700:400,color:isToday?'#fff':isPast?'#b8a898':'#2d2520'}}>{day.getDate()}</span>
+                          <span style={{fontFamily:SERIF,fontSize:isToday?13:15,fontWeight:500,color:isToday?GOLD_PALE:isPast?'#b8a898':INK}}>{day.getDate()}</span>
                         </div>
                       </div>
                       {/* ביקורי היום */}
@@ -3989,9 +4018,9 @@ function DashboardView({projects,managed,user,onSetView,onOpenProject,messages,o
           let lastKey='';
           return(
             <div style={{...sec,padding:0,overflow:'hidden',height:isMobile?360:480,display:'flex',flexDirection:'column'}}>
-              <div style={{padding:'14px 20px',borderBottom:'1px solid #ede8e0',display:'flex',alignItems:'center',gap:10,background:'#fdfaf5',flexShrink:0}}>
-                <Icon name="calendar" size={17} color={GOLD3}/>
-                <span style={{fontSize:13,fontWeight:600,color:'#3a2a00'}}>{myCalId?'הביקורים שלי':'ביקורים קרובים'}</span>
+              <div style={panelHead}>
+                <Icon name="building" size={17} color={GOLD2}/>
+                <span style={panelTitle}>{myCalId?'הביקורים שלי':'ביקורים קרובים'}</span>
                 <span style={{marginRight:'auto',fontSize:11,color:'#9a8e84'}}>{myVisits?`${list.length} ב-30 יום`:''}</span>
               </div>
               {myVisitsErr?(
