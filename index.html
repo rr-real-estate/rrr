@@ -79,7 +79,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v103'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v104'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -671,11 +671,11 @@ function WinFolderIcon({size=18}){
 function PdfStackIcon({size=18}){
   return(
     <svg width={size} height={size} viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style={{display:'block',flexShrink:0}} aria-hidden="true">
-      <path d="M17 4h15l9 9v24a3 3 0 0 1-3 3H17a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z" fill="#f3d3d0" stroke="#c9463d" strokeWidth="1.6"/>
-      <path d="M11 9h15l9 9v24a3 3 0 0 1-3 3H11a3 3 0 0 1-3-3V12a3 3 0 0 1 3-3z" fill="#fff" stroke="#c9463d" strokeWidth="1.8"/>
-      <path d="M26 9v6a3 3 0 0 0 3 3h6" fill="none" stroke="#c9463d" strokeWidth="1.8"/>
-      <rect x="5" y="25" width="22" height="11" rx="2" fill="#d93025"/>
-      <text x="16" y="33.6" textAnchor="middle" fontFamily="Arial,sans-serif" fontSize="8.4" fontWeight="700" fill="#fff">PDF</text>
+      <path d="M17 4h15l9 9v24a3 3 0 0 1-3 3H17a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z" fill={GOLD_PALE} stroke={INK} strokeWidth="1.6"/>
+      <path d="M11 9h15l9 9v24a3 3 0 0 1-3 3H11a3 3 0 0 1-3-3V12a3 3 0 0 1 3-3z" fill="#fff" stroke={INK} strokeWidth="1.8"/>
+      <path d="M26 9v6a3 3 0 0 0 3 3h6" fill="none" stroke={INK} strokeWidth="1.8"/>
+      <rect x="5" y="25" width="22" height="11" rx="2" fill={INK}/>
+      <text x="16" y="33.6" textAnchor="middle" fontFamily="Arial,sans-serif" fontSize="8.4" fontWeight="700" fill="#e9cf7a">PDF</text>
     </svg>
   );
 }
@@ -2074,20 +2074,18 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.1)';e.currentTarget.style.color='rgba(255,255,255,0.7)';}}>×</button>
             </div>
           </div>
-          {/* Tabs — לשוניות "תיק" לסירוגין שחור / זהב; הלשונית הפעילה בצבע הגוף ומתחברת לתוכן שמתחתיה */}
+          {/* Tabs — לשוניות "תיק": גוון כהה אחיד עם מסגרת זהב דקה; הלשונית הפעילה בצבע הגוף ומתחברת לתוכן שמתחתיה */}
           <div style={{position:'relative',display:'flex',alignItems:'flex-end',marginTop:isMobile?12:18,overflowX:'auto',gap:4}}>
-            {panelTabs.map((t,i)=>{
-              const on=tab===t.id, gold=i%2===1;
-              const bg=on?SAND:gold?GOLD2:'#050403';
-              const fg=on?INK:gold?INK:GOLD_PALE;
+            {panelTabs.map(t=>{
+              const on=tab===t.id;
               return(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:on?'11px 18px 12px':'8px 16px 9px',border:on?'none':`1px solid ${gold?GOLD2:`${GOLD2}59`}`,borderBottom:'none',
-                borderRadius:'10px 10px 0 0',background:bg,color:fg,fontWeight:on?700:500,cursor:'pointer',fontSize:13.5,whiteSpace:'nowrap',
-                transition:'filter 0.15s',display:'flex',alignItems:'center',gap:7,fontFamily:'inherit',flexShrink:0,
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:on?'11px 18px 12px':'8px 16px 9px',border:on?'none':`1px solid ${GOLD2}59`,borderBottom:'none',
+                borderRadius:'10px 10px 0 0',background:on?SAND:'#1d1912',color:on?INK:'#d9c79c',fontWeight:on?700:500,cursor:'pointer',fontSize:13.5,whiteSpace:'nowrap',
+                transition:'background 0.15s, color 0.15s',display:'flex',alignItems:'center',gap:7,fontFamily:'inherit',flexShrink:0,
                 boxShadow:on?'0 -3px 10px rgba(0,0,0,0.25)':'none'}}
-                onMouseEnter={e=>{if(!on)e.currentTarget.style.filter='brightness(1.18)';}}
-                onMouseLeave={e=>{e.currentTarget.style.filter='none';}}
-              >{t.icon&&<Icon name={t.icon} size={16} color={on?GOLD2:fg}/>}{t.label}</button>);
+                onMouseEnter={e=>{if(!on){e.currentTarget.style.background='#2a241a';e.currentTarget.style.color=GOLD_PALE;}}}
+                onMouseLeave={e=>{if(!on){e.currentTarget.style.background='#1d1912';e.currentTarget.style.color='#d9c79c';}}}
+              >{t.icon&&<Icon name={t.icon} size={16} color={on?GOLD2:'currentColor'}/>}{t.label}</button>);
             })}
           </div>
         </div>
