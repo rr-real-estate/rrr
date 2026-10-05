@@ -79,7 +79,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v102'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v103'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -656,6 +656,28 @@ function nowHe(){
 // ═══════════════ ATOMS ═══════════════════════════════════════════
 function Spinner({size=18,color=GOLD}){
   return<div style={{width:size,height:size,border:`2px solid ${color}33`,borderTopColor:color,borderRadius:'50%',animation:'spin 0.7s linear infinite',flexShrink:0}}/>;
+}
+// תיקייה צהובה בסגנון Windows — "פתח תיקייה במחשב"
+function WinFolderIcon({size=18}){
+  return(
+    <svg width={size} height={size} viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style={{display:'block',flexShrink:0}} aria-hidden="true">
+      <path d="M4 10.5A3.5 3.5 0 0 1 7.5 7h11.2a3.5 3.5 0 0 1 2.6 1.15L24.2 11.5H40.5A3.5 3.5 0 0 1 44 15v3H4z" fill="#e8a317"/>
+      <path d="M4 16.5A2.5 2.5 0 0 1 6.5 14h35A2.5 2.5 0 0 1 44 16.5v21A3.5 3.5 0 0 1 40.5 41h-33A3.5 3.5 0 0 1 4 37.5z" fill="#ffc83d"/>
+      <path d="M4 18h40v1.6H4z" fill="#f5b52a" opacity=".55"/>
+    </svg>
+  );
+}
+// ערימת קבצי PDF — "פתח את כל קובצי ה-PDF שבתיקייה"
+function PdfStackIcon({size=18}){
+  return(
+    <svg width={size} height={size} viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style={{display:'block',flexShrink:0}} aria-hidden="true">
+      <path d="M17 4h15l9 9v24a3 3 0 0 1-3 3H17a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z" fill="#f3d3d0" stroke="#c9463d" strokeWidth="1.6"/>
+      <path d="M11 9h15l9 9v24a3 3 0 0 1-3 3H11a3 3 0 0 1-3-3V12a3 3 0 0 1 3-3z" fill="#fff" stroke="#c9463d" strokeWidth="1.8"/>
+      <path d="M26 9v6a3 3 0 0 0 3 3h6" fill="none" stroke="#c9463d" strokeWidth="1.8"/>
+      <rect x="5" y="25" width="22" height="11" rx="2" fill="#d93025"/>
+      <text x="16" y="33.6" textAnchor="middle" fontFamily="Arial,sans-serif" fontSize="8.4" fontWeight="700" fill="#fff">PDF</text>
+    </svg>
+  );
 }
 function DriveIcon({size=16}){
   const h=Math.round(size*78/87.3);
@@ -1553,19 +1575,19 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf}){
         </div>
         {!isGeneral&&<div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
           {_folderPath&&!isMobile&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_folderPath);}}
-            style={{background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontSize:15,lineHeight:1,color:'#7a6a58',borderRadius:6,transition:'background 0.15s'}}
+            style={{background:'none',border:'none',cursor:'pointer',padding:'3px 4px',lineHeight:1,borderRadius:6,transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
-            onMouseLeave={e=>e.currentTarget.style.background='none'}><Icon name="folder" size={16}/></button>}
+            onMouseLeave={e=>e.currentTarget.style.background='none'}><WinFolderIcon size={20}/></button>}
           {showPdf&&_folderPath&&!isMobile&&<button title="פתח את כל קובצי ה-PDF שבתיקייה" onClick={e=>{e.stopPropagation();openPdfs(_folderPath);}}
-            style={{background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontSize:15,lineHeight:1,color:'#7a6a58',borderRadius:6,transition:'background 0.15s'}}
+            style={{background:'none',border:'none',cursor:'pointer',padding:'3px 4px',lineHeight:1,borderRadius:6,transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
-            onMouseLeave={e=>e.currentTarget.style.background='none'}><Icon name="file" size={16}/></button>}
+            onMouseLeave={e=>e.currentTarget.style.background='none'}><PdfStackIcon size={20}/></button>}
           {driveLink&&<a href={driveLink} target="_blank" rel="noopener noreferrer" title="פתח תיקייה בגוגל דרייב"
             onClick={e=>e.stopPropagation()}
             style={{display:'inline-flex',alignItems:'center',justifyContent:'center',background:'none',border:'none',cursor:'pointer',padding:'3px 4px',borderRadius:6,textDecoration:'none',transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='#e8f0fe'}
             onMouseLeave={e=>e.currentTarget.style.background='none'}>
-            <DriveIcon size={16}/>
+            <DriveIcon size={19}/>
           </a>}
           <Badge status={project.status} size="sm"/>
         </div>}
@@ -2027,8 +2049,8 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                   <option value="בוטל">בוטל</option>
                 </select>}
                 {_fp&&!isMobile&&<button onClick={()=>openFolder(_fp)} title={_fp}
-                  style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:13,display:'flex',alignItems:'center',gap:5,fontFamily:'inherit'}}>
-                  <span style={{fontSize:11}}>פתח תיקייה</span>
+                  style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:13,display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'}}>
+                  <WinFolderIcon size={15}/><span style={{fontSize:11}}>פתח תיקייה</span>
                 </button>}
                 {_driveLink&&<a href={_driveLink} target="_blank" rel="noopener noreferrer"
                   style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.8)',display:'flex',alignItems:'center',gap:5,textDecoration:'none',fontSize:13}}>
@@ -2052,14 +2074,21 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.1)';e.currentTarget.style.color='rgba(255,255,255,0.7)';}}>×</button>
             </div>
           </div>
-          {/* Tabs — בתוך הראש השחור, קו זהב דק מתחת ללשונית הפעילה */}
-          <div style={{position:'relative',display:'flex',marginTop:isMobile?10:16,overflowX:'auto',gap:isMobile?14:24}}>
-            {panelTabs.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'10px 2px 12px',border:'none',background:'transparent',borderBottom:`2px solid ${tab===t.id?GOLD2:'transparent'}`,color:tab===t.id?GOLD_PALE:'#a8987a',fontWeight:tab===t.id?600:400,cursor:'pointer',fontSize:13.5,whiteSpace:'nowrap',transition:'all 0.15s',display:'flex',alignItems:'center',gap:7}}
-                onMouseEnter={e=>{if(tab!==t.id)e.currentTarget.style.color='#e6d8b4';}}
-                onMouseLeave={e=>{if(tab!==t.id)e.currentTarget.style.color='#a8987a';}}
-              >{t.icon&&<Icon name={t.icon} size={16}/>}{t.label}</button>
-            ))}
+          {/* Tabs — לשוניות "תיק" לסירוגין שחור / זהב; הלשונית הפעילה בצבע הגוף ומתחברת לתוכן שמתחתיה */}
+          <div style={{position:'relative',display:'flex',alignItems:'flex-end',marginTop:isMobile?12:18,overflowX:'auto',gap:4}}>
+            {panelTabs.map((t,i)=>{
+              const on=tab===t.id, gold=i%2===1;
+              const bg=on?SAND:gold?GOLD2:'#050403';
+              const fg=on?INK:gold?INK:GOLD_PALE;
+              return(
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:on?'11px 18px 12px':'8px 16px 9px',border:on?'none':`1px solid ${gold?GOLD2:`${GOLD2}59`}`,borderBottom:'none',
+                borderRadius:'10px 10px 0 0',background:bg,color:fg,fontWeight:on?700:500,cursor:'pointer',fontSize:13.5,whiteSpace:'nowrap',
+                transition:'filter 0.15s',display:'flex',alignItems:'center',gap:7,fontFamily:'inherit',flexShrink:0,
+                boxShadow:on?'0 -3px 10px rgba(0,0,0,0.25)':'none'}}
+                onMouseEnter={e=>{if(!on)e.currentTarget.style.filter='brightness(1.18)';}}
+                onMouseLeave={e=>{e.currentTarget.style.filter='none';}}
+              >{t.icon&&<Icon name={t.icon} size={16} color={on?GOLD2:fg}/>}{t.label}</button>);
+            })}
           </div>
         </div>
         {err&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 26px',fontSize:13,borderBottom:'1px solid #fca5a5'}}>{err}</div>}
@@ -3787,37 +3816,47 @@ function DashboardView({projects,managed,user,settings,onSetView,onOpenProject,m
   const [calWeekOffset,setCalWeekOffset]=React.useState(0);
   const DAY_NAMES=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
   const [calHidden,setCalHidden]=React.useState(()=>Object.fromEntries((settings?.hiddenCals||[]).map(c=>[c,true])));  // {yossi:true} = מוסתר (התחלה לפי ההגדרות)
-  const [calEvents,setCalEvents]=React.useState({});           // weekKey → [events]
-  const [calState,setCalState]=React.useState('idle');         // idle|loading|error
   const calWeekStart=React.useMemo(()=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-d.getDay()+calWeekOffset*7);return d;},[calWeekOffset]);
   const calWeekKey=localDayKey(calWeekStart);
-  React.useEffect(()=>{
-    if(calEvents[calWeekKey]||!api.token)return;
-    let alive=true;
-    const end=new Date(calWeekStart);end.setDate(end.getDate()+6);
-    setCalState('loading');
-    fetchVisitEvents(calWeekStart,end)
-      .then(evs=>{if(!alive)return;setCalEvents(m=>({...m,[calWeekKey]:evs}));setCalState('idle');})
-      .catch(e=>{if(alive){console.warn('יומן ביקורים:',e.message);setCalState('error');}});
-    return()=>{alive=false;};
-  },[calWeekKey]);
-  // ── "הביקורים שלי" — ביקורים קרובים (30 יום) מהיומן של המשתמש; פייגי רואה את כל היומנים ──
-  const myCalId={'יוסי':'yossi','מיכאל':'michael'}[userName]||null;
-  const [myVisits,setMyVisits]=React.useState(null);           // null = טוען
-  const [myVisitsErr,setMyVisitsErr]=React.useState(false);
+  const calWeekEndKey=React.useMemo(()=>{const e=new Date(calWeekStart);e.setDate(e.getDate()+6);return localDayKey(e);},[calWeekStart]);
+  // ── טעינה אחת לשני החלונות: מתחילת השבוע הנוכחי ועד 30 יום קדימה ──
+  // מוצג מיד מהעותק השמור במכשיר (הפעם הקודמת), ומתעדכן ברקע — כך היומן לא "מחכה".
+  const baseRange=React.useMemo(()=>{const f=new Date();f.setHours(0,0,0,0);f.setDate(f.getDate()-f.getDay());const t=new Date();t.setHours(0,0,0,0);t.setDate(t.getDate()+30);return{from:f,to:t,fromKey:localDayKey(f),toKey:localDayKey(t)};},[]);
+  const [base,setBase]=React.useState(()=>{try{const c=JSON.parse(localStorage.getItem('rrVisitCache')||'null');if(c&&c.fromKey===baseRange.fromKey&&c.toKey===baseRange.toKey)return c.events;}catch(_){}return null;});
+  const [baseErr,setBaseErr]=React.useState(false);
   React.useEffect(()=>{
     if(!api.token)return;
     let alive=true;
-    const from=new Date();from.setHours(0,0,0,0);
-    const to=new Date(from);to.setDate(to.getDate()+30);
-    fetchVisitEvents(from,to)
-      .then(evs=>{if(alive)setMyVisits(evs);})
-      .catch(e=>{if(alive){console.warn('הביקורים שלי:',e.message);setMyVisitsErr(true);}});
+    fetchVisitEvents(baseRange.from,baseRange.to)
+      .then(evs=>{if(!alive)return;setBase(evs);setBaseErr(false);
+        try{localStorage.setItem('rrVisitCache',JSON.stringify({fromKey:baseRange.fromKey,toKey:baseRange.toKey,events:evs}));}catch(_){}})
+      .catch(e=>{if(alive){console.warn('יומן ביקורים:',e.message);setBaseErr(true);}});
     return()=>{alive=false;};
   },[]);
+  const evDayKey=ev=>ev.allDay?ev.start:localDayKey(new Date(ev.start));
+  // שבועות מחוץ לטווח הבסיס (ניווט קדימה/אחורה) — נטענים בנפרד
+  const inBase=calWeekKey>=baseRange.fromKey&&calWeekEndKey<=baseRange.toKey;
+  const [calEvents,setCalEvents]=React.useState({});           // weekKey → [events] (רק לשבועות מחוץ לבסיס)
+  const [calErr,setCalErr]=React.useState(false);
+  React.useEffect(()=>{
+    if(inBase||calEvents[calWeekKey]||!api.token)return;
+    let alive=true;setCalErr(false);
+    const end=new Date(calWeekStart);end.setDate(end.getDate()+6);
+    fetchVisitEvents(calWeekStart,end)
+      .then(evs=>{if(alive)setCalEvents(m=>({...m,[calWeekKey]:evs}));})
+      .catch(e=>{if(alive){console.warn('יומן ביקורים:',e.message);setCalErr(true);}});
+    return()=>{alive=false;};
+  },[calWeekKey,inBase]);
+  const weekEvents=React.useMemo(()=>inBase?(base?base.filter(ev=>{const k=evDayKey(ev);return k>=calWeekKey&&k<=calWeekEndKey;}):null):(calEvents[calWeekKey]||null),[inBase,base,calEvents,calWeekKey,calWeekEndKey]);
+  const calState=weekEvents?'idle':(inBase?baseErr:calErr)?'error':'loading';
+  // ── "הביקורים שלי" — ביקורים קרובים (30 יום) מהיומן של המשתמש; פייגי רואה את כל היומנים ──
+  const myCalId={'יוסי':'yossi','מיכאל':'michael'}[userName]||null;
+  const todayKeyCal=localDayKey(new Date());
+  const myVisits=base?base.filter(ev=>evDayKey(ev)>=todayKeyCal):null;   // null = טוען
+  const myVisitsErr=baseErr&&!base;
   const eventsByDay=React.useMemo(()=>{
     const map={};
-    (calEvents[calWeekKey]||[]).forEach(ev=>{
+    (weekEvents||[]).forEach(ev=>{
       if(calHidden[ev.cal])return;
       const d=ev.allDay?null:new Date(ev.start);
       const key=ev.allDay?ev.start:localDayKey(d);
@@ -3825,7 +3864,7 @@ function DashboardView({projects,managed,user,settings,onSetView,onOpenProject,m
     });
     Object.values(map).forEach(a=>a.sort((x,y)=>(x.allDay?'':x.start).localeCompare(y.allDay?'':y.start)));
     return map;
-  },[calEvents,calWeekKey,calHidden]);
+  },[weekEvents,calHidden]);
   const openEventCase=ev=>{
     if(!ev.caseNum||!onOpenProject)return;
     const p=projects.find(x=>String(x.name||'').includes(ev.caseNum));
@@ -6049,7 +6088,7 @@ function App(){
     return <OfflineVisitScreen isMobile={isMobile} online={netOnline} onWantLogin={()=>setOfflineMode(false)}/>;
   }
   if(!token){return <LoginScreen onLogin={handleLogin} autoLogging={autoLogging}/>;}
-  const onLogout=()=>{_stopTokenRefresh();api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);localStorage.removeItem('rrUserHint');};
+  const onLogout=()=>{_stopTokenRefresh();api.token=null;setToken(null);setUser(null);setProjects([]);setManaged([]);localStorage.removeItem('rrUserHint');localStorage.removeItem('rrVisitCache');};
   return(
     <div style={{display:'flex',height:'100vh',overflow:'hidden',background:'transparent',fontFamily:'Heebo,sans-serif',direction:'rtl'}}>
       <Sidebar view={view} setView={setView} user={user} loading={loading} counts={counts}
