@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v110'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v111'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -526,6 +526,7 @@ const DATE_RE=/^\d{1,2}\/\d{1,2}\/\d{4}$/;
 
 // ═══════════════ TOKEN REFRESH ════════════════════════════════════
 let _tokenClient=null;
+let _grantedScopes='';   // ההרשאות שהוענקו בפועל לטוקן האחרון (r.scope) — לבדיקה לפני פעולות שדורשות הרשאה נוספת
 let _tokenRefreshTimer=null;
 let _goToManaged=null;  // פונקציה גלובלית לניווט לכלל התיקים עם חיפוש
 let _goToProject=null;  // פונקציה גלובלית לניווט לפרויקט לפי מספר תיק
@@ -534,7 +535,7 @@ function _startTokenRefresh(onNewToken){
   _tokenRefreshTimer=setInterval(()=>{
     if(!_tokenClient)return;
     // prompt:'' = silent refresh, no popup if Google session still active
-    _tokenClient.callback=(r)=>{if(r.access_token)onNewToken(r.access_token);};
+    _tokenClient.callback=(r)=>{if(r.access_token){_grantedScopes=r.scope||_grantedScopes;onNewToken(r.access_token);}};
     _tokenClient.requestAccessToken({prompt:''});
   },45*60*1000); // כל 45 דקות
 }
@@ -1088,6 +1089,38 @@ button{margin-top:18px;padding:9px 22px;border-radius:10px;border:none;backgroun
     },
   };
 }
+// ── הרשאות שהכפתור "טיוטה לבנק" צריך מעבר לכניסה הרגילה ──
+const DRAFT_SCOPES=['https://www.googleapis.com/auth/drive.readonly','https://www.googleapis.com/auth/gmail.compose'];
+let _forceDraftConsent=false;   // Drive/Gmail סירבו בגלל הרשאה — בלחיצה הבאה מבקשים אישור מחדש
+function missingDraftScopes(){
+  if(_forceDraftConsent)return DRAFT_SCOPES;
+  if(!_grantedScopes)return [];                 // לא ידוע (טוקן מגרסה קודמת) — מנסים, ואם יסרבו נבקש
+  const g=_grantedScopes.split(' ');
+  return DRAFT_SCOPES.filter(s=>!g.includes(s));
+}
+// פותח את חלון האישור של Google (חייב לקרות ישירות מתוך לחיצה) — בלי להתנתק מהאתר
+function requestDraftScopes(onDone){
+  try{
+    const tc=google.accounts.oauth2.initTokenClient({client_id:CONFIG.CLIENT_ID,scope:CONFIG.SCOPES,include_granted_scopes:true,
+      callback:r=>{if(r.access_token){api.token=r.access_token;_grantedScopes=r.scope||'';_forceDraftConsent=false;}onDone(r);},
+      error_callback:e=>onDone({error:(e&&e.type)||'closed'})});
+    tc.requestAccessToken({prompt:'consent'});
+  }catch(e){onDone({error:e.message});}
+}
+// פענוח שגיאת Google API לשגיאה ברורה בעברית
+async function googleApiError(resp,service){
+  let reason='',msg='';
+  try{const j=await resp.json();reason=(j.error&&j.error.errors&&j.error.errors[0]&&j.error.errors[0].reason)||(j.error&&j.error.status)||'';msg=(j.error&&j.error.message)||'';}catch(_){}
+  const all=reason+' '+msg;
+  if(/accessNotConfigured|SERVICE_DISABLED|has not been used|is disabled/i.test(all))
+    return new Error(`שירות ${service} API לא מופעל בפרויקט של האתר ב-Google Cloud. צריך להפעיל אותו פעם אחת: console.cloud.google.com ← APIs & Services ← Library ← ${service} API ← Enable (פרויקט 160604598987).`);
+  if(resp.status===401||/insufficient|scope|PERMISSION_DENIED/i.test(all)){
+    _forceDraftConsent=true;
+    return new Error(`חסרה הרשאה ל-${service}. לחצו שוב על "טיוטה לבנק" — ייפתח חלון אישור של Google; סמנו בו את כל התיבות.`);
+  }
+  if(resp.status===404)return new Error(`הקובץ לא נגיש בחשבון שלך ב-${service} (404) — ודאו שיש לך גישה לכונן המשותף.`);
+  return new Error(`${service} החזיר שגיאה ${resp.status}${msg?': '+msg:''}`);
+}
 // ייצוא השומה ל-PDF דרך Word במחשב (פרוטוקול exportpdf:// — מותקן בקובץ ההגדרה, הגדרות ← המחשב הזה)
 function startWordPdfExport(winFolderPath,caseNum){
   window.location.href='exportpdf:///'+encodeURIComponent(winFolderPath+'|'+caseNum);
@@ -1120,8 +1153,7 @@ async function createBankDraft({caseNum,fullName,cas,userEmail,since,onStatus}){
   if(onStatus)onStatus('drive','מוריד את ה-PDF מ-Drive…');
   const fr=await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(d.pdfId)}?alt=media&supportsAllDrives=true`,
     {headers:{Authorization:`Bearer ${api.token}`}});
-  if(fr.status===401||fr.status===403)throw new Error('צריך לאשר הרשאה חדשה (קריאה מ-Drive) — התנתקו והתחברו מחדש לאתר');
-  if(!fr.ok)throw new Error('הורדת ה-PDF מ-Drive נכשלה ('+fr.status+')');
+  if(!fr.ok)throw await googleApiError(fr,'Google Drive');
   const buf=new Uint8Array(await fr.arrayBuffer());
   let bin='';for(let i=0;i<buf.length;i+=0x8000)bin+=String.fromCharCode.apply(null,buf.subarray(i,i+0x8000));
   d.pdfBase64=btoa(bin);
@@ -1148,8 +1180,7 @@ async function createBankDraft({caseNum,fullName,cas,userEmail,since,onStatus}){
   const raw=btoa(lines).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   const gr=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts',{method:'POST',
     headers:{Authorization:`Bearer ${api.token}`,'Content-Type':'application/json'},body:JSON.stringify({message:{raw}})});
-  if(gr.status===401||gr.status===403)throw new Error('צריך לאשר הרשאה חדשה (יצירת טיוטות) — התנתקו והתחברו מחדש לאתר');
-  if(!gr.ok)throw new Error('יצירת הטיוטה ב-Gmail נכשלה ('+gr.status+')');
+  if(!gr.ok)throw await googleApiError(gr,'Gmail');
   const draft=await gr.json();
   const url=`https://mail.google.com/mail/?authuser=${encodeURIComponent(userEmail||'')}#drafts?compose=${draft.message.id}`;
   return {url,fileName:d.fileName,bankEmail:d.bankEmail,bank:d.bank};
@@ -1909,6 +1940,17 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const handleBankDraft=async()=>{
     if(!caseNum)return;
     if(!_fp){setBankDraft({err:true,text:'לא הוגדר נתיב בסיס לתיקיות — הגדרות ← המחשב הזה'});return;}
+    // חסרה הרשאת Drive / Gmail? מבקשים אותה עכשיו (מתוך הלחיצה) — בלי להתנתק מהאתר
+    if(missingDraftScopes().length){
+      setBankDraft({busy:true,text:'מאשר הרשאות…'});
+      requestDraftScopes(r=>{
+        const still=missingDraftScopes();
+        setBankDraft(r.error||still.length
+          ?{err:true,text:'ההרשאה לא אושרה. בחלון של Google צריך לסמן את התיבות של Google Drive ושל Gmail.'}
+          :{ok:true,text:'✓ ההרשאות אושרו — לחצו שוב על "טיוטה לבנק"'});
+      });
+      return;
+    }
     const since=Date.now();
     const fullName=String(matchedCase?.folder||project.name||'').trim();
     const popup=window.open('about:blank','_blank');   // נפתח מיד (בתוך הלחיצה) כדי שהדפדפן לא יחסום את החלון
@@ -3895,7 +3937,7 @@ function LoginScreen({onLogin,autoLogging}){
     try{
       _tokenClient=google.accounts.oauth2.initTokenClient({
         client_id:CONFIG.CLIENT_ID,scope:CONFIG.SCOPES,
-        callback:(r)=>{setBusy(false);if(r.access_token)onLogin(r.access_token);},
+        callback:(r)=>{setBusy(false);if(r.access_token){_grantedScopes=r.scope||'';onLogin(r.access_token);}},
         error_callback:()=>setBusy(false),
       });
       _tokenClient.requestAccessToken();
@@ -6254,7 +6296,7 @@ function App(){
       try{
         const tc=google.accounts.oauth2.initTokenClient({
           client_id:CONFIG.CLIENT_ID,scope:CONFIG.SCOPES,hint,
-          callback:(r)=>{if(r.access_token&&handleLoginRef.current)handleLoginRef.current(r.access_token);finish();},
+          callback:(r)=>{if(r.access_token){_grantedScopes=r.scope||'';if(handleLoginRef.current)handleLoginRef.current(r.access_token);}finish();},
           error_callback:finish,
         });
         if(!_tokenClient)_tokenClient=tc;
