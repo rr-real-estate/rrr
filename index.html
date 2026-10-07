@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v107'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v109'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -306,6 +306,8 @@ function openPdfs(winPath){
   if(!winPath)return;
   window.location.href='openpdfs:///'+encodeURI(winPath.replace(/\\/g,'/'));
 }
+// סקריפט ייצוא PDF דרך Word (UTF-8 עם BOM, base64). המקור הקריא: 06_desktop_tools/exportpdf.ps1 — לעדכן כאן אחרי כל שינוי שם.
+const EXPORTPDF_PS1_B64='77u/IyDXmdeZ16bXldeQINep15XXnteUINecLVBERiDXk9eo15ogV29yZCDXotem157XlSDigJQg15bXlNeUINec15nXmdem15XXkCDXmdeT16DXmSAo16nXnteZ16jXlCDXkdep150g4oaQIFBERikKIyDXnteV16TXotecINee15TXkNeq16gg15PXqNeaIGV4cG9ydHBkZjovLy8816DXqteZ15Eg16rXmden15nXmdeqINeU16rXmdenPnw8157Xodek16gg16rXmdenPiAgKNeU15vXqteV15HXqiDXnteS15nXoteUINeR157Xqdeq16DXlCBFWFBPUlRQREZfVVJMKQokRXJyb3JBY3Rpb25QcmVmZXJlbmNlID0gJ1N0b3AnCiRzaGVsbCA9IE5ldy1PYmplY3QgLUNvbU9iamVjdCBXU2NyaXB0LlNoZWxsCmZ1bmN0aW9uIFNheShbc3RyaW5nXSRtc2csIFtpbnRdJGljb24pIHsgW3ZvaWRdJHNoZWxsLlBvcHVwKCRtc2csIDEwLCAn16jXldeR15nXoNep15jXmdeZ158g16jXldeW16DXmNecIOKAlCDXmdeZ16bXldeQIFBERicsICRpY29uKSB9Cgokd29yZCA9ICRudWxsOyAkZG9jID0gJG51bGw7ICRvd25Xb3JkID0gJGZhbHNlOyAkb3duRG9jID0gJGZhbHNlOyAkcHJldlNlYyA9ICRudWxsCnRyeSB7CiAgJHJhdyA9IFtVcmldOjpVbmVzY2FwZURhdGFTdHJpbmcoW3N0cmluZ10kZW52OkVYUE9SVFBERl9VUkwpIC1yZXBsYWNlICdeZXhwb3J0cGRmOi8qJywgJycKICAkcGFydHMgPSAkcmF3LlNwbGl0KCd8JykKICAkZGlyID0gJHBhcnRzWzBdLlJlcGxhY2UoJy8nLCAnXCcpOyAkdGlrID0gKCRwYXJ0c1sxXSArICcnKS5UcmltKCkKICBpZiAoJHRpayAtbm90bWF0Y2ggJ141XGR7NH0kJykgeyB0aHJvdyAi157Xodek16gg16rXmdenINec15Ag16rXp9eZ1586ICR0aWsiIH0KICBpZiAoLW5vdCAoVGVzdC1QYXRoIC1MaXRlcmFsUGF0aCAkZGlyIC1QYXRoVHlwZSBDb250YWluZXIpKSB7IHRocm93ICLXqteZ16fXmdeZ16og15TXqteZ16cg15zXkCDXoNee16bXkNeUINeR157Xl9ep15E6YG4kZGlyIiB9CgogICMg16fXldeR16Ug15QtV29yZCDXlNei15PXm9eg15kg15HXmdeV16rXqCDXqdep157XlSDXnteq15fXmdecINeR157Xodek16gg15TXqteZ16cgKNeU16rXmden15nXmdeUICsg16jXnteUINeQ15fXqiDXnteq15fXqikKICAkc3JjID0gR2V0LUNoaWxkSXRlbSAtTGl0ZXJhbFBhdGggJGRpciAtUmVjdXJzZSAtRGVwdGggMSAtRmlsZSAtRmlsdGVyICIkdGlrKi5kb2N4IiAtRXJyb3JBY3Rpb24gU2lsZW50bHlDb250aW51ZSB8CiAgICAgICAgIFdoZXJlLU9iamVjdCB7ICRfLk5hbWUgLW5vdGxpa2UgJ34kKicgfSB8IFNvcnQtT2JqZWN0IExhc3RXcml0ZVRpbWUgLURlc2NlbmRpbmcgfCBTZWxlY3QtT2JqZWN0IC1GaXJzdCAxCiAgaWYgKC1ub3QgJHNyYykgeyB0aHJvdyAi15zXkCDXoNee16bXkCDXp9eV15HXpSBXb3JkINep15wg15TXqdeV157XlCAo16nXnSDXqdee16rXl9eZ15wg15EtJHRpaykg15HXqteZ16fXmdeZ15Q6YG4kZGlyIiB9CiAgJHBkZiA9IFtJTy5QYXRoXTo6Q2hhbmdlRXh0ZW5zaW9uKCRzcmMuRnVsbE5hbWUsICcucGRmJykKCiAgIyBXb3JkINek16rXldeXINeb15HXqD8g157Xqdeq157XqdeZ150g15HXlSDXldec15Ag16HXldeS16jXmdedINeQ15XXqteVLiDXkNeX16jXqiDigJQg16TXldeq15fXmdedINee15XXpNeiINeg16HXqteoINeV16HXldeS16jXmdedINeR16HXldejLgogIHRyeSB7ICR3b3JkID0gW1J1bnRpbWUuSW50ZXJvcFNlcnZpY2VzLk1hcnNoYWxdOjpHZXRBY3RpdmVPYmplY3QoJ1dvcmQuQXBwbGljYXRpb24nKSB9IGNhdGNoIHsgJHdvcmQgPSAkbnVsbCB9CiAgaWYgKC1ub3QgJHdvcmQpIHsgJHdvcmQgPSBOZXctT2JqZWN0IC1Db21PYmplY3QgV29yZC5BcHBsaWNhdGlvbjsgJHdvcmQuVmlzaWJsZSA9ICRmYWxzZTsgJG93bldvcmQgPSAkdHJ1ZSB9CiAgJHdvcmQuRGlzcGxheUFsZXJ0cyA9IDAKICAkcHJldlNlYyA9ICR3b3JkLkF1dG9tYXRpb25TZWN1cml0eQogICR3b3JkLkF1dG9tYXRpb25TZWN1cml0eSA9IDMgICAgICAgICAgIyBtc29BdXRvbWF0aW9uU2VjdXJpdHlGb3JjZURpc2FibGUg4oCUINee15DXp9eo15Ug15fXodeV150KCiAgIyDXlNee16HXnteaINeb15HXqCDXpNeq15XXlyDXkNem15wg15TXntep16rXntepPyDXnteZ15nXpteQ15nXnSDXntee16DXlSAo15vXnteVINeZ15nXpteV15Ag15nXk9eg15kpINeV15zXkCDXodeV15LXqNeZ150g4oCUINeQ15nXnyDXkNeZ15HXldeTINei16jXmdeb15XXqgogIGZvcmVhY2ggKCRkIGluICR3b3JkLkRvY3VtZW50cykgeyBpZiAoJGQuRnVsbE5hbWUgLWllcSAkc3JjLkZ1bGxOYW1lKSB7ICRkb2MgPSAkZDsgYnJlYWsgfSB9CiAgaWYgKC1ub3QgJGRvYykgeyAkZG9jID0gJHdvcmQuRG9jdW1lbnRzLk9wZW4oJHNyYy5GdWxsTmFtZSwgJGZhbHNlLCAkdHJ1ZSwgJGZhbHNlKTsgJG93bkRvYyA9ICR0cnVlIH0KCiAgIyDXqNei16DXldefINep15PXldeqINeq15DXqNeZ15ogKERBVEUgLyBUSU1FKSDXkdeb15wg15fXnNen15kg15TXnteh157XmiDigJQg15vXnteVINepLVdvcmQg16LXldep15Qg15HXpNeq15nXl9eUINeV15HXmdeZ16bXldeQINeZ15PXoNeZCiAgZm9yZWFjaCAoJHN0b3J5IGluICRkb2MuU3RvcnlSYW5nZXMpIHsKICAgICRyID0gJHN0b3J5CiAgICB3aGlsZSAoJHIgLW5lICRudWxsKSB7CiAgICAgIGZvcmVhY2ggKCRmIGluICRyLkZpZWxkcykgeyBpZiAoJGYuVHlwZSAtZXEgMzEgLW9yICRmLlR5cGUgLWVxIDMyKSB7IFt2b2lkXSRmLlVwZGF0ZSgpIH0gfQogICAgICAkciA9ICRyLk5leHRTdG9yeVJhbmdlCiAgICB9CiAgfQoKICAkZG9jLkV4cG9ydEFzRml4ZWRGb3JtYXQoJHBkZiwgMTcpICAgICMgd2RFeHBvcnRGb3JtYXRQREYKfQpjYXRjaCB7CiAgU2F5ICgi15TXmdeZ16bXldeQINecLVBERiDXoNeb16nXnDpgbiIgKyAkXy5FeGNlcHRpb24uTWVzc2FnZSkgMTYKfQpmaW5hbGx5IHsKICB0cnkgeyBpZiAoJGRvYyAtYW5kICRvd25Eb2MpIHsgJGRvYy5DbG9zZSgwKSB9IH0gY2F0Y2gge30KICB0cnkgeyBpZiAoJHdvcmQgLWFuZCAkcHJldlNlYyAtbmUgJG51bGwpIHsgJHdvcmQuQXV0b21hdGlvblNlY3VyaXR5ID0gJHByZXZTZWMgfSB9IGNhdGNoIHt9CiAgdHJ5IHsgaWYgKCR3b3JkIC1hbmQgJG93bldvcmQpIHsgJHdvcmQuUXVpdCgpIH0gfSBjYXRjaCB7fQp9Cg==';
 // הורדת קובץ .reg להגדרת פרוטוקול opendir://
 function downloadRegFile(){
   // VBS file content — כל תווים מיוחדים בנויים ע"י Chr() כדי להימנע מבעיות escaping
@@ -341,6 +343,15 @@ function downloadRegFile(){
     'shell.Run ps, 0, False',
   ];
   const vbsPdfB64=btoa(vbsPdfLines.join('\r\n'));
+  // VBS שלישי — ייצוא השומה ל-PDF דרך Word (פרוטוקול exportpdf://) — מריץ את exportpdf.ps1 בלי חלון
+  const vbsExpLines=[
+    'Dim url, shell',
+    'url = WScript.Arguments(0)',
+    'Set shell = CreateObject("WScript.Shell")',
+    'shell.Environment("Process")("EXPORTPDF_URL") = url',
+    'shell.Run "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File " & Chr(34) & shell.ExpandEnvironmentStrings("%APPDATA%") & "\\RRFolderOpener\\exportpdf.ps1" & Chr(34), 0, False',
+  ];
+  const vbsExpB64=btoa(vbsExpLines.join('\r\n'));
 
   // סקריפט PowerShell שיוצר את ה-VBS ורושם את הפרוטוקול ב-HKCU (ללא הרשאות admin)
   const psLines=[
@@ -364,6 +375,17 @@ function downloadRegFile(){
     'New-Item -Path "$reg2\\shell\\open\\command" -Force | Out-Null',
     '$cmd2 = \'wscript.exe //B //NoLogo "\' + $vbs2 + \'" "%1"\'',
     'Set-ItemProperty -Path "$reg2\\shell\\open\\command" -Name "(default)" -Value $cmd2',
+    // ייצוא PDF דרך Word: הסקריפט עצמו (המקור: 06_desktop_tools/exportpdf.ps1) + VBS + פרוטוקול exportpdf://
+    '[IO.File]::WriteAllBytes("$dir\\exportpdf.ps1", [Convert]::FromBase64String(\''+EXPORTPDF_PS1_B64+'\'))',
+    '$vbs3 = "$dir\\exportpdf.vbs"',
+    '[IO.File]::WriteAllBytes($vbs3, [Convert]::FromBase64String(\''+vbsExpB64+'\'))',
+    '$reg3 = "HKCU:\\Software\\Classes\\exportpdf"',
+    'New-Item -Path $reg3 -Force | Out-Null',
+    'Set-ItemProperty -Path $reg3 -Name "(default)" -Value "URL:Export PDF"',
+    'Set-ItemProperty -Path $reg3 -Name "URL Protocol" -Value ""',
+    'New-Item -Path "$reg3\\shell\\open\\command" -Force | Out-Null',
+    '$cmd3 = \'wscript.exe //B //NoLogo "\' + $vbs3 + \'" "%1"\'',
+    'Set-ItemProperty -Path "$reg3\\shell\\open\\command" -Name "(default)" -Value $cmd3',
   ];
   const psScript=psLines.join('\n');
 
@@ -996,18 +1018,41 @@ function buildBankMailHtml({bank,branch,block,parcel,subParcel,hasAdvisor,sig}){
     +(sig.mobile?`<b style="color:#1f3864">נייד:</b> ${sig.mobile}<br>`:'')
     +`</div>`;
 }
+// ייצוא השומה ל-PDF דרך Word במחשב (פרוטוקול exportpdf:// — מותקן בקובץ ההגדרה, הגדרות ← המחשב הזה)
+function startWordPdfExport(winFolderPath,caseNum){
+  window.location.href='exportpdf:///'+encodeURIComponent(winFolderPath+'|'+caseNum);
+}
 // fullName = שם התיק המלא (נושא המייל). cas = התיק מ"כלל התיקים" (גוש/חלקה/מייל יועץ).
-async function createBankDraft({caseNum,fullName,cas,userEmail,popup}){
-  const r=await fetch(`${APPS_SCRIPT_URL}?type=bankDraft&tikNum=${encodeURIComponent(caseNum)}&token=${encodeURIComponent(api.token||'')}`);
-  const txt=await r.text();
-  let d;
-  try{d=JSON.parse(txt);}
-  catch(_){ // Apps Script החזיר דף שגיאה (HTML) — מציגים את תוכן השגיאה עצמה
-    const doc=new DOMParser().parseFromString(txt,'text/html');
-    const msg=(doc.querySelector('.errorMessage,#message')?.textContent||doc.body?.textContent||doc.title||'').replace(/\s+/g,' ').trim().slice(0,220);
-    throw new Error('שגיאה בסקריפט: '+(msg||'תשובה לא צפויה'));
+// since = רגע הלחיצה (ms) — מחכים ל-PDF שיוצא מאז (Word במחשב ← סנכרון ל-Drive). onStatus — עדכון טקסט ההתקדמות.
+async function createBankDraft({caseNum,fullName,cas,userEmail,popup,since,onStatus}){
+  const ask=async()=>{
+    const r=await fetch(`${APPS_SCRIPT_URL}?type=bankDraft&tikNum=${encodeURIComponent(caseNum)}&since=${since||0}&token=${encodeURIComponent(api.token||'')}`);
+    const txt=await r.text();
+    try{return JSON.parse(txt);}
+    catch(_){ // Apps Script החזיר דף שגיאה (HTML) — מציגים את תוכן השגיאה עצמה
+      const doc=new DOMParser().parseFromString(txt,'text/html');
+      const msg=(doc.querySelector('.errorMessage,#message')?.textContent||doc.body?.textContent||doc.title||'').replace(/\s+/g,' ').trim().slice(0,220);
+      throw new Error('שגיאה בסקריפט: '+(msg||'תשובה לא צפויה'));
+    }
+  };
+  // ממתינים עד שה-PDF מגיע ל-Drive (בדרך כלל שניות; עד 2.5 דק')
+  let d=null;const t0=Date.now();
+  while(true){
+    d=await ask();
+    if(!d.success)throw new Error(d.error==='unauthorized'?'אין הרשאה — התחברו מחדש לאתר':(d.error||'שגיאה בהכנת הקובץ'));
+    if(!d.pending)break;
+    const waited=Date.now()-t0;
+    if(waited>150000)throw new Error('ה-PDF לא הגיע ל-Drive. אם Word לא ייצא קובץ — הורידו והריצו מחדש את קובץ ההגדרה (הגדרות ← המחשב הזה), ובדקו ש-Google Drive במחשב מסנכרן.');
+    if(onStatus)onStatus(waited<10000?'מייצא ב-Word…':'ממתין לסנכרון ל-Drive…');
+    await new Promise(res=>setTimeout(res,4000));
   }
-  if(!d.success)throw new Error(d.error==='unauthorized'?'אין הרשאה — התחברו מחדש לאתר':(d.error||'שגיאה בהכנת הקובץ'));
+  if(onStatus)onStatus('מכין טיוטה…');
+  // ה-PDF נמשך בחלקים (תשובה אחת גדולה נכשלת ב-Google) — במקביל, ומחוברים לפי הסדר
+  const parts=await Promise.all(Array.from({length:d.parts||1},(_,i)=>
+    fetch(`${APPS_SCRIPT_URL}?type=bankPdfPart&id=${encodeURIComponent(d.pdfId)}&i=${i}&token=${encodeURIComponent(api.token||'')}`)
+      .then(x=>x.text()).then(t=>{let j;try{j=JSON.parse(t);}catch(_){throw new Error('שגיאה בהורדת חלק '+(i+1)+' של הקובץ');}
+        if(!j.success)throw new Error(j.error||'שגיאה בהורדת הקובץ');return j.data;})));
+  d.pdfBase64=parts.join('');
   const me=USER_BY_EMAIL[(userEmail||'').toLowerCase()]||'';
   const sig=MAIL_SIGNATURES[me]||{name:'',title:'משרד רובינשטיין רוזנטל',mobile:''};
   const advisor=String(cas?.advisorEmail||'').trim();
@@ -1035,7 +1080,7 @@ async function createBankDraft({caseNum,fullName,cas,userEmail,popup}){
   const draft=await gr.json();
   const url=`https://mail.google.com/mail/?authuser=${encodeURIComponent(userEmail||'')}#drafts?compose=${draft.message.id}`;
   if(popup&&!popup.closed)popup.location.href=url;else window.open(url,'_blank');
-  return {docName:d.docName,converted:d.converted,bankEmail:d.bankEmail,bank:d.bank};
+  return {fileName:d.fileName,bankEmail:d.bankEmail,bank:d.bank};
 }
 function deleteVisitCalendar(name){
   try{
@@ -1791,12 +1836,15 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const [bankDraft,setBankDraft]=useState(null);
   const handleBankDraft=async()=>{
     if(!caseNum)return;
+    if(!_fp){setBankDraft({err:true,text:'לא הוגדר נתיב בסיס לתיקיות — הגדרות ← המחשב הזה'});return;}
+    const since=Date.now();
     const popup=window.open('about:blank','_blank');   // נפתח מיד (בתוך הלחיצה) כדי שהדפדפן לא יחסום את החלון
-    if(popup)popup.document.write('<p dir="rtl" style="font-family:Arial;padding:30px;color:#555">מכין את הטיוטה — ממיר את השומה ל-PDF…</p>');
-    setBankDraft({busy:true});
+    startWordPdfExport(_fp,caseNum);                    // Word במחשב מייצא את השומה ל-PDF (זהה לייצוא ידני)
+    const say=t=>{setBankDraft({busy:true,text:t});try{if(popup&&!popup.closed){popup.document.body.innerHTML='<p dir="rtl" style="font-family:Arial;padding:30px;color:#555">'+t+'</p>';}}catch(_){}};
+    say('מייצא ב-Word…');
     try{
-      const res=await createBankDraft({caseNum,fullName:String(matchedCase?.folder||project.name||'').trim(),cas:matchedCase,userEmail:user?.email,popup});
-      setBankDraft({ok:true,text:`✓ טיוטה נוצרה — צורף ${res.docName.replace(/\.docx$/i,'.pdf')}${res.bankEmail?'':' · חסר מייל בנק, יש למלא ב"אל"'}`});
+      const res=await createBankDraft({caseNum,fullName:String(matchedCase?.folder||project.name||'').trim(),cas:matchedCase,userEmail:user?.email,popup,since,onStatus:say});
+      setBankDraft({ok:true,text:`✓ טיוטה נוצרה — צורף ${res.fileName}${res.bankEmail?'':' · חסר מייל בנק, יש למלא ב"אל"'}`});
     }catch(e){
       if(popup&&!popup.closed)popup.close();
       setBankDraft({err:true,text:e.message});
@@ -2141,11 +2189,11 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                   style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.8)',display:'flex',alignItems:'center',gap:5,textDecoration:'none',fontSize:13}}>
                   <DriveIcon size={14}/><span style={{fontSize:11}}>פתח בדרייב</span>
                 </a>}
-                {caseNum&&!isGeneralTask&&<button onClick={handleBankDraft} disabled={bankDraft?.busy}
-                  title="יוצר טיוטת מייל לבנק ב-Gmail שלך: השומה כ-PDF, נמענים, נוסח קבוע ונושא — לבדיקה ושליחה"
+                {caseNum&&!isGeneralTask&&!isMobile&&<button onClick={handleBankDraft} disabled={bankDraft?.busy}
+                  title="מייצא את השומה ל-PDF ב-Word ויוצר טיוטת מייל לבנק ב-Gmail שלך: PDF מצורף, נמענים, נוסח קבוע ונושא — לבדיקה ושליחה"
                   style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.8)',cursor:bankDraft?.busy?'wait':'pointer',fontSize:13,display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'}}>
                   {bankDraft?.busy?<Spinner size={12} color={GOLD_PALE}/>:<Icon name="mail" size={14} color={GOLD2}/>}
-                  <span style={{fontSize:11}}>{bankDraft?.busy?'מכין טיוטה…':'טיוטה לבנק'}</span>
+                  <span style={{fontSize:11}}>{bankDraft?.busy?(bankDraft.text||'מכין טיוטה…'):'טיוטה לבנק'}</span>
                 </button>}
                 {bankDraft&&!bankDraft.busy&&<span style={{fontSize:11.5,color:bankDraft.err?'#fca5a5':'#86efac',maxWidth:340}}>{bankDraft.text}</span>}
                 {saving&&<span style={{fontSize:12,color:'rgba(255,255,255,0.45)',display:'flex',alignItems:'center',gap:5}}><Spinner size={11} color='rgba(255,255,255,0.45)'/>שומר...</span>}
@@ -4790,7 +4838,7 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
         {/* שלב 1 */}
         <div style={{marginBottom:16}}>
           <div style={{fontSize:13,fontWeight:600,color:'#3a2a00',marginBottom:6}}>שלב 1 — הגדר פרוטוקול Windows</div>
-          <div style={{fontSize:12,color:'#6b5e50',marginBottom:8}}>הורד את הקובץ והפעל אותו (לחיצה כפולה). פעולה זו נדרשת פעם אחת בלבד לכל מחשב. לאחר מכן פתיחת תיקיות תהיה ללא חלון נוסף.</div>
+          <div style={{fontSize:12,color:'#6b5e50',marginBottom:8}}>הורד את הקובץ והפעל אותו (לחיצה כפולה). פעולה זו נדרשת פעם אחת בלבד לכל מחשב. לאחר מכן פתיחת תיקיות תהיה ללא חלון נוסף. הקובץ מתקין גם את ייצוא השומה ל-PDF דרך Word (לכפתור "טיוטה לבנק") — מי שהתקין לפני גרסה v109 צריך להוריד ולהפעיל אותו שוב.</div>
           <button onClick={downloadRegFile} style={{padding:'8px 18px',borderRadius:9,border:`1.5px solid ${GOLD}`,background:'#fef9e8',color:GOLD3,cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:7}}>
             הורד קובץ הגדרה (.bat)
           </button>
