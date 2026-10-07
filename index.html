@@ -75,12 +75,12 @@ const CONFIG = {
   SPREADSHEET_ID: '1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI',
   LOGO_URL:       'Logo.png',
   LOGO_FALLBACK:  'Logo_smol.png',
-  // gmail.compose — יצירת טיוטת מייל לבנק בתיבה של המשתמש (כפתור "טיוטה לבנק" בכרטיס התיק)
-  SCOPES:         'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.compose profile email',
+  // gmail.compose — יצירת טיוטת מייל לבנק בתיבה של המשתמש; drive.readonly — הורדת ה-PDF של השומה ישירות מ-Drive (כפתור "טיוטה לבנק")
+  SCOPES:         'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/drive.readonly profile email',
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v109'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v110'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -1018,13 +1018,83 @@ function buildBankMailHtml({bank,branch,block,parcel,subParcel,hasAdvisor,sig}){
     +(sig.mobile?`<b style="color:#1f3864">נייד:</b> ${sig.mobile}<br>`:'')
     +`</div>`;
 }
+// ── חלון התקדמות "טיוטה לבנק": לוגו RR במרכז, טבעת זהב, וארבע תחנות סביבה — Word → PDF → Drive → Gmail ──
+const DRAFT_STAGES=[
+  {key:'word',label:'Word',svg:'<svg viewBox="0 0 48 48" width="26" height="26"><rect x="4" y="6" width="40" height="36" rx="5" fill="#185abd"/><text x="24" y="33" text-anchor="middle" font-family="Arial" font-weight="700" font-size="22" fill="#fff">W</text></svg>'},
+  {key:'pdf',label:'PDF',svg:'<svg viewBox="0 0 48 48" width="26" height="26"><path d="M11 6h18l9 9v25a3 3 0 0 1-3 3H11a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3z" fill="#fff" stroke="#14110d" stroke-width="2"/><path d="M29 6v6a3 3 0 0 0 3 3h6" fill="none" stroke="#14110d" stroke-width="2"/><rect x="5" y="24" width="24" height="12" rx="2" fill="#14110d"/><text x="17" y="33" text-anchor="middle" font-family="Arial" font-weight="700" font-size="9" fill="#e9cf7a">PDF</text></svg>'},
+  {key:'drive',label:'Drive',svg:'<svg viewBox="0 0 87.3 78" width="26" height="24"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0-1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>'},
+  {key:'gmail',label:'Gmail',svg:'<svg viewBox="0 0 48 48" width="26" height="26"><path d="M6 13v24a3 3 0 0 0 3 3h6V22l9 7 9-7v18h6a3 3 0 0 0 3-3V13l-4-3-14 11L10 10z" fill="#fff"/><path d="M33 40h6a3 3 0 0 0 3-3V18l-9 7z" fill="#34a853"/><path d="M15 40H9a3 3 0 0 1-3-3V18l9 7z" fill="#4285f4"/><path d="M33 13v12l9-7v-5c0-3.7-4.2-5.8-7.2-3.6z" fill="#fbbc04"/><path d="M15 25V13l9 7 9-7v12l-9 7z" fill="#ea4335"/><path d="M6 13v5l9 7V13l-1.8-1.4C10.2 9.4 6 11.4 6 13z" fill="#c5221f"/></svg>'},
+];
+function openDraftProgress(win,title){
+  if(!win)return{stage(){},error(){},done(url){window.open(url,'_blank');}};
+  const logo=new URL('Logo_smol_512.png',location.href).href;
+  const R=118, C=2*Math.PI*R;
+  const pos=[[0,-1],[1,0],[0,1],[-1,0]];   // למעלה, ימין, למטה, שמאל — עם כיוון השעון
+  const nodes=DRAFT_STAGES.map((s,i)=>`<div class="node" id="n-${s.key}" style="left:${150+pos[i][0]*R}px;top:${150+pos[i][1]*R}px">${s.svg}<span class="ok">✓</span><div class="cap">${s.label}</div></div>`).join('');
+  win.document.open();
+  win.document.write(`<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><title>טיוטה לבנק — ${escHtml(title)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500&family=Heebo:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f6f2ea;font-family:Heebo,Arial,sans-serif;color:#14110d}
+.stage{position:relative;width:300px;height:300px}
+.ring{position:absolute;inset:0}
+.logo{position:absolute;left:50%;top:50%;width:104px;height:104px;margin:-52px 0 0 -52px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px -10px rgba(20,17,13,.35)}
+.logo img{width:70px;height:auto;border-radius:12px}
+.spin{position:absolute;left:50%;top:50%;width:132px;height:132px;margin:-66px 0 0 -66px;border-radius:50%;border:3px solid rgba(196,154,40,.15);border-top-color:#c49a28;animation:spin .9s linear infinite}
+.node{position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:#fff;border:1.5px solid #e9e0cd;display:flex;align-items:center;justify-content:center;transition:all .35s}
+.node svg{opacity:.35;filter:grayscale(1);transition:all .35s}
+.node .cap{position:absolute;top:60px;font-size:11.5px;color:#a3957f;white-space:nowrap;font-weight:500}
+.node .ok{position:absolute;top:-4px;right:-4px;width:20px;height:20px;border-radius:50%;background:#c49a28;color:#fff;font-size:12px;display:none;align-items:center;justify-content:center}
+.node.active{border:2px solid #c49a28;animation:pulse 1.4s ease-in-out infinite}.node.active svg,.node.done svg{opacity:1;filter:none}.node.active .cap{color:#14110d}
+.node.done{border-color:#c49a28}.node.done .ok{display:flex}.node.done .cap{color:#8a6d1f}
+.msg{margin-top:34px;font-family:'Frank Ruhl Libre',serif;font-size:22px;text-align:center}
+.sub{margin-top:6px;font-size:13px;color:#8f8272;text-align:center;max-width:420px;line-height:1.6}
+.err .msg{color:#a3271b}.err .spin{animation:none;border-top-color:#c0392b}
+button{margin-top:18px;padding:9px 22px;border-radius:10px;border:none;background:#14110d;color:#f3e6c4;font-family:inherit;font-size:14px;cursor:pointer;display:none}.err button{display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(196,154,40,.35)}50%{box-shadow:0 0 0 9px rgba(196,154,40,0)}}
+</style></head><body>
+<div class="stage">
+  <svg class="ring" viewBox="0 0 300 300"><circle cx="150" cy="150" r="${R}" fill="none" stroke="#e9e0cd" stroke-width="2"/>
+  <circle id="arc" cx="150" cy="150" r="${R}" fill="none" stroke="#c49a28" stroke-width="3" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}" transform="rotate(-90 150 150)" style="transition:stroke-dashoffset .6s ease"/></svg>
+  <div class="spin"></div><div class="logo"><img src="${logo}" alt="RR"></div>${nodes}
+</div>
+<div class="msg" id="msg">מתחיל…</div><div class="sub" id="sub">${escHtml(title)}</div>
+<button onclick="window.close()">סגירה</button>
+</body></html>`);
+  win.document.close();
+  const $=id=>{try{return win.document.getElementById(id);}catch(_){return null;}};
+  const order=DRAFT_STAGES.map(s=>s.key);
+  const setArc=frac=>{const a=$('arc');if(a)a.setAttribute('stroke-dashoffset',String(C*(1-frac)));};
+  return{
+    stage(key,text){
+      if(win.closed)return;
+      const idx=order.indexOf(key);
+      order.forEach((k,i)=>{const n=$('n-'+k);if(n)n.className='node'+(i<idx?' done':i===idx?' active':'');});
+      setArc(idx/order.length);
+      const m=$('msg');if(m&&text)m.textContent=text;
+    },
+    error(text){
+      if(win.closed)return;
+      win.document.body.className='err';
+      const m=$('msg');if(m)m.textContent='לא הצלחנו להכין את הטיוטה';
+      const s=$('sub');if(s)s.textContent=text;
+    },
+    done(url){
+      if(win.closed){window.open(url,'_blank');return;}
+      order.forEach(k=>{const n=$('n-'+k);if(n)n.className='node done';});
+      setArc(1);
+      const m=$('msg');if(m)m.textContent='הטיוטה מוכנה — פותח את Gmail…';
+      setTimeout(()=>{try{win.location.href=url;}catch(_){window.open(url,'_blank');}},900);
+    },
+  };
+}
 // ייצוא השומה ל-PDF דרך Word במחשב (פרוטוקול exportpdf:// — מותקן בקובץ ההגדרה, הגדרות ← המחשב הזה)
 function startWordPdfExport(winFolderPath,caseNum){
   window.location.href='exportpdf:///'+encodeURIComponent(winFolderPath+'|'+caseNum);
 }
 // fullName = שם התיק המלא (נושא המייל). cas = התיק מ"כלל התיקים" (גוש/חלקה/מייל יועץ).
 // since = רגע הלחיצה (ms) — מחכים ל-PDF שיוצא מאז (Word במחשב ← סנכרון ל-Drive). onStatus — עדכון טקסט ההתקדמות.
-async function createBankDraft({caseNum,fullName,cas,userEmail,popup,since,onStatus}){
+async function createBankDraft({caseNum,fullName,cas,userEmail,since,onStatus}){
   const ask=async()=>{
     const r=await fetch(`${APPS_SCRIPT_URL}?type=bankDraft&tikNum=${encodeURIComponent(caseNum)}&since=${since||0}&token=${encodeURIComponent(api.token||'')}`);
     const txt=await r.text();
@@ -1043,16 +1113,19 @@ async function createBankDraft({caseNum,fullName,cas,userEmail,popup,since,onSta
     if(!d.pending)break;
     const waited=Date.now()-t0;
     if(waited>150000)throw new Error('ה-PDF לא הגיע ל-Drive. אם Word לא ייצא קובץ — הורידו והריצו מחדש את קובץ ההגדרה (הגדרות ← המחשב הזה), ובדקו ש-Google Drive במחשב מסנכרן.');
-    if(onStatus)onStatus(waited<10000?'מייצא ב-Word…':'ממתין לסנכרון ל-Drive…');
+    if(onStatus)onStatus(waited<8000?'word':'pdf',waited<8000?'מייצא את השומה ב-Word…':'ה-PDF נשמר — ממתין לסנכרון ל-Drive…');
     await new Promise(res=>setTimeout(res,4000));
   }
-  if(onStatus)onStatus('מכין טיוטה…');
-  // ה-PDF נמשך בחלקים (תשובה אחת גדולה נכשלת ב-Google) — במקביל, ומחוברים לפי הסדר
-  const parts=await Promise.all(Array.from({length:d.parts||1},(_,i)=>
-    fetch(`${APPS_SCRIPT_URL}?type=bankPdfPart&id=${encodeURIComponent(d.pdfId)}&i=${i}&token=${encodeURIComponent(api.token||'')}`)
-      .then(x=>x.text()).then(t=>{let j;try{j=JSON.parse(t);}catch(_){throw new Error('שגיאה בהורדת חלק '+(i+1)+' של הקובץ');}
-        if(!j.success)throw new Error(j.error||'שגיאה בהורדת הקובץ');return j.data;})));
-  d.pdfBase64=parts.join('');
+  // ה-PDF יורד ישירות מ-Drive בהרשאת המשתמש (drive.readonly) — בלי לעבור דרך Apps Script
+  if(onStatus)onStatus('drive','מוריד את ה-PDF מ-Drive…');
+  const fr=await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(d.pdfId)}?alt=media&supportsAllDrives=true`,
+    {headers:{Authorization:`Bearer ${api.token}`}});
+  if(fr.status===401||fr.status===403)throw new Error('צריך לאשר הרשאה חדשה (קריאה מ-Drive) — התנתקו והתחברו מחדש לאתר');
+  if(!fr.ok)throw new Error('הורדת ה-PDF מ-Drive נכשלה ('+fr.status+')');
+  const buf=new Uint8Array(await fr.arrayBuffer());
+  let bin='';for(let i=0;i<buf.length;i+=0x8000)bin+=String.fromCharCode.apply(null,buf.subarray(i,i+0x8000));
+  d.pdfBase64=btoa(bin);
+  if(onStatus)onStatus('gmail','יוצר טיוטה ב-Gmail…');
   const me=USER_BY_EMAIL[(userEmail||'').toLowerCase()]||'';
   const sig=MAIL_SIGNATURES[me]||{name:'',title:'משרד רובינשטיין רוזנטל',mobile:''};
   const advisor=String(cas?.advisorEmail||'').trim();
@@ -1079,8 +1152,7 @@ async function createBankDraft({caseNum,fullName,cas,userEmail,popup,since,onSta
   if(!gr.ok)throw new Error('יצירת הטיוטה ב-Gmail נכשלה ('+gr.status+')');
   const draft=await gr.json();
   const url=`https://mail.google.com/mail/?authuser=${encodeURIComponent(userEmail||'')}#drafts?compose=${draft.message.id}`;
-  if(popup&&!popup.closed)popup.location.href=url;else window.open(url,'_blank');
-  return {fileName:d.fileName,bankEmail:d.bankEmail,bank:d.bank};
+  return {url,fileName:d.fileName,bankEmail:d.bankEmail,bank:d.bank};
 }
 function deleteVisitCalendar(name){
   try{
@@ -1838,15 +1910,18 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
     if(!caseNum)return;
     if(!_fp){setBankDraft({err:true,text:'לא הוגדר נתיב בסיס לתיקיות — הגדרות ← המחשב הזה'});return;}
     const since=Date.now();
+    const fullName=String(matchedCase?.folder||project.name||'').trim();
     const popup=window.open('about:blank','_blank');   // נפתח מיד (בתוך הלחיצה) כדי שהדפדפן לא יחסום את החלון
+    const prog=openDraftProgress(popup,fullName||('תיק '+caseNum));
     startWordPdfExport(_fp,caseNum);                    // Word במחשב מייצא את השומה ל-PDF (זהה לייצוא ידני)
-    const say=t=>{setBankDraft({busy:true,text:t});try{if(popup&&!popup.closed){popup.document.body.innerHTML='<p dir="rtl" style="font-family:Arial;padding:30px;color:#555">'+t+'</p>';}}catch(_){}};
-    say('מייצא ב-Word…');
+    const say=(stage,t)=>{setBankDraft({busy:true,text:t});prog.stage(stage,t);};
+    say('word','מייצא את השומה ב-Word…');
     try{
-      const res=await createBankDraft({caseNum,fullName:String(matchedCase?.folder||project.name||'').trim(),cas:matchedCase,userEmail:user?.email,popup,since,onStatus:say});
+      const res=await createBankDraft({caseNum,fullName,cas:matchedCase,userEmail:user?.email,since,onStatus:say});
+      prog.done(res.url);
       setBankDraft({ok:true,text:`✓ טיוטה נוצרה — צורף ${res.fileName}${res.bankEmail?'':' · חסר מייל בנק, יש למלא ב"אל"'}`});
     }catch(e){
-      if(popup&&!popup.closed)popup.close();
+      prog.error(e.message);
       setBankDraft({err:true,text:e.message});
     }
   };
