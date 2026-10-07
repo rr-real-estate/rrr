@@ -75,11 +75,12 @@ const CONFIG = {
   SPREADSHEET_ID: '1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI',
   LOGO_URL:       'Logo.png',
   LOGO_FALLBACK:  'Logo_smol.png',
-  SCOPES:         'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.send profile email',
+  // gmail.compose — יצירת טיוטת מייל לבנק בתיבה של המשתמש (כפתור "טיוטה לבנק" בכרטיס התיק)
+  SCOPES:         'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.compose profile email',
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v104'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v106'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -967,6 +968,68 @@ async function fetchVisitEvents(from,to){
   return j.events||[];
 }
 // מחיקת אירוע יומן לפי שם התיק (בעת ביטול תיק)
+// ── טיוטת מייל לבנק (שליחת שומה) — נוצרת ב-Gmail של המשתמש ונפתחת לבדיקה; לא נשלחת אוטומטית ──
+// חתימה לפי משתמש (כמו החתימה של יוסי במיילים לבנקים)
+const MAIL_SIGNATURES={
+  'יוסי':{name:'יוסף רובינשטיין',title:'שמאי מקרקעין, כלכלן והנדסאי בניין',mobile:'0504105070'},
+  'מיכאל':{name:'מיכאל רוזנטל',title:'שמאי מקרקעין וכלכלן',mobile:''},
+  'פייגי':{name:'',title:'משרד רובינשטיין רוזנטל',mobile:''},
+};
+const OFFICE_EMAIL='office@yrr.co.il', OFFICE_PHONE='08-930-7000';
+const b64utf8=s=>btoa(unescape(encodeURIComponent(s)));
+const mimeWord=s=>`=?UTF-8?B?${b64utf8(s)}?=`;
+const escHtml=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function buildBankMailHtml({bank,branch,block,parcel,subParcel,hasAdvisor,sig}){
+  const prop=[block&&`גוש: ${escHtml(block)}`,parcel&&`חלקה: ${escHtml(parcel)}`,subParcel&&`תת חלקה: ${escHtml(subParcel)}`].filter(Boolean).join(' ');
+  return `<div dir="rtl" style="text-align:right;font-family:Arial,sans-serif;font-size:14px;color:#222">`
+    +`לכבוד<br>מחלקת משכנתאות – ${escHtml(bank)||'&nbsp;'}<br><br>`
+    +(branch?`סניף: ${escHtml(branch)}<br><br>`:'')
+    +`מצ"ב שומת מקרקעין עבור הנכס הנדון<br>`
+    +(prop?`פרטי הנכס: ${prop}<br>`:'')
+    +`<br>אשמח לעמוד לרשותכם לכל שאלה והבהרה<br><br>`
+    +(hasAdvisor?`העתק: יועץ המשכנתאות<br><br>`:'')
+    +`בברכה,<br>`
+    +(sig.name?`<b style="color:#1f3864;font-size:15px">${escHtml(sig.name)}</b><br>`:'')
+    +`<b style="color:#1f3864">${escHtml(sig.title)}</b><br>`
+    +`<img src="https://rr-real-estate.github.io/rrr/Logo.png" alt="רובינשטיין רוזנטל" width="200" style="display:block;margin:6px 0"><br>`
+    +`<b style="color:#1f3864">משרד:</b> ${OFFICE_PHONE}<br>`
+    +(sig.mobile?`<b style="color:#1f3864">נייד:</b> ${sig.mobile}<br>`:'')
+    +`</div>`;
+}
+// fullName = שם התיק המלא (נושא המייל). cas = התיק מ"כלל התיקים" (גוש/חלקה/מייל יועץ).
+async function createBankDraft({caseNum,fullName,cas,userEmail,popup}){
+  const r=await fetch(`${APPS_SCRIPT_URL}?type=bankDraft&tikNum=${encodeURIComponent(caseNum)}&token=${encodeURIComponent(api.token||'')}`);
+  const d=await r.json();
+  if(!d.success)throw new Error(d.error==='unauthorized'?'אין הרשאה — התחברו מחדש לאתר':(d.error||'שגיאה בהכנת הקובץ'));
+  const me=USER_BY_EMAIL[(userEmail||'').toLowerCase()]||'';
+  const sig=MAIL_SIGNATURES[me]||{name:'',title:'משרד רובינשטיין רוזנטל',mobile:''};
+  const advisor=String(cas?.advisorEmail||'').trim();
+  const cc=[advisor,OFFICE_EMAIL].filter(e=>e&&e.toLowerCase()!==(userEmail||'').toLowerCase());
+  const html=buildBankMailHtml({bank:d.bank,branch:d.branch,block:cas?.block,parcel:cas?.parcel,subParcel:cas?.subParcel,hasAdvisor:!!advisor,sig});
+  const bnd='rr_'+Date.now().toString(36);
+  const lines=[
+    'MIME-Version: 1.0',
+    d.bankEmail?`To: ${d.bankEmail}`:null,
+    cc.length?`Cc: ${cc.join(', ')}`:null,
+    `Subject: ${mimeWord(fullName||String(caseNum))}`,
+    `Content-Type: multipart/mixed; boundary="${bnd}"`,'',
+    `--${bnd}`,'Content-Type: text/html; charset="UTF-8"','Content-Transfer-Encoding: base64','',
+    b64utf8(html).replace(/.{76}/g,'$&\r\n'),'',
+    `--${bnd}`,`Content-Type: application/pdf; name="${mimeWord(d.fileName)}"`,
+    `Content-Disposition: attachment; filename="${mimeWord(d.fileName)}"`,'Content-Transfer-Encoding: base64','',
+    d.pdfBase64.replace(/.{76}/g,'$&\r\n'),'',
+    `--${bnd}--`,
+  ].filter(l=>l!==null).join('\r\n');
+  const raw=btoa(lines).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  const gr=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts',{method:'POST',
+    headers:{Authorization:`Bearer ${api.token}`,'Content-Type':'application/json'},body:JSON.stringify({message:{raw}})});
+  if(gr.status===401||gr.status===403)throw new Error('צריך לאשר הרשאה חדשה (יצירת טיוטות) — התנתקו והתחברו מחדש לאתר');
+  if(!gr.ok)throw new Error('יצירת הטיוטה ב-Gmail נכשלה ('+gr.status+')');
+  const draft=await gr.json();
+  const url=`https://mail.google.com/mail/?authuser=${encodeURIComponent(userEmail||'')}#drafts?compose=${draft.message.id}`;
+  if(popup&&!popup.closed)popup.location.href=url;else window.open(url,'_blank');
+  return {docName:d.docName,converted:d.converted,bankEmail:d.bankEmail,bank:d.bank};
+}
 function deleteVisitCalendar(name){
   try{
     const caseNum=(String(name||'').match(/\b(5\d{4})\b/)||[])[1]||'';
@@ -1717,6 +1780,21 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const [folderReminderStatus,setFolderReminderStatus]=useState(null); // סטטוס ממתין לאישור
   const [verifyingFolder,setVerifyingFolder]=useState(false); // בדיקת מיקום התיקייה ב-Drive לפני אישור
   const [folderVerifyErr,setFolderVerifyErr]=useState('');
+  // טיוטת מייל לבנק — {busy} / {ok,text} / {err,text}
+  const [bankDraft,setBankDraft]=useState(null);
+  const handleBankDraft=async()=>{
+    if(!caseNum)return;
+    const popup=window.open('about:blank','_blank');   // נפתח מיד (בתוך הלחיצה) כדי שהדפדפן לא יחסום את החלון
+    if(popup)popup.document.write('<p dir="rtl" style="font-family:Arial;padding:30px;color:#555">מכין את הטיוטה — ממיר את השומה ל-PDF…</p>');
+    setBankDraft({busy:true});
+    try{
+      const res=await createBankDraft({caseNum,fullName:String(matchedCase?.folder||project.name||'').trim(),cas:matchedCase,userEmail:user?.email,popup});
+      setBankDraft({ok:true,text:`✓ טיוטה נוצרה — צורף ${res.docName.replace(/\.docx$/i,'.pdf')}${res.bankEmail?'':' · חסר מייל בנק, יש למלא ב"אל"'}`});
+    }catch(e){
+      if(popup&&!popup.closed)popup.close();
+      setBankDraft({err:true,text:e.message});
+    }
+  };
   const [dueDateErr,setDueDateErr]=useState(false);
   const [visitDateErr,setVisitDateErr]=useState(false);
   const [confirmKtiva,setConfirmKtiva]=useState(false);
@@ -2056,6 +2134,13 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                   style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.8)',display:'flex',alignItems:'center',gap:5,textDecoration:'none',fontSize:13}}>
                   <DriveIcon size={14}/><span style={{fontSize:11}}>פתח בדרייב</span>
                 </a>}
+                {caseNum&&!isGeneralTask&&<button onClick={handleBankDraft} disabled={bankDraft?.busy}
+                  title="יוצר טיוטת מייל לבנק ב-Gmail שלך: השומה כ-PDF, נמענים, נוסח קבוע ונושא — לבדיקה ושליחה"
+                  style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.8)',cursor:bankDraft?.busy?'wait':'pointer',fontSize:13,display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'}}>
+                  {bankDraft?.busy?<Spinner size={12} color={GOLD_PALE}/>:<Icon name="mail" size={14} color={GOLD2}/>}
+                  <span style={{fontSize:11}}>{bankDraft?.busy?'מכין טיוטה…':'טיוטה לבנק'}</span>
+                </button>}
+                {bankDraft&&!bankDraft.busy&&<span style={{fontSize:11.5,color:bankDraft.err?'#fca5a5':'#86efac',maxWidth:340}}>{bankDraft.text}</span>}
                 {saving&&<span style={{fontSize:12,color:'rgba(255,255,255,0.45)',display:'flex',alignItems:'center',gap:5}}><Spinner size={11} color='rgba(255,255,255,0.45)'/>שומר...</span>}
                 {saved&&!saving&&<span style={{fontSize:12,color:'#4ade80',fontWeight:500}}>✓ נשמר</span>}
               </div>
@@ -3749,6 +3834,9 @@ function DashboardView({projects,managed,user,settings,onSetView,onOpenProject,m
   ];
 
   const userName=USER_BY_EMAIL[(user?.email||'').toLowerCase()]||'';
+  // "באיחור" בכרטיס הפרויקטים — רק תיקים שיש בהם משימה של המשתמש המחובר (משתמש לא מזוהה רואה את הכל)
+  const myField={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'}[userName];
+  const myOverdue=myField?overdueProjs.filter(p=>String(p[myField]||'').trim()):overdueProjs;
   const hour=new Date().getHours();
   const greet=hour<12?'בוקר טוב':hour<17?'צהריים טובים':'ערב טוב';
 
@@ -3892,7 +3980,7 @@ function DashboardView({projects,managed,user,settings,onSetView,onOpenProject,m
       {/* כרטיסי מדדים "צפים" על קו הרצועה */}
       <div style={{position:'relative',display:'flex',gap:16,marginTop:-46,marginBottom:22,flexWrap:'wrap',padding:isMobile?0:'0 8px'}}>
         <KpiCard icon="folder" label="פרויקטים פעילים" value={activeProjs.length}
-          sub={overdueProjs.length>0?`${overdueProjs.length} באיחור`:'הכל בזמן'} onClick={()=>onSetView('projects')}/>
+          sub={myOverdue.length>0?`${myOverdue.length} ${myField?'שלך ':''}באיחור`:(myField?'הכל בזמן אצלך':'הכל בזמן')} onClick={()=>onSetView('projects')}/>
         <KpiCard icon="hourglass" label="ממתין ללקוח" value={clientProjs.length} onClick={()=>onSetView('clients')}/>
         <KpiCard icon="archive" label="כלל התיקים" value={managed.length}
           onClick={()=>onSetView('managed')}/>
