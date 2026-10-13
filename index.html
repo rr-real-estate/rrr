@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v112'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v114'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -290,6 +290,16 @@ function buildFolderPath(basePath,folderName,status){
   const sub=FOLDER_STATUS_MAP[status]||'פרויקטים בביצוע';
   return basePath.replace(/[\\\/]+$/,'')+'\\'+sub+'\\'+folderName;
 }
+// ── שם תיק = שם התיקייה (Drive + G:) — חייב להיות שם תקין בתיקיות Windows ──
+// " (למשל עו"ד) מוחלף אוטומטית בגרשיים עבריים ״ — נראה אותו דבר ומותר. שאר התווים האסורים נחסמים עם הודעה.
+const FOLDER_BAD_CHARS=/[\\/:*?<>|]/g;
+const fixFolderPart=s=>String(s??'').replace(/"/g,'״');
+const badFolderChars=s=>[...new Set(String(s||'').match(FOLDER_BAD_CHARS)||[])];
+const CASE_NAME_KEYS=['city','street','houseNum','client'];
+// נוסחת שם התיק (זהה למה שהיה ב-Apps Script): עיר - רחוב מספר - לקוח - מספר תיק
+function caseFolderName({city,street,houseNum,client,caseNum}){
+  return `${(city||'').trim()} - ${[street,houseNum].map(x=>(x||'').trim()).filter(Boolean).join(' ')} - ${(client||'').trim()} - ${caseNum||''}`;
+}
 // פתיחת תיקייה דרך פרוטוקול opendir://
 function openFolder(winPath){
   if(!winPath)return;
@@ -419,16 +429,33 @@ function downloadRegFile(){
 // שולח מייל לבעל המשימה אם המשימה השתנתה ועורך ≠ בעלים + תזכורות עצמיות למיכאל
 async function sendTaskEmails(prev,next,editorEmail){
   const editorName=USER_BY_EMAIL[(editorEmail||'').toLowerCase()]||'מיכאל';
+  const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
   for(const [field,ownerName,recipient] of TASK_FIELDS){
     if(next[field]&&next[field]!==prev[field]&&editorName!==ownerName){
-      const html="<div dir='rtl' style='text-align:right;font-family:Arial'>"
-        +"<h2 style='color:#1a73e8'>היי "+ownerName+",</h2>"
-        +"<p>התווספה משימה חדשה בתיק: <b>"+next.name+"</b></p>"
-        +"<p>נשלח על ידי: <b>"+editorName+"</b></p>"
-        +"<div style='background:#f4f4f4;padding:15px;border-right:5px solid #1a73e8;margin-bottom:20px'>"
-        +"<b>תוכן המשימה:</b><br>"+parseTaskStamp(next[field]).text+"</div>"
+      // רק השורות שנוספו עכשיו (לא כל שדה המשימות), מפוענחות; תגובה = ציטוט ⟪…⟫ + טקסט התגובה
+      const prevLines=new Set(splitTasks(prev[field]).map(t=>t.line));
+      const added=splitTasks(next[field]).filter(t=>!prevLines.has(t.line));
+      if(!added.length)continue;
+      const items=added.map(t=>parseQuote(t.text));
+      const isReply=items.some(x=>x.quote);
+      const blocks=items.map(({quote,body})=>{
+        let q='';
+        if(quote){ // הציטוט נשמר כ"שם: טקסט"
+          const m=quote.match(/^([^:\n]{1,20}):\s*([\s\S]*)$/);
+          q="<div style='border-right:3px solid #d9c48a;background:#fbf8f2;padding:8px 12px;margin-bottom:10px;color:#7a6a58;font-size:13px'>"
+            +(m?"<b>"+esc(m[1])+" כתב/ה:</b><br>"+esc(m[2]):esc(quote))+"</div>";
+        }
+        return "<div style='background:#f6f2ea;padding:14px 16px;border-right:4px solid #c49a28;margin-bottom:12px;border-radius:0 8px 8px 0'>"
+          +q+"<div style='font-size:15px;color:#14110d;line-height:1.6'>"+esc(body)+"</div></div>";
+      }).join('');
+      const html="<div dir='rtl' style='text-align:right;font-family:Arial,sans-serif;color:#14110d;max-width:640px'>"
+        +"<h2 style='color:#14110d;font-weight:600;margin:0 0 6px'>היי "+ownerName+",</h2>"
+        +"<p style='margin:0 0 4px'>"+(isReply?esc(editorName)+" הגיב/ה למשימה בתיק:":"התווספה משימה חדשה בתיק:")+"</p>"
+        +"<p style='margin:0 0 14px;font-size:16px'><b>"+esc(next.name)+"</b></p>"
+        +blocks
+        +"<p style='color:#8f8272;font-size:12px;margin-top:6px'>נשלח על ידי "+esc(editorName)+" ממערכת ניהול התיקים</p>"
         +"</div>";
-      try{await api.sendEmail(recipient,'משימה מ'+editorName+': '+next.name,html);}
+      try{await api.sendEmail(recipient,(isReply?'תגובה מ':'משימה מ')+editorName+': '+next.name,html);}
       catch(e){console.warn('שגיאת מייל:',e.message);alert('שגיאה בשליחת מייל ל'+ownerName+': '+e.message);}
     }
   }
@@ -998,7 +1025,7 @@ const MAIL_SIGNATURES={
   'מיכאל':{name:'מיכאל רוזנטל',title:'שמאי מקרקעין וכלכלן',mobile:''},
   'פייגי':{name:'',title:'משרד רובינשטיין רוזנטל',mobile:''},
 };
-const OFFICE_EMAIL='office@yrr.co.il', OFFICE_PHONE='08-930-7000';
+const OFFICE_PHONE='08-930-7000';
 const b64utf8=s=>btoa(unescape(encodeURIComponent(s)));
 const mimeWord=s=>`=?UTF-8?B?${b64utf8(s)}?=`;
 const escHtml=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -1174,7 +1201,7 @@ async function createBankDraft({caseNum,fullName,cas,userEmail,since,onStatus}){
   const me=USER_BY_EMAIL[(userEmail||'').toLowerCase()]||'';
   const sig=MAIL_SIGNATURES[me]||{name:'',title:'משרד רובינשטיין רוזנטל',mobile:''};
   const advisor=String(cas?.advisorEmail||'').trim();
-  const cc=[advisor,OFFICE_EMAIL].filter(e=>e&&e.toLowerCase()!==(userEmail||'').toLowerCase());
+  const cc=[advisor].filter(e=>e&&e.toLowerCase()!==(userEmail||'').toLowerCase());   // עותק ליועץ בלבד
   const html=buildBankMailHtml({bank:d.bank,branch:d.branch,block:cas?.block,parcel:cas?.parcel,subParcel:cas?.subParcel,hasAdvisor:!!advisor,sig});
   const bnd='rr_'+Date.now().toString(36);
   const lines=[
@@ -1992,11 +2019,66 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const origStatusRef=useRef(project.status);
   const origMissingRef=useRef(project.missingDocs||'');
   const isYossi=(USER_BY_EMAIL[(user?.email||'').toLowerCase()]==='יוסי');
-  const matchedCase=(managed||[]).find(c=>c.folder&&c.folder.trim()===project.name.trim());
+  // התיק ב"כלל התיקים" — לפי מספר השורה (זהה בגיליון המאוחד), כך שגם אחרי שינוי שם התיק הקישור נשמר
+  const matchedCase=(managed||[]).find(c=>c._row===project._row&&(c.caseNum||c.folder))
+    ||(managed||[]).find(c=>c.folder&&c.folder.trim()===project.name.trim());
   // טופס מרשם (לקוח/יועץ/נכס) — נערך בלשוניות ונשמר ל"ניהול תיקים" A–X
   const [caseForm,setCaseForm]=useState(()=>matchedCase?{...matchedCase}:null);
   useEffect(()=>{setCaseForm(matchedCase?{...matchedCase}:null);},[matchedCase&&matchedCase._row]);
-  const setCF=(k,v)=>setCaseForm(f=>({...(f||{}),[k]:v}));
+  // שדות שנכנסים לשם התיק — " מוחלף ב-״, ומסמנים שהשם לא עודכן (הערה בלשונית)
+  const [nameFieldsEdited,setNameFieldsEdited]=useState(false);
+  const setCF=(k,v)=>{
+    if(CASE_NAME_KEYS.includes(k)){v=fixFolderPart(v);if(v!==(matchedCase?.[k]||''))setNameFieldsEdited(true);}
+    setCaseForm(f=>({...(f||{}),[k]:v}));
+  };
+  // ── שינוי שם תיק: כמו העברה ל"הושלמו" — המשתמש משנה את שם התיקייה ב-Drive בעצמו, והמערכת בודקת לפני שמירה ──
+  const [renameOpen,setRenameOpen]=useState(false);
+  const [rn,setRn]=useState({city:'',street:'',houseNum:'',client:''});
+  const [renameErr,setRenameErr]=useState('');
+  const [renameBusy,setRenameBusy]=useState(false);
+  const [renameCopied,setRenameCopied]=useState(false);
+  const openRename=()=>{
+    if(!matchedCase)return;
+    setRn({city:matchedCase.city||'',street:matchedCase.street||'',houseNum:matchedCase.houseNum||'',client:matchedCase.client||''});
+    setRenameErr('');setRenameCopied(false);setRenameOpen(true);
+  };
+  const rnNewName=caseFolderName({...rn,caseNum:matchedCase?.caseNum||''});
+  const rnBad=CASE_NAME_KEYS.flatMap(k=>badFolderChars(rn[k]));
+  const verifyRenameAndApply=async()=>{
+    if(!matchedCase)return;
+    if(rnBad.length){setRenameErr(`תו לא מותר בשם תיקייה: ${[...new Set(rnBad)].join(' ')}`);return;}
+    if(!rn.city.trim()||!rn.client.trim()){setRenameErr('עיר ולקוח הם שדות חובה');return;}
+    if(rnNewName===String(matchedCase.folder||'').trim()){setRenameErr('השם החדש זהה לשם הנוכחי');return;}
+    const fm=String(matchedCase.driveFolderLink||'').match(/\/folders\/([-\w]+)/);
+    // בדיקה ישירה ב-Drive דורשת הרשאת קריאה — אם חסרה, מבקשים אותה עכשיו (מתוך הלחיצה)
+    if(fm&&missingDraftScopes().includes('https://www.googleapis.com/auth/drive.readonly')){
+      requestDraftScopes(r=>setRenameErr(r.error?'ההרשאה לא אושרה — סמנו את תיבת Google Drive בחלון של Google.':'✓ ההרשאה אושרה — לחצו שוב "בדוק ואשר"'));
+      return;
+    }
+    setRenameBusy(true);setRenameErr('');
+    try{
+      if(fm){ // התיקייה של התיק הזה בדיוק (לפי הקישור השמור) — מה שמה עכשיו?
+        const r=await fetch(`https://www.googleapis.com/drive/v3/files/${fm[1]}?fields=name&supportsAllDrives=true`,{headers:{Authorization:`Bearer ${api.token}`}});
+        if(!r.ok)throw await googleApiError(r,'Google Drive');
+        const actual=String((await r.json()).name||'').trim();
+        if(actual!==rnNewName){setRenameErr(`התיקייה ב-Drive עדיין נקראת "${actual}". יש לשנות אותה ל-"${rnNewName}" (אפשר להעתיק) ולבדוק שוב.`);return;}
+      }else{ // אין קישור שמור — בודקים שקיימת ב-Drive תיקייה בשם החדש
+        const resp=await fetch(APPS_SCRIPT_URL+'?type=checkFolder&name='+encodeURIComponent(rnNewName)+'&token='+encodeURIComponent(api.token||''));
+        const data=await resp.json();
+        if(!data||!data.found){setRenameErr(`לא נמצאה ב-Drive תיקייה בשם "${rnNewName}". שנו את שם התיקייה ובדקו שוב.`);return;}
+      }
+      // אומת — שומרים בגיליון: שם התיק (F), השדות, ונתיב התיקייה במחשב (X)
+      const row=(matchedCase._raw||[]).slice(0,24);while(row.length<24)row.push('');
+      row[M.folder]=rnNewName;row[M.city]=rn.city.trim();row[M.street]=rn.street.trim();row[M.houseNum]=rn.houseNum.trim();row[M.client]=rn.client.trim();
+      row[M.folderLink]=_bp?buildFolderPath(_bp,rnNewName,matchedCase.status):'';
+      await api.put(`'ניהול תיקים'!A${matchedCase._row}:X${matchedCase._row}`,[row]);
+      const upd={folder:rnNewName,city:row[M.city],street:row[M.street],houseNum:row[M.houseNum],client:row[M.client],folderLink:row[M.folderLink],_raw:[...row,...(matchedCase._raw||[]).slice(24)]};
+      if(onUpdateCase)onUpdateCase(matchedCase._row,upd);
+      setCaseForm(f=>({...(f||{}),...upd}));setNameFieldsEdited(false);
+      setRenameOpen(false);
+    }catch(e){setRenameErr(e.message);}
+    finally{setRenameBusy(false);}
+  };
   const saveCaseRegistry=async()=>{
     if(!caseForm||!matchedCase)return;
     const row=(matchedCase._raw||[]).slice(0,24);while(row.length<24)row.push('');
@@ -2269,6 +2351,44 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
           </div>
         </div>
       )}
+      {/* דיאלוג שינוי שם תיק — המשתמש משנה את שם התיקייה ב-Drive, המערכת בודקת ורק אז שומרת */}
+      {renameOpen&&matchedCase&&(
+        <div style={{position:'absolute',inset:0,zIndex:700,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
+          <div style={{background:'#fff',borderRadius:16,padding:isMobile?'22px 18px':'26px 30px',maxWidth:500,width:'92%',boxShadow:'0 24px 60px rgba(0,0,0,0.35)',direction:'rtl'}}>
+            <div style={{fontFamily:SERIF,fontSize:20,fontWeight:500,color:INK,marginBottom:4}}>שינוי שם תיק</div>
+            <div style={{fontSize:12.5,color:'#8f8272',marginBottom:16}}>תיק {matchedCase.caseNum} · מספר התיק לא משתנה</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              {[['city','ישוב / עיר'],['client','שם לקוח'],['street','רחוב'],['houseNum',"מס' בית"]].map(([k,l])=>(
+                <div key={k}><FLabel>{l}</FLabel>
+                  <input value={rn[k]} onChange={e=>{const v=fixFolderPart(e.target.value);setRn(s=>({...s,[k]:v}));setRenameErr('');setRenameCopied(false);}}
+                    style={{width:'100%',boxSizing:'border-box',padding:'8px 11px',borderRadius:9,border:`1px solid ${badFolderChars(rn[k]).length?'#dc2626':LINE}`,fontSize:14,fontFamily:'inherit',outline:'none'}}/>
+                </div>
+              ))}
+            </div>
+            {rnBad.length>0&&<div style={{fontSize:12.5,color:'#b91c1c',marginTop:8}}>תווים שאסורים בשם תיקייה: {[...new Set(rnBad)].join(' ')} — יש להסיר אותם.</div>}
+            <div style={{marginTop:16,fontSize:12,color:'#8f8272'}}>השם החדש:</div>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4,background:'#faf8f4',border:`1px solid ${LINE}`,borderRadius:10,padding:'9px 12px'}}>
+              <span style={{flex:1,fontFamily:SERIF,fontSize:16,color:INK,wordBreak:'break-word'}}>{rnNewName}</span>
+              <button onClick={()=>{try{navigator.clipboard.writeText(rnNewName);setRenameCopied(true);}catch(_){}}}
+                style={{flexShrink:0,padding:'5px 12px',borderRadius:8,border:`1px solid ${LINE}`,background:renameCopied?'#f0fdf4':'#fff',color:renameCopied?'#166534':'#5a4e44',cursor:'pointer',fontSize:12.5,fontFamily:'inherit'}}>{renameCopied?'✓ הועתק':'העתק שם'}</button>
+            </div>
+            <div style={{fontSize:13,color:'#3a3228',lineHeight:1.7,marginTop:14,background:'#fbf8f2',borderRadius:10,padding:'10px 14px'}}>
+              <b>שלב 1:</b> שנו את שם תיקיית התיק ב-Drive לשם החדש (מומלץ להעתיק ולהדביק).
+              {_driveLink&&<> <a href={_driveLink} target="_blank" rel="noopener noreferrer" style={{color:GOLD3,fontWeight:600}}>פתח בדרייב ↗</a></>}<br/>
+              <b>שלב 2:</b> לחצו "בדוק ואשר" — השם יישמר רק אחרי שהמערכת תוודא שהתיקייה ב-Drive שונתה.
+            </div>
+            {renameErr&&<div style={{fontSize:13,color:renameErr.startsWith('✓')?'#166534':'#991b1b',background:renameErr.startsWith('✓')?'#f0fdf4':'#fef2f2',border:`1px solid ${renameErr.startsWith('✓')?'#bbf7d0':'#fecaca'}`,borderRadius:10,padding:'10px 14px',marginTop:12,lineHeight:1.6}}>{renameErr}</div>}
+            <div style={{display:'flex',gap:10,justifyContent:'flex-start',marginTop:18}}>
+              <button onClick={verifyRenameAndApply} disabled={renameBusy||rnBad.length>0}
+                style={{padding:'10px 22px',borderRadius:10,border:'none',background:INK,color:GOLD_PALE,fontSize:14,fontWeight:600,cursor:renameBusy?'wait':'pointer',fontFamily:'inherit',display:'flex',alignItems:'center',gap:7,opacity:rnBad.length?0.5:1}}>
+                {renameBusy?<><Spinner size={12} color={GOLD_PALE}/>בודק ב-Drive…</>:'בדוק ואשר'}
+              </button>
+              <button onClick={()=>setRenameOpen(false)} disabled={renameBusy}
+                style={{padding:'10px 20px',borderRadius:10,border:`1px solid ${LINE}`,background:'#fff',color:'#5a4e44',fontSize:14,cursor:'pointer',fontFamily:'inherit'}}>ביטול</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* דיאלוג תזכורת העברת תיקייה */}
       {folderReminderStatus&&(
         <div style={{position:'absolute',inset:0,zIndex:700,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
@@ -2301,7 +2421,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
           <div style={{position:'relative',display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
             <div style={{flex:1,minWidth:0}}>
               {caseNum&&<span onClick={()=>{_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={{fontSize:12,fontWeight:600,color:GOLD2,display:'inline-block',marginBottom:4,letterSpacing:'0.08em',cursor:'pointer'}}>תיק {caseNum}</span>}
-              <div style={{fontFamily:SERIF,fontSize:isMobile?19:24,fontWeight:500,color:GOLD_PALE,lineHeight:1.35,marginBottom:10}}>{project.name}</div>
+              <div style={{fontFamily:SERIF,fontSize:isMobile?19:24,fontWeight:500,color:GOLD_PALE,lineHeight:1.35,marginBottom:10}}>{matchedCase?.folder||project.name}</div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                 <Badge status={form.status}/>
                 {matchedCase&&<select value={workStatus} onChange={e=>handleWorkStatusChange(e.target.value)} disabled={closingWork}
@@ -2319,11 +2439,15 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                   style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.8)',display:'flex',alignItems:'center',gap:5,textDecoration:'none',fontSize:13}}>
                   <DriveIcon size={14}/><span style={{fontSize:11}}>פתח בדרייב</span>
                 </a>}
-                {caseNum&&!isGeneralTask&&!isMobile&&<button onClick={handleBankDraft} disabled={bankDraft?.busy}
+                {caseNum&&!isGeneralTask&&!isMobile&&USER_BY_EMAIL[(user?.email||'').toLowerCase()]==='יוסי'&&<button onClick={handleBankDraft} disabled={bankDraft?.busy}
                   title="מייצא את השומה ל-PDF ב-Word ויוצר טיוטת מייל לבנק ב-Gmail שלך: PDF מצורף, נמענים, נוסח קבוע ונושא — לבדיקה ושליחה"
                   style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.8)',cursor:bankDraft?.busy?'wait':'pointer',fontSize:13,display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'}}>
                   {bankDraft?.busy?<Spinner size={12} color={GOLD_PALE}/>:<Icon name="mail" size={14} color={GOLD2}/>}
                   <span style={{fontSize:11}}>{bankDraft?.busy?(bankDraft.text||'מכין טיוטה…'):'טיוטה לבנק'}</span>
+                </button>}
+                {matchedCase&&!isGeneralTask&&<button onClick={openRename} title="שינוי שם התיק (עיר / רחוב / לקוח) — כולל שינוי שם התיקייה ב-Drive"
+                  style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.8)',cursor:'pointer',fontSize:13,display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'}}>
+                  <Icon name="pencil" size={13} color={GOLD2}/><span style={{fontSize:11}}>שינוי שם</span>
                 </button>}
                 {bankDraft&&!bankDraft.busy&&<span style={{fontSize:11.5,color:bankDraft.err?'#fca5a5':'#86efac',maxWidth:340}}>{bankDraft.text}</span>}
                 {saving&&<span style={{fontSize:12,color:'rgba(255,255,255,0.45)',display:'flex',alignItems:'center',gap:5}}><Spinner size={11} color='rgba(255,255,255,0.45)'/>שומר...</span>}
@@ -2411,7 +2535,8 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
               <NotesWidget value={form.notes||''} onChange={v=>{set('notes',v);autoSave();}} onBlur={()=>{}} style={iS}/>
             </div>
             {!isGeneralTask&&(form.taskHistory||'').trim()&&(()=>{
-              const hist=String(form.taskHistory).split('\n').map(l=>l.trim()).filter(Boolean);
+              // נשמר מהישן לחדש (כל סיום מתווסף בסוף) — מוצג מהחדש לישן
+              const hist=String(form.taskHistory).split('\n').map(l=>l.trim()).filter(Boolean).reverse();
               return(
                 <div style={sec}>
                   <div onClick={()=>setHistOpen(o=>!o)} style={{display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer',userSelect:'none'}}>
@@ -2548,6 +2673,14 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
               </div>}
             </div>
           </div>);})()}
+          {/* פרטים שנכנסים לשם התיק שונו — השם עצמו לא משתנה אוטומטית */}
+          {(tab==='client'||tab==='property')&&nameFieldsEdited&&(
+            <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',background:'#fbf5e4',border:'1px solid #ead9a8',borderRadius:10,padding:'9px 14px',marginBottom:12,fontSize:13,color:'#5c4510'}}>
+              <Icon name="alert" size={15} color={GOLD2}/>
+              <span style={{flex:1}}>שם התיק לא השתנה. לשינוי השם השתמשו ב"שינוי שם" בראש הכרטיס.</span>
+              <button onClick={openRename} style={{padding:'5px 12px',borderRadius:8,border:'none',background:INK,color:GOLD_PALE,fontSize:12.5,cursor:'pointer',fontFamily:'inherit'}}>שינוי שם</button>
+            </div>
+          )}
           {tab==='client'&&caseForm&&<div style={sec}>
             <SectionTitle icon="👤">פרטי לקוח</SectionTitle>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
@@ -3347,7 +3480,7 @@ function AddCaseModal({onClose,onAdd,cases}){
   const [errors,setErrors]=useState({});
   const [showClientContact,setShowClientContact]=useState(false);
   const [showAdvisorContact,setShowAdvisorContact]=useState(false);
-  const set=(k,v)=>{setForm(f=>({...f,[k]:v}));setErrors(er=>{const n={...er};delete n[k];return n;});};
+  const set=(k,v)=>{if(CASE_NAME_KEYS.includes(k))v=fixFolderPart(v);setForm(f=>({...f,[k]:v}));setErrors(er=>{const n={...er};delete n[k];return n;});};
 
   const advisorList=React.useMemo(()=>{
     const map={};
@@ -3389,6 +3522,8 @@ function AddCaseModal({onClose,onAdd,cases}){
     if(!(form.parcel||'').trim())e.parcel='שדה חובה';
     if(!(form.purpose||'').trim())e.purpose='שדה חובה';
     if(!(form.propType||'').trim())e.propType='שדה חובה';
+    // שדות שנכנסים לשם התיקייה — בלי תווים שאסורים בתיקיות Windows
+    CASE_NAME_KEYS.forEach(k=>{const b=badFolderChars(form[k]);if(b.length&&!e[k])e[k]=`תו לא מותר בשם תיקייה: ${b.join(' ')}`;});
     return e;
   };
 
@@ -3596,7 +3731,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
     <div className="page" style={{padding:PAGE_PAD(isMobile)}}>
       {adding&&<AddCaseModal cases={cases} onClose={()=>setAdding(false)} onAdd={async(form)=>{
         // נוסחת שם תיקייה זהה ל-Apps Script: O - P Q - G - D
-        const folder=`${form.city||''} - ${[form.street,form.houseNum].filter(Boolean).join(' ')} - ${form.client||''} - ${form.caseNum||''}`;
+        const folder=caseFolderName(form);
         const row=new Array(53).fill(''); // שורה מאוחדת: מרשם A–Y + עבודה Z–BA
         row[M.caseNum]=form.caseNum;row[M.client]=form.client;row[M.openDate]=fmt(form.openDate)||form.openDate;
         row[M.status]=form.status;row[M.city]=form.city;row[M.street]=form.street;
@@ -6259,6 +6394,8 @@ function App(){
   },[addProject]);
   const updateCase=useCallback((rowNum,upd)=>{
     setManaged(ms=>ms.map(m=>m._row===rowNum?{...m,...upd}:m));
+    // שם התיק (F) הוא גם שם הפרויקט באותה שורה — מעדכנים גם את רשימת הפרויקטים
+    if(upd&&upd.folder)setProjects(ps=>ps.map(p=>p._row===rowNum?{...p,name:upd.folder}:p));
   },[]);
   const addCase=useCallback((c)=>{setManaged(ms=>[...ms,c]);},[]);
   const addProject=useCallback((p)=>{setProjects(ps=>[...ps,p]);},[]);
