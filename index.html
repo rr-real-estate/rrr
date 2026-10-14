@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v115'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v116'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -254,7 +254,7 @@ const TASK_FIELD_NAME={yossi:'יוסי',michael:'מיכאל',feigi:'פייגי'}
 // האם לתיק יש לפחות משימה אחת למישהו מהצוות
 function projHasTask(p){return !!(splitTasks(p&&p.yossi).length||splitTasks(p&&p.michael).length||splitTasks(p&&p.feigi).length);}
 // תיק אמיתי (עם מספר תיק) שאין בו אף משימה משויכת
-function projNoTaskFlag(p){return /\b5\d{4}\b/.test((p&&p.name)||'')&&!projHasTask(p);}
+function projNoTaskFlag(p){return !!projCaseNum(p)&&!projHasTask(p);}
 // ── סימון משימה כבוצעה: מסיר מהשדה ובונה רשומת היסטוריה ──
 function computeCompletion(project,field,taskLine,completer){
   const ps=parseTaskStamp(taskLine);
@@ -648,10 +648,12 @@ function fmt(v){if(!v)return'';const d=v instanceof Date?v:parseDate(v);if(!d)re
 function g(row,i){return(i<row.length?String(row[i]||'').trim():'');}
 
 // פרסר "פרויקט" (נתוני עבודה) — קורא כעת משורת "ניהול תיקים" דרך PU. מבנה האובייקט זהה לחלוטין.
+// מספר תיק של פרויקט — מהשם, ואם השם ריק/חסר מספר: מעמודה D (המזהה היציב)
+function projCaseNum(p){return ((String(p&&p.name||'').match(/\b(5\d{4})\b/)||[])[1])||(p&&p._caseNum)||'';}
 function parseProject(row,ri){
   const status=g(row,PU.status);
   CHECK_COLS.forEach(ci=>{const v=g(row,ci);if(v&&v.length<25&&!DATE_RE.test(v))dynamicCheckOpts.add(v);});
-  return{_row:ri+2,_raw:[...row],
+  return{_row:ri+2,_raw:[...row],_caseNum:String(g(row,M.caseNum)||'').trim(),
     name:g(row,PU.name),yossi:g(row,PU.yossi),michael:g(row,PU.michael),feigi:g(row,PU.feigi),
     notes:g(row,PU.notes),dueDate:fmt(g(row,PU.dueDate)),status,expected:fmt(g(row,PU.expected)),
     advance:g(row,PU.advance),docs:g(row,PU.docs),missingDocs:g(row,PU.missingDocs),
@@ -688,7 +690,7 @@ function buildCasesFromManaged(rows){
   const all=rows||[];
   const managed=all.map((r,i)=>parseManagedCase(r,i)).filter(c=>c.caseNum||c.client);
   const projects=all.map((r,i)=>[r,i]).filter(([r])=>!['הסתיים','בוטל'].includes(g(r,M.status)))
-    .map(([r,i])=>parseProject(r,i)).filter(p=>p.name);
+    .map(([r,i])=>parseProject(r,i)).filter(p=>p.name||p._caseNum);   // תיק עם שם ריק עדיין מוצג (מזוהה לפי מספר התיק, עמודה D)
   return {managed,projects};
 }
 
@@ -986,7 +988,7 @@ async function saveWorkToManaged(upd){
 // upsert כשיש תאריך ביקור; delete כשהתאריך נמחק. יורה רק כששדות הביקור השתנו.
 function syncVisitCalendar(prev,upd){
   try{
-    const caseNum=(String(upd.name||'').match(/\b(5\d{4})\b/)||[])[1]||'';
+    const caseNum=projCaseNum(upd);
     if(!caseNum)return;
     const p=prev||{};
     const hasVisit=!!(upd.visitDate&&String(upd.visitDate).trim());
@@ -1573,8 +1575,7 @@ function ProjectExpanded({project,onSave,onCollapse,wide}){
   };
 
   const checkOpts=[...dynamicCheckOpts].sort();
-  const numMatch=project.name.match(/\b(5\d{4})\b/);
-  const caseNum=numMatch?numMatch[1]:'';
+  const caseNum=projCaseNum(project);
   const dot=STATUS_META[form.status]?.dot||GOLD;
 
   const iS={width:'100%',padding:'7px 10px',borderRadius:7,border:'1px solid #ddd0bb',fontSize:13,background:'#fffdf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box'};
@@ -1792,10 +1793,10 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf}){
   const overdue=diff!==null&&diff<0;
   const soon=diff!==null&&diff>=0&&diff<=2;
 
-  const numMatch=project.name.match(/\b(5\d{4})\b/);
-  const caseNum=numMatch?numMatch[1]:'';
+  const caseNum=projCaseNum(project);
   const isGeneral=!caseNum;  // משימה כללית — ללא מספר תיק
-  const parts=project.name.replace(/\s*-\s*\d{5}\s*$/,'').split(' - ');
+  const nameMissing=!String(project.name||'').trim();   // שם התיק (עמודה F) נמחק
+  const parts=String(project.name||'').replace(/\s*-\s*\d{5}\s*$/,'').split(' - ');
   const city=parts[0]||'';
 
   // תצוגת משימות בכרטיס — כל הצוות רואה את הכל
@@ -1826,10 +1827,12 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf}){
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10,gap:6}}>
         <div style={{flex:1,minWidth:0}}>
           {caseNum&&<span onClick={e=>{e.stopPropagation();_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={CASE_NUM_STYLE}>תיק {caseNum}</span>}
-          <div style={{fontFamily:SERIF,fontSize:17,fontWeight:500,color:INK,lineHeight:1.35}}>
-            <span>{city}</span>
-            {parts[1]&&<span style={{color:'#3a3228'}}>{' — '}{parts.slice(1).join(' — ')}</span>}
-          </div>
+          {nameMissing
+            ?<div style={{fontSize:14,fontWeight:600,color:'#b45309',lineHeight:1.35,display:'flex',alignItems:'center',gap:6}}><Icon name="alert" size={15}/>שם התיק חסר בגיליון — פתחו את התיק לשחזור</div>
+            :<div style={{fontFamily:SERIF,fontSize:17,fontWeight:500,color:INK,lineHeight:1.35}}>
+              <span>{city}</span>
+              {parts[1]&&<span style={{color:'#3a3228'}}>{' — '}{parts.slice(1).join(' — ')}</span>}
+            </div>}
         </div>
         {!isGeneral&&<div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
           {_folderPath&&!isMobile&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_folderPath);}}
@@ -2056,12 +2059,17 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
       return;
     }
     setRenameBusy(true);setRenameErr('');
+    let nameToSave=rnNewName, restoreAsIs=false;
     try{
       if(fm){ // התיקייה של התיק הזה בדיוק (לפי הקישור השמור) — מה שמה עכשיו?
         const r=await fetch(`https://www.googleapis.com/drive/v3/files/${fm[1]}?fields=name&supportsAllDrives=true`,{headers:{Authorization:`Bearer ${api.token}`}});
         if(!r.ok)throw await googleApiError(r,'Google Drive');
         const actual=String((await r.json()).name||'').trim();
-        if(actual!==rnNewName){setRenameErr(`התיקייה ב-Drive עדיין נקראת "${actual}". יש לשנות אותה ל-"${rnNewName}" (אפשר להעתיק) ולבדוק שוב.`);return;}
+        if(actual!==rnNewName){
+          // שחזור שם שנמחק מהגיליון: התיקייה עדיין בשמה המקורי — משחזרים בדיוק אותו (בלי לשנות שדות)
+          if(!String(matchedCase.folder||'').trim()&&matchedCase.caseNum&&actual.endsWith(String(matchedCase.caseNum))){nameToSave=actual;restoreAsIs=true;}
+          else{setRenameErr(`התיקייה ב-Drive עדיין נקראת "${actual}". יש לשנות אותה ל-"${rnNewName}" (אפשר להעתיק) ולבדוק שוב.`);return;}
+        }
       }else{ // אין קישור שמור — בודקים שקיימת ב-Drive תיקייה בשם החדש
         const resp=await fetch(APPS_SCRIPT_URL+'?type=checkFolder&name='+encodeURIComponent(rnNewName)+'&token='+encodeURIComponent(api.token||''));
         const data=await resp.json();
@@ -2069,10 +2077,11 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
       }
       // אומת — שומרים בגיליון: שם התיק (F), השדות, ונתיב התיקייה במחשב (X)
       const row=(matchedCase._raw||[]).slice(0,24);while(row.length<24)row.push('');
-      row[M.folder]=rnNewName;row[M.city]=rn.city.trim();row[M.street]=rn.street.trim();row[M.houseNum]=rn.houseNum.trim();row[M.client]=rn.client.trim();
-      row[M.folderLink]=_bp?buildFolderPath(_bp,rnNewName,matchedCase.status):'';
+      row[M.folder]=nameToSave;
+      if(!restoreAsIs){row[M.city]=rn.city.trim();row[M.street]=rn.street.trim();row[M.houseNum]=rn.houseNum.trim();row[M.client]=rn.client.trim();}
+      row[M.folderLink]=_bp?buildFolderPath(_bp,nameToSave,matchedCase.status):'';
       await api.put(`'ניהול תיקים'!A${matchedCase._row}:X${matchedCase._row}`,[row]);
-      const upd={folder:rnNewName,city:row[M.city],street:row[M.street],houseNum:row[M.houseNum],client:row[M.client],folderLink:row[M.folderLink],_raw:[...row,...(matchedCase._raw||[]).slice(24)]};
+      const upd={folder:nameToSave,city:row[M.city],street:row[M.street],houseNum:row[M.houseNum],client:row[M.client],folderLink:row[M.folderLink],_raw:[...row,...(matchedCase._raw||[]).slice(24)]};
       if(onUpdateCase)onUpdateCase(matchedCase._row,upd);
       setCaseForm(f=>({...(f||{}),...upd}));setNameFieldsEdited(false);
       setRenameOpen(false);
@@ -2208,8 +2217,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
       await applyWorkStatusChange(s);
     }catch(e){setFolderVerifyErr('שגיאה בבדיקת התיקייה: '+(e.message||e)+'. נסו שוב.');setVerifyingFolder(false);}
   };
-  const numMatch=project.name.match(/\b(5\d{4})\b/);
-  const caseNum=numMatch?numMatch[1]:'';
+  const caseNum=matchedCase?.caseNum||projCaseNum(project);
   // מחיקת תיק — מותרת רק לתיק האחרון שנפתח (מספר הכי גבוה), לשמירת רצף המספרים
   const _allNums=(managed||[]).map(c=>parseInt(c.caseNum,10)).filter(n=>!isNaN(n));
   const _maxNum=_allNums.length?Math.max(..._allNums):0;
@@ -2240,7 +2248,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   },[caseNum]);
   const dot=STATUS_META[form.status]?.dot||GOLD;
   const sec={background:'#fff',borderRadius:14,padding:18,marginBottom:16,border:`1px solid ${LINE}`};
-  const isGeneralTask=!/\b5\d{4}\b/.test(project.name||'');  // משימה כללית — ללא מספר תיק
+  const isGeneralTask=!(matchedCase?.caseNum||projCaseNum(project));  // משימה כללית — ללא מספר תיק (לפי עמודה D, לא לפי השם)
   const panelTabs=isGeneralTask
     ?[{id:'main',label:'ראשי',icon:'list'}]
     :[{id:'main',label:'ראשי',icon:'list'},{id:'docs',label:'מסמכים',icon:'folder'},{id:'visit',label:'ביקור',icon:'calendar'},{id:'fee',label:'שכ"ט',icon:'coins'},
@@ -2357,7 +2365,8 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
       {renameOpen&&matchedCase&&(
         <div style={{position:'absolute',inset:0,zIndex:700,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
           <div style={{background:'#fff',borderRadius:16,padding:isMobile?'22px 18px':'26px 30px',maxWidth:500,width:'92%',boxShadow:'0 24px 60px rgba(0,0,0,0.35)',direction:'rtl'}}>
-            <div style={{fontFamily:SERIF,fontSize:20,fontWeight:500,color:INK,marginBottom:4}}>שינוי שם תיק</div>
+            <div style={{fontFamily:SERIF,fontSize:20,fontWeight:500,color:INK,marginBottom:4}}>{matchedCase.folder?'שינוי שם תיק':'שחזור שם תיק'}</div>
+            {!matchedCase.folder&&<div style={{fontSize:12.5,color:'#92400e',background:'#fef3c7',borderRadius:8,padding:'7px 11px',marginBottom:10,lineHeight:1.6}}>שם התיק נמחק מהגיליון. השם נבנה מחדש מהפרטים — אם התיקייה במחשב עדיין קיימת בשם הזה, אין צורך לשנות דבר: לחצו "בדוק ואשר".</div>}
             <div style={{fontSize:12.5,color:'#8f8272',marginBottom:16}}>תיק {matchedCase.caseNum} · מספר התיק לא משתנה</div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
               {[['city','ישוב / עיר'],['client','שם לקוח'],['street','רחוב'],['houseNum',"מס' בית"]].map(([k,l])=>(
@@ -2425,7 +2434,12 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
           <div style={{position:'relative',display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
             <div style={{flex:1,minWidth:0}}>
               {caseNum&&<span onClick={()=>{_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={{fontSize:12,fontWeight:600,color:GOLD2,display:'inline-block',marginBottom:4,letterSpacing:'0.08em',cursor:'pointer'}}>תיק {caseNum}</span>}
-              <div style={{fontFamily:SERIF,fontSize:isMobile?19:24,fontWeight:500,color:GOLD_PALE,lineHeight:1.35,marginBottom:10}}>{matchedCase?.folder||project.name}</div>
+              {(matchedCase?.folder||project.name)
+                ?<div style={{fontFamily:SERIF,fontSize:isMobile?19:24,fontWeight:500,color:GOLD_PALE,lineHeight:1.35,marginBottom:10}}>{matchedCase?.folder||project.name}</div>
+                :<div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:10}}>
+                  <span style={{fontSize:15,fontWeight:600,color:'#fcd34d',display:'flex',alignItems:'center',gap:6}}><Icon name="alert" size={16}/>שם התיק חסר בגיליון</span>
+                  {matchedCase&&<button onClick={openRename} style={{padding:'5px 14px',borderRadius:8,border:'none',background:GOLD_PALE,color:INK,fontSize:12.5,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>שחזור שם</button>}
+                </div>}
               <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                 <Badge status={form.status}/>
                 {matchedCase&&<select value={workStatus} onChange={e=>handleWorkStatusChange(e.target.value)} disabled={closingWork}
@@ -2652,7 +2666,13 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             const balDisp=_hasFee?money(_bal):'?';
             return(<div>
             <div style={sec}>
-              <SectionTitle icon="💰">שכר טרחה</SectionTitle>
+              {/* כותרת + סטטוס תשלום צמוד אליה (התווית בגודל רגיל, הסטטוס בגודל הכותרת) */}
+              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:14,paddingBottom:10,borderBottom:`1px solid ${LINE2}`}}>
+                <Icon name="coins" size={15} color={GOLD2} stroke={1.7}/>
+                <span style={{fontFamily:SERIF,fontSize:16,fontWeight:500,color:INK}}>שכר טרחה</span>
+                <span style={{fontSize:12,fontWeight:500,color:'#7a6a58',marginRight:14}}>סטטוס תשלום</span>
+                <span style={{display:'inline-block',padding:'3px 14px',borderRadius:20,fontSize:16,fontWeight:600,lineHeight:1.4,background:_stC.bg,color:_stC.fg}}>{_st}</span>
+              </div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
                 <div><FLabel>סכום שכ"ט מלא (₪)</FLabel>{inp('fee')}</div>
                 <div><FLabel>סכום מקדמה (₪)</FLabel>{inp('advanceAmount')}</div>
@@ -2660,10 +2680,6 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 <div><FLabel>יתרת תשלום (מחושב)</FLabel>
                   <div style={{...iS,background:'#f0ede8',color:!_hasFee?'#6b5e50':(_bal>0?'#b45309':'#166534'),fontWeight:600,cursor:'default'}}>{balDisp}</div>
                 </div>
-              </div>
-              <div style={{marginBottom:12}}>
-                <FLabel>סטטוס תשלום (אוטומטי)</FLabel>
-                <div><span style={{display:'inline-block',padding:'6px 14px',borderRadius:20,fontSize:13,fontWeight:600,background:_stC.bg,color:_stC.fg}}>{_st}</span></div>
               </div>
               <FLabel>הערות שכ"ט</FLabel>{inp('feeNotes',true)}
               {form.fee&&<div style={{marginTop:16,padding:'14px 16px',background:'#fef9e8',borderRadius:10,border:`1px solid ${GOLD}66`}}>
