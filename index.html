@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v117'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v118'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -284,6 +284,9 @@ function parseHistoryLine(line){
 // ═══════════════ תיקיות במחשב ═══════════════════════════════════
 // מיפוי סטטוס → תת-תיקייה
 const FOLDER_STATUS_MAP={'הסתיים':'פרויקטים שהושלמו','בוטל':'בוטל'};
+// תת-התיקייה שבה אמורה לשבת תיקיית התיק לפי הסטטוס הכללי (בביצוע / ממתין → פרויקטים בביצוע)
+const statusFolder=s=>FOLDER_STATUS_MAP[s]||'פרויקטים בביצוע';
+const DRIVE_ROOT_ID='1s7jeP7cSQbvhfWHD9VSW5Jzic5MSIZQe';   // התיקייה הראשית שמכילה את שלוש תיקיות הסטטוס
 // בניית נתיב Windows לתיק
 function buildFolderPath(basePath,folderName,status){
   if(!basePath||!folderName)return'';
@@ -477,6 +480,8 @@ async function syncStatusToManaged(managedCases,projectName,newStatus,onUpdateCa
   const targetStatus=STATUS_MAP[newStatus]||'בביצוע';
   const match=managedCases.find(c=>c.folder&&c.folder.trim()===projectName.trim());
   if(!match)return;
+  // תיק שהסתיים/בוטל לא "חוזר לחיים" בשקט משינוי סטטוס טיפול — זה מחייב העברת תיקייה (דרך בורר הסטטוס בכרטיס)
+  if(statusFolder(match.status)!==statusFolder(targetStatus))return;
   try{
     await api.put(`'ניהול תיקים'!E${match._row}`,[[targetStatus]]);
     if(onUpdateCase)onUpdateCase(match._row,{status:targetStatus});
@@ -2175,8 +2180,11 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
           const ds=`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
           writes.push(api.put(`'ניהול תיקים'!B${matchedCase._row}`,[[ds]]));
         }
+        // תיק שחוזר לפעילות (מהושלמו) — תאריך הסגירה כבר לא רלוונטי
+        const reopened=matchedCase.status==='הסתיים'&&statusFolder(newStatus)==='פרויקטים בביצוע';
+        if(reopened)writes.push(api.put(`'ניהול תיקים'!B${matchedCase._row}`,[['']]));
         await Promise.all(writes);
-        if(onUpdateCase)onUpdateCase(matchedCase._row,{status:newStatus});
+        if(onUpdateCase)onUpdateCase(matchedCase._row,{status:newStatus,...(reopened?{closeDate:''}:{})});
       }
       if(newStatus==='הסתיים'||newStatus==='בוטל'){
         // ניקוי לשונית "ראשי" בסגירה/ביטול: משימות פתוחות → "בוצע" (עוברות להיסטוריה),
@@ -2205,19 +2213,44 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   };
   const handleWorkStatusChange=async(newStatus)=>{
     if(closingWork||newStatus===workStatus)return;
-    if(newStatus==='הסתיים'||newStatus==='בוטל'){setFolderVerifyErr('');setFolderReminderStatus(newStatus);return;}
+    // כל שינוי שמחייב תיקייה אחרת (בביצוע ↔ הושלמו ↔ בוטל, בכל כיוון) — קודם מעבירים תיקייה, המערכת בודקת, ורק אז הסטטוס משתנה
+    if(statusFolder(newStatus)!==statusFolder(workStatus)){setFolderVerifyErr('');setFolderReminderStatus(newStatus);return;}
     await applyWorkStatusChange(newStatus);
   };
   // אימות שהתיקייה של התיק הספציפי אכן הועברה לתת-התיקייה הנכונה ב-Drive לפני אישור שינוי הסטטוס
   const verifyFolderAndApply=async()=>{
     const s=folderReminderStatus;
     const folderName=String(matchedCase?.folder||project.name||'').trim();
-    const expected=s==='בוטל'?'בוטל':'פרויקטים שהושלמו';
+    const expected=statusFolder(s);
+    const fm=String(matchedCase?.driveFolderLink||'').match(/\/folders\/([-\w]+)/);
+    // בדיקה ישירה ב-Drive (לפי הקישור השמור) דורשת הרשאת קריאה — אם חסרה, מבקשים אותה עכשיו
+    if(fm&&missingDraftScopes().includes('https://www.googleapis.com/auth/drive.readonly')){
+      requestDraftScopes(r=>setFolderVerifyErr(r.error?'ההרשאה לא אושרה — סמנו את תיבת Google Drive בחלון של Google.':'ההרשאה אושרה — לחצו שוב "בדוק ואשר".'));
+      return;
+    }
     setFolderVerifyErr('');setVerifyingFolder(true);
     try{
+      if(fm){
+        // התיקייה של התיק הזה בדיוק: מי ההורה שלה, והאם ההורה יושב ישירות בתיקייה הראשית
+        const meta=async id=>{const r=await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=name,parents&supportsAllDrives=true`,{headers:{Authorization:`Bearer ${api.token}`}});if(!r.ok)throw await googleApiError(r,'Google Drive');return r.json();};
+        const me=await meta(fm[1]);
+        const parent=me.parents&&me.parents[0]?await meta(me.parents[0]):null;
+        if(!parent){setFolderVerifyErr('לא ניתן לאתר את מיקום התיקייה ב-Drive.');setVerifyingFolder(false);return;}
+        if(!(parent.parents||[]).includes(DRIVE_ROOT_ID)){
+          // התיקייה לא יושבת ישירות בתיקיית סטטוס — כנראה נגררה בטעות לתוך תיקייה של תיק אחר
+          const grand=parent.parents&&parent.parents[0]?await meta(parent.parents[0]).catch(()=>null):null;
+          setFolderVerifyErr(`התיקייה נמצאת בטעות בתוך תיקייה אחרת: "${parent.name}"${grand?` (שבתוך "${grand.name}")`:''}. יש להוציא אותה משם ולהעביר ישירות אל "${expected}", ואז לבדוק שוב.`);
+          setVerifyingFolder(false);return;
+        }
+        if(String(parent.name).trim()!==expected){setFolderVerifyErr(`התיקייה עדיין נמצאת ב"${parent.name}". יש להעביר אותה אל "${expected}" ואז לבדוק שוב.`);setVerifyingFolder(false);return;}
+        setVerifyingFolder(false);setFolderReminderStatus(null);setFolderVerifyErr('');
+        await applyWorkStatusChange(s);
+        return;
+      }
+      // אין קישור שמור — בדיקה לפי שם דרך Apps Script
       const resp=await fetch(APPS_SCRIPT_URL+'?type=checkFolder&name='+encodeURIComponent(folderName)+'&token='+encodeURIComponent(api.token||''));
       const data=await resp.json();
-      if(!data||!data.found){setFolderVerifyErr(`התיקייה "${folderName}" לא נמצאה ב-Drive. ודאו שהיא קיימת ובאותו שם, ואז בדקו שוב.`);setVerifyingFolder(false);return;}
+      if(!data||!data.found){setFolderVerifyErr(`התיקייה "${folderName}" לא נמצאה ישירות באחת מתיקיות הסטטוס. ודאו שהיא קיימת באותו שם ושלא נגררה בטעות לתוך תיקייה של תיק אחר, ואז בדקו שוב.`);setVerifyingFolder(false);return;}
       const actual=String(data.location||'').trim();
       if(actual!==expected){setFolderVerifyErr(`התיקייה עדיין נמצאת ב"${actual||'—'}". יש להעביר אותה אל "${expected}" ואז לבדוק שוב.`);setVerifyingFolder(false);return;}
       // אומת — ממשיכים בשינוי הסטטוס
@@ -2419,7 +2452,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             <div style={{fontSize:14,color:'#4b3400',lineHeight:1.7,marginBottom:24}}>
               יש להעביר את התיקייה<br/>
               <strong>"{matchedCase?.folder||project.name}"</strong><br/>
-              לתיקיית <strong>{folderReminderStatus==='בוטל'?'בוטל':'פרויקטים שהושלמו'}</strong>
+              לתיקיית <strong>{statusFolder(folderReminderStatus)}</strong>
             </div>
             {folderVerifyErr&&<div style={{fontSize:13,color:'#991b1b',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:10,padding:'10px 14px',marginBottom:16,lineHeight:1.6}}>⚠️ {folderVerifyErr}</div>}
             <div style={{display:'flex',gap:10,justifyContent:'center'}}>
