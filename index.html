@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v120'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v122'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -2253,7 +2253,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
         const grand=parent.parents&&parent.parents[0]?await meta(parent.parents[0]).catch(()=>null):null;
         return{ok:false,parent,grand};
       };
-      let target=null, driveOk=true;
+      let target=null, driveOk=true, w=null;
       try{
         if(fm){target=await meta(fm[1]);}
         else{ // אין קישור שמור — חיפוש התיקייה לפי השם ב-Drive
@@ -2265,13 +2265,14 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
           for(const f of found){const w=await where(f);if(w.ok){target=f;break;}}
           if(!target)target=found[0]||null;
         }
+        if(target)w=await where(target);   // גם בדיקת ההורים בתוך ה-try — חסימה ברשת כאן נופלת לגיבוי
       }catch(e){
-        if(/לא מופעל/.test(e.message))driveOk=false;   // Drive API כבוי בפרויקט — נופלים ל-Apps Script
+        // Drive API כבוי בפרויקט, או שהבקשה נחסמה ברשת (TypeError: Failed to fetch — למשל מסנן תוכן) — נופלים ל-Apps Script
+        if(/לא מופעל/.test(e.message)||e instanceof TypeError){driveOk=false;console.warn('בדיקת תיקייה: Drive לא זמין, עובר ל-Apps Script —',e.message);}
         else throw e;
       }
       if(driveOk){
         if(!target)return fail(`התיקייה "${folderName}" לא נמצאה ב-Drive. ודאו שהיא קיימת באותו שם, ואז בדקו שוב.`);
-        const w=await where(target);
         if(!w.parent)return fail('לא ניתן לאתר את מיקום התיקייה ב-Drive.');
         if(!w.ok)return fail(`התיקייה נמצאת בטעות בתוך תיקייה אחרת: "${w.parent.name}"${w.grand?` (שבתוך "${w.grand.name}")`:''}. יש להוציא אותה משם ולהעביר ישירות אל "${expected}", ואז לבדוק שוב.`);
         if(String(w.parent.name).trim()!==expected)return fail(`התיקייה עדיין נמצאת ב"${w.parent.name}". יש להעביר אותה אל "${expected}" ואז לבדוק שוב.`);
@@ -2283,7 +2284,10 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
       const actual=String(data.location||'').trim();
       if(actual!==expected)return fail(`התיקייה עדיין נמצאת ב"${actual||'—'}". יש להעביר אותה אל "${expected}" ואז לבדוק שוב.`);
       return approve();
-    }catch(e){fail('שגיאה בבדיקת התיקייה: '+(e.message||e));}
+    }catch(e){
+      const net=e instanceof TypeError||/Failed to fetch|לא הגיב/.test(e.message||'');
+      fail('שגיאה בבדיקת התיקייה: '+(e.message||e)+(net?' — ייתכן שמסנן תוכן ברשת המשרד חוסם את שרתי Google (www.googleapis.com / script.google.com).':''));
+    }
   };
   const caseNum=matchedCase?.caseNum||projCaseNum(project);
   // מחיקת תיק — מותרת רק לתיק האחרון שנפתח (מספר הכי גבוה), לשמירת רצף המספרים
@@ -5231,6 +5235,7 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
           </button>
         </div>
       </div>
+      <GoogleConnectivityCheck sec={sec} secTitle={secTitle}/>
       </>}
 
       {/* ═══ ניהול מערכת (מיכאל בלבד) ═══ */}
@@ -5354,6 +5359,68 @@ function SettingsView({user,settings,onSetting,managed,onUpdateFolderLinks}){
 
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── אבחון: בדיקת חיבור מהמחשב הזה לשירותי Google, עם ההתחברות האמיתית (לאיתור חסימות רשת / הרשאות) ──
+function GoogleConnectivityCheck({sec,secTitle}){
+  const [rows,setRows]=useState(null);
+  const [busy,setBusy]=useState(false);
+  const [copied,setCopied]=useState(false);
+  const run=async()=>{
+    setBusy(true);setCopied(false);setRows(null);
+    const auth={headers:{Authorization:`Bearer ${api.token}`}};
+    const today=localDayKey(new Date());
+    // [שם, בקשה, האם התשובה תקינה (r,json)]
+    const tests=[
+      ['Google Sheets',()=>fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}?fields=properties.title`,auth),(r)=>r.ok],
+      ['Google Drive',()=>fetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)',auth),(r)=>r.ok],
+      ['Google Drive (בקשה פשוטה, צפוי 403)',()=>fetch('https://www.googleapis.com/drive/v3/files/test'),(r)=>r.status===403||r.ok],
+      ['Gmail',()=>fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile',auth),(r)=>r.ok],
+      ['Apps Script',()=>fetch(`${APPS_SCRIPT_URL}?type=visitEvents&from=${today}&to=${today}&token=${encodeURIComponent(api.token||'')}`),(r,j)=>!!(j&&j.success)],
+    ];
+    const out=[];
+    for(const [name,fn,isOk] of tests){
+      const t0=performance.now();
+      try{
+        const r=await fn();const txt=await r.text();
+        let j=null,detail='';
+        try{j=JSON.parse(txt);if(j.error)detail=String(j.error.message||j.error.status||j.error).slice(0,160);}
+        catch(_){if(txt.trim().startsWith('<'))detail='התקבל דף HTML במקום נתונים';}
+        out.push({name,ok:isOk(r,j),status:String(r.status),detail,ms:Math.round(performance.now()-t0)});
+      }catch(e){out.push({name,ok:false,status:'נחסם ברשת',detail:`${e.name}: ${e.message}`,ms:Math.round(performance.now()-t0)});}
+    }
+    setRows(out);setBusy(false);
+  };
+  const info=`גרסה ${APP_VERSION} · הרשאות: ${(_grantedScopes||'לא ידוע').split(' ').filter(Boolean).map(s=>s.split('/').pop()).join(', ')} · ${(navigator.userAgent.match(/(Edg|Chrome|Firefox|Safari)\/[\d.]+/)||[''])[0]}`;
+  const copy=()=>{
+    const txt=['בדיקת חיבור לשירותי Google — '+new Date().toLocaleString('he-IL'),...rows.map(r=>`${r.ok?'✓':'✗'} ${r.name}: ${r.status}${r.detail?' — '+r.detail:''} (${r.ms}ms)`),info].join('\n');
+    try{navigator.clipboard.writeText(txt);setCopied(true);}catch(_){}
+  };
+  return(
+    <div style={sec}>
+      {secTitle('search','בדיקת חיבור לשירותי Google')}
+      <div style={{fontSize:12.5,color:'#8f8272',lineHeight:1.6,marginBottom:12}}>בודק מהמחשב הזה, עם ההתחברות שלך, שהאתר מצליח לדבר עם כל שירותי Google שהוא צריך. שימושי כשמופיעה שגיאה כמו "Failed to fetch".</div>
+      <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+        <button onClick={run} disabled={busy}
+          style={{padding:'9px 18px',borderRadius:10,border:'none',background:INK,color:GOLD_PALE,cursor:busy?'wait':'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:7}}>
+          {busy?<><Spinner size={12} color={GOLD_PALE}/>בודק...</>:'הרץ בדיקה'}
+        </button>
+        {rows&&<button onClick={copy} style={{padding:'9px 16px',borderRadius:10,border:`1px solid ${LINE}`,background:copied?'#f0fdf4':'#fff',color:copied?'#166534':'#5a4e44',cursor:'pointer',fontSize:13,fontFamily:'inherit'}}>{copied?'✓ הועתק':'העתק תוצאות'}</button>}
+      </div>
+      {rows&&<div style={{marginTop:14,border:`1px solid ${LINE2}`,borderRadius:10,overflow:'hidden'}}>
+        {rows.map((r,i)=>(
+          <div key={r.name} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'9px 14px',borderTop:i?`1px solid ${LINE2}`:'none',background:r.ok?'#fff':'#fef2f2'}}>
+            <span style={{width:9,height:9,borderRadius:'50%',background:r.ok?'#16a34a':'#dc2626',marginTop:5,flexShrink:0}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:600,color:INK}}>{r.name} <span style={{fontWeight:400,color:r.ok?'#166534':'#991b1b'}}>· {r.ok?'תקין':r.status}</span> <span style={{fontWeight:400,color:'#a3957f',fontSize:11.5}}>{r.ms}ms</span></div>
+              {r.detail&&<div style={{fontSize:12,color:'#7a6a58',marginTop:2,wordBreak:'break-word',direction:/[a-z]/i.test(r.detail.slice(0,8))?'ltr':'rtl',textAlign:'right'}}>{r.detail}</div>}
+            </div>
+          </div>
+        ))}
+        <div style={{padding:'8px 14px',borderTop:`1px solid ${LINE2}`,fontSize:11.5,color:'#8f8272',background:'#fbf8f2'}}>{info}</div>
+      </div>}
     </div>
   );
 }
