@@ -21,7 +21,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#d9af34 !impor
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 // ═══ הגדרה: כתובת ה-Apps Script של העמוד החיצוני (החלף אחרי הפרסום) ═══
 const EXT_APPS_URL = 'https://script.google.com/macros/s/AKfycbwFh8IfiLYr_niS51XaA7W1G7kIhPfm3BfVE_uOUccMcnONnq2iaDDf1ncpAJTvMHVR/exec';
@@ -93,38 +93,58 @@ function formFromRow(r){
     internalDivision:r[29]||'',internalDims:r[30]||'',buildingViolations:r[31]||'',violationsDetail:r[32]||'',
     buildingType:r[34]||'',roofType:r[35]||'',buildingPhysical:r[36]||'',buildingConstruction:r[37]||'',exteriorCladding:r[38]||'',propertyType:r[39]||'',usage:r[40]||'',envDescription:r[41]||'',streetDescription:r[42]||'',locationDescription:r[43]||''};
 }
-// PUT ישיר של הבייטים ל-Drive (session URI), עם התקדמות
+// fetch עם הגבלת זמן — כדי שבקשה תקועה לא תתקע את כל התהליך
+function fetchT(url,opts,ms){
+  const ac=(typeof AbortController!=='undefined')?new AbortController():null;
+  const tm=ac?setTimeout(()=>ac.abort(),ms):null;
+  return fetch(url,Object.assign({},opts,ac?{signal:ac.signal}:{})).finally(()=>{if(tm)clearTimeout(tm);});
+}
+const STALL_MS=60000;     // אם אין התקדמות בהעלאה 60 שניות — מדלגים על הקובץ
+const AFTER_SEND_MS=30000; // אחרי שכל הבייטים נשלחו — ממתינים לתשובה עד 30 שניות
+const FALLBACK_MAX_MB=15; // נפילה ל-base64 רק לקבצים קטנים (מגבלת Apps Script)
+// PUT ישיר של הבייטים ל-Drive (session URI), עם התקדמות וזיהוי היתקעות
 function directPut(url,blob,onProg){
   return new Promise(resolve=>{
+    let sent=false,finished=false,timer=null;
+    const finish=v=>{if(finished)return;finished=true;if(timer)clearTimeout(timer);resolve(v);};
     try{
-      let sent=false;
       const xhr=new XMLHttpRequest();
+      const arm=ms=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>{try{xhr.abort();}catch(_){} finish(sent);},ms);};
       xhr.open('PUT',url,true);
       xhr.setRequestHeader('Content-Type',blob.type||'application/octet-stream');
       if(xhr.upload){
-        xhr.upload.onprogress=ev=>{if(ev.lengthComputable){if(onProg)onProg(ev.loaded/ev.total);if(ev.loaded>=ev.total)sent=true;}};
-        xhr.upload.onload=()=>{sent=true;};
+        xhr.upload.onprogress=ev=>{if(ev.lengthComputable){if(onProg)onProg(ev.loaded/ev.total);if(ev.loaded>=ev.total){sent=true;arm(AFTER_SEND_MS);}else arm(STALL_MS);}};
+        xhr.upload.onload=()=>{sent=true;arm(AFTER_SEND_MS);};
       }
       // אם התשובה קריאה — לפי הסטטוס; אם חסומה ב-CORS (status 0) — לפי סיום שליחת הבייטים
-      xhr.onload=()=>resolve(xhr.status===0?sent:(xhr.status>=200&&xhr.status<300));
-      xhr.onerror=()=>resolve(sent);
+      xhr.onload=()=>finish(xhr.status===0?sent:(xhr.status>=200&&xhr.status<300));
+      xhr.onerror=()=>finish(sent);
+      xhr.onabort=()=>finish(sent);
+      arm(STALL_MS);
       xhr.send(blob);
-    }catch(_){resolve(false);}
+    }catch(_){finish(false);}
   });
 }
-// העלאת קובץ בודד: ניסיון ישיר ל-Drive, ואם נכשל — נפילה ל-base64 דרך ה-Apps Script
+// העלאת קובץ בודד: ניסיון ישיר ל-Drive, ואם נכשל — נפילה ל-base64 דרך ה-Apps Script (לקבצים קטנים בלבד)
 async function uploadOne(fileObj, gate, onProg){
   try{
-    const r=await fetch(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action:'startUpload',name:fileObj.name,mimeType:fileObj.blob.type||'application/octet-stream'},gate))});
+    const r=await fetchT(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action:'startUpload',name:fileObj.name,mimeType:fileObj.blob.type||'application/octet-stream'},gate))},30000);
     const j=await r.json();
     if(j&&j.ok&&j.uploadUrl){ const ok=await directPut(j.uploadUrl,fileObj.blob,onProg); if(ok)return true; }
   }catch(_){}
+  if((fileObj.blob.size||0)>FALLBACK_MAX_MB*1024*1024) return false;
   try{
     const dataUrl=await blobToDataURL(fileObj.blob);
-    const r=await fetch(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action:'uploadFile',name:fileObj.name,data:dataUrl},gate))});
+    if(!dataUrl) return false;
+    const r=await fetchT(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action:'uploadFile',name:fileObj.name,data:dataUrl},gate))},120000);
     const j=await r.json(); return !!(j&&j.ok);
   }catch(_){return false;}
 }
+// שמירת טיוטה מקומית בטלפון (לא נשלח לשום מקום)
+const draftKey=t=>'rr_visit_draft_'+t;
+function loadDraft(t){try{const s=localStorage.getItem(draftKey(t));return s?JSON.parse(s):null;}catch(_){return null;}}
+function saveDraft(t,f){try{localStorage.setItem(draftKey(t),JSON.stringify({f,at:Date.now()}));}catch(_){}}
+function clearDraft(t){try{localStorage.removeItem(draftKey(t));}catch(_){}}
 
 const DIVISION_OPTS=['סלון','מטבח','חדר','2 חדרים','3 חדרים','4 חדרים','חצי חדר','ממ"ד','חדר שינה הכולל יחידת הורים ובה שירותים ואמבטיה','חדר שינה הכולל יחידת הורים ובה שירותים ומקלחון','חדר רחצה הכולל שירותים ואמבטיה','חדר רחצה הכולל שירותים ומקלחון','חדר שירותים','2 חדרי שירותים','מרפסת שירות','מרפסת','חצר','מחסן'];
 const RESIDENT_FIXED=['שוכרים','ריק - לא מאוכלס'];
@@ -210,6 +230,9 @@ function App(){
   const [isEdit,setIsEdit]=useState(false); // קישור עריכה — טעינת ביקור קיים
   const [photos,setPhotos]=useState([]);
   const [progress,setProgress]=useState('');
+  const [failedFiles,setFailedFiles]=useState([]); // קבצים שלא עלו — לניסיון חוזר
+  const [draftNote,setDraftNote]=useState(false);
+  const draftReady=useRef(false);
   const set=(k,v)=>setF(s=>({...s,[k]:v}));
   const toggleMulti=(k,o)=>setF(s=>{const cur=s[k]||[];return {...s,[k]:cur.includes(o)?cur.filter(x=>x!==o):[...cur,o]};});
   const onPickFiles=async(e)=>{
@@ -235,6 +258,9 @@ function App(){
         if(j&&j.ok){
           setInfo({caseNum:j.caseNum||'',address:j.address||'',photos:!!j.photos});
           if(j.existing&&j.existing.length){setF(formFromRow(j.existing));setIsEdit(true);} // קישור עריכה — מילוי הביקור הקיים
+          const d=loadDraft(token); // טיוטה שנשמרה בטלפון — גוברת (זה המילוי האחרון של השמאי)
+          if(d&&d.f&&typeof d.f==='object'){setF(s=>({...s,...d.f}));setDraftNote(true);}
+          draftReady.current=true;
           setStatus('ready');
         }
         else{setStatus('invalid');setReason(j&&j.reason?j.reason:'הקישור אינו תקף או שכבר נעשה בו שימוש');}
@@ -360,33 +386,72 @@ function App(){
       finishVal];
   };
 
+  // שמירת טיוטה אוטומטית בכל שינוי בטופס (רק אחרי הטעינה, וכל עוד לא נשלח)
+  useEffect(()=>{
+    if(!draftReady.current||status!=='ready')return;
+    const tm=setTimeout(()=>saveDraft(token,f),400);
+    return ()=>clearTimeout(tm);
+  },[f,status,token]);
+
+  // אזהרה לפני סגירת הדף בזמן שליחה / העלאה
+  useEffect(()=>{
+    if(status!=='submitting'&&status!=='uploading')return;
+    const h=e=>{e.preventDefault();e.returnValue='';return '';};
+    window.addEventListener('beforeunload',h);
+    return ()=>window.removeEventListener('beforeunload',h);
+  },[status]);
+
+  // העלאת קבצים (אחרי שהטופס כבר נשמר) — מחזיר את רשימת הקבצים שנכשלו
+  const uploadFiles=async(list)=>{
+    let wl=null; try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen');}catch(_){} // מונע כיבוי מסך
+    const failed=[]; let done=0, idx=0; const total=list.length;
+    setProgress(`מעלה קבצים… 0/${total}`);
+    const worker=async()=>{
+      while(idx<total){
+        const i=idx++;
+        const ok=await uploadOne(list[i],{t:token}); if(!ok)failed.push(list[i]);
+        done++; setProgress(`מעלה קבצים… ${done}/${total}`);
+      }
+    };
+    await Promise.all(Array.from({length:Math.min(3,total)},()=>worker()));
+    try{if(wl)wl.release();}catch(_){}
+    setProgress('');
+    return failed;
+  };
+
   const submit=async()=>{
     setErr('');
-    if(!String(f.appraiserName||'').trim()){setErr('יש להזין את שם השמאי המבקר');window.scrollTo({top:0,behavior:'smooth'});return;}
+    if(!String(f.appraiserName||'').trim()){setErr('יש להזין את שם השמאי המבקר');return;}
     {const miss=missingRequiredVisitFields(f); // שמאי חיצוני — כל השדות חובה
-     if(miss.length){setErr('יש למלא את כל השדות. חסר: '+miss.join(', '));window.scrollTo({top:0,behavior:'smooth'});return;}}
+     if(miss.length){setErr('יש למלא את כל השדות. חסר: '+miss.join(', '));return;}}
     setStatus('submitting');
+    // 1) קודם שליחת שדות הטופס — כך הנתונים נשמרים מיד, גם אם העלאת הקבצים תיתקע
+    setProgress('שולח את הטופס…');
+    let j=null;
     try{
-      // 1) העלאת הקבצים במקביל (עד 4 בו-זמנית) — הטוקן עדיין תקף
-      let done=0, failed=0, idx=0; const total=photos.length;
-      if(total)setProgress(`מעלה קבצים… 0/${total}`);
-      const worker=async()=>{
-        while(idx<total){
-          const i=idx++;
-          const ok=await uploadOne(photos[i],{t:token}); if(!ok)failed++;
-          done++; setProgress(`מעלה קבצים… ${done}/${total}`);
-        }
-      };
-      await Promise.all(Array.from({length:Math.min(3,total)||0},()=>worker()));
-      // 2) שליחת שדות הטופס (מסמן את הטוקן כנוצל)
-      setProgress('שולח את הטופס…');
       const row=buildRow();
-      const r=await fetch(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'visitSubmit',t:token,row})});
-      const j=await r.json();
-      setProgress('');
-      if(j&&j.ok){setStatus('done');if(failed>0)setErr(failed+' קבצים לא הועלו, אך הטופס נשלח.');window.scrollTo({top:0,behavior:'smooth'});}
-      else{setStatus('ready');setErr((j&&j.reason)||'ההגשה נכשלה. ייתכן שהקישור פג או שכבר נשלח ביקור.');}
-    }catch(e){setProgress('');setStatus('ready');setErr('שגיאת תקשורת בשליחה. נסה שוב.');}
+      const r=await fetchT(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'visitSubmit',t:token,row})},60000);
+      j=await r.json();
+    }catch(e){setProgress('');setStatus('ready');setErr('שגיאת תקשורת בשליחה — הפרטים שמולאו שמורים בטלפון. בדוק חיבור לאינטרנט ונסה שוב.');return;}
+    setProgress('');
+    if(!(j&&j.ok)){setStatus('ready');setErr((j&&j.reason)||'ההגשה נכשלה. ייתכן שהקישור פג או שכבר נשלח ביקור.');return;}
+    clearDraft(token);
+    // 2) העלאת הקבצים (ההעלאה לא תלויה בניצול הקישור — רק בתוקף שלו)
+    if(photos.length){
+      setStatus('uploading');
+      const failed=await uploadFiles(photos);
+      setFailedFiles(failed);
+    }
+    setStatus('done');
+    window.scrollTo({top:0,behavior:'smooth'});
+  };
+
+  const retryFailed=async()=>{
+    const list=failedFiles; if(!list.length)return;
+    setStatus('uploading');
+    const failed=await uploadFiles(list);
+    setFailedFiles(failed);
+    setStatus('done');
   };
 
   const wrap={maxWidth:720,margin:'0 auto',padding:'20px 16px 60px'};
@@ -409,12 +474,34 @@ function App(){
     </div>
   );
 
+  if(status==='uploading') return (
+    <div style={{...wrap,paddingTop:80}}>
+      <div style={{...card,textAlign:'center'}}>
+        <div style={{fontSize:40,marginBottom:8}}>✅</div>
+        <div style={{fontSize:17,fontWeight:600,color:'#15803d',marginBottom:14}}>פרטי הביקור נשמרו במשרד</div>
+        <div style={{width:48,height:48,margin:'0 auto',borderRadius:'50%',border:'3px solid rgba(217,175,52,.18)',borderTopColor:GOLD,animation:'spin .9s linear infinite'}}/>
+        <div style={{marginTop:12,fontSize:16,fontWeight:600,color:GOLD3}}>{progress||'מעלה קבצים…'}</div>
+        <div style={{marginTop:12,background:'#fff7e0',border:'1px solid #f0d78a',borderRadius:10,padding:'10px 14px',color:'#7a5a00',fontSize:14,lineHeight:1.6}}>
+          ⚠️ נא לא לסגור את הדף ולא לנעול את המסך עד לסיום העלאת התמונות.
+        </div>
+      </div>
+    </div>
+  );
+
   if(status==='done') return (
     <div style={{...wrap,paddingTop:80}}>
       <div style={{...card,textAlign:'center',animation:'fadeIn .4s ease'}}>
-        <div style={{fontSize:46,marginBottom:10}}>✅</div>
+        <div style={{fontSize:46,marginBottom:10}}>{failedFiles.length?'⚠️':'✅'}</div>
         <div style={{fontSize:19,fontWeight:600,color:'#15803d',marginBottom:8}}>דף הביקור נשלח בהצלחה</div>
-        <div style={{color:'#7a6a58',lineHeight:1.6}}>תודה. הביקור נשלח למשרד לבדיקה ואישור. אפשר לסגור את הדף.</div>
+        {failedFiles.length>0
+          ? <div>
+              <div style={{color:'#991b1b',lineHeight:1.6,marginBottom:10}}>
+                {failedFiles.length===1?'קובץ אחד לא הועלה':failedFiles.length+' קבצים לא הועלו'} (כנראה בגלל חיבור חלש).<br/>אפשר לנסות שוב עכשיו, או לשלוח אותם למשרד בדרך אחרת.
+              </div>
+              <div style={{fontSize:12,color:'#7a6a58',marginBottom:12,wordBreak:'break-word'}}>{failedFiles.map(p=>p.name).join(' · ')}</div>
+              <button onClick={retryFailed} style={{background:GOLD,color:'#1a0e00',border:'none',borderRadius:11,padding:'12px 22px',fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>🔄 נסה שוב להעלות</button>
+            </div>
+          : <div style={{color:'#7a6a58',lineHeight:1.6}}>תודה. הביקור{photos.length?' והקבצים':''} נשלחו למשרד לבדיקה ואישור. אפשר לסגור את הדף.</div>}
       </div>
     </div>
   );
@@ -435,6 +522,11 @@ function App(){
       {isEdit&&<div style={{...card,background:'#eef6ff',border:'1px solid #bcd7f5'}}>
         <div style={{fontSize:14,fontWeight:700,color:'#1e40af',marginBottom:3}}>✏️ עריכת ביקור קיים</div>
         <div style={{fontSize:12.5,color:'#3a5a8a',lineHeight:1.6}}>הפרטים שמילאת נטענו מראש. בצע/י את התיקונים הנדרשים ושלח/י שוב — הביקור הקיים יתעדכן (לא ייווצר ביקור חדש).</div>
+      </div>}
+
+      {draftNote&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',color:'#166534',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:13.5,display:'flex',justifyContent:'space-between',alignItems:'center',gap:10}}>
+        <span>💾 שוחזרו הפרטים שמילאת קודם בטלפון זה (התמונות אינן נשמרות — יש לצרף אותן שוב).</span>
+        <button onClick={()=>setDraftNote(false)} style={{background:'none',border:'none',color:'#166534',cursor:'pointer',fontSize:16}}>×</button>
       </div>}
 
       {err&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',color:'#991b1b',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:13.5}}>{err}</div>}
@@ -463,6 +555,8 @@ function App(){
           </div>}
         </div>}
         <div style={{borderTop:'1px solid #f0ebe2',paddingTop:16,marginTop:8}}>
+          {err&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',color:'#991b1b',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:13.5,lineHeight:1.6}}>{err}</div>}
+          {photos.length>0&&status!=='submitting'&&<div style={{fontSize:12.5,color:'#7a6a58',marginBottom:10,lineHeight:1.5}}>הפרטים יישלחו מיד, ואחר כך יועלו {photos.length} קבצים. נא לא לסגור את הדף עד לסיום.</div>}
           <button onClick={submit} disabled={status==='submitting'}
             style={{width:'100%',background:status==='submitting'?'#e6ddcd':GOLD,color:status==='submitting'?'#b3a898':'#1a0e00',border:'none',borderRadius:11,padding:'14px',fontSize:16,fontWeight:700,cursor:status==='submitting'?'default':'pointer',fontFamily:'inherit'}}>
             {status==='submitting'?(progress||'שולח…'):'שליחת דף הביקור'}</button>
