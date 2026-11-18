@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v123'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v124'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -320,42 +320,23 @@ function openPdfs(winPath){
   window.location.href='openpdfs:///'+encodeURI(winPath.replace(/\\/g,'/'));
 }
 // סקריפט ייצוא PDF דרך Word (UTF-8 עם BOM, base64). המקור הקריא: 06_desktop_tools/exportpdf.ps1 — לעדכן כאן אחרי כל שינוי שם.
-const EXPORTPDF_PS1_B64='77u/IyDXmdeZ16bXldeQINep15XXnteUINecLVBERiDXk9eo15ogV29yZCDXotem157XlSDigJQg15bXlNeUINec15nXmdem15XXkCDXmdeT16DXmSAo16nXnteZ16jXlCDXkdep150g4oaQIFBERikKIyDXnteV16TXotecINee15TXkNeq16gg15PXqNeaIGV4cG9ydHBkZjovLy8816DXqteZ15Eg16rXmden15nXmdeqINeU16rXmdenPnw8157Xodek16gg16rXmdenPiAgKNeU15vXqteV15HXqiDXnteS15nXoteUINeR157Xqdeq16DXlCBFWFBPUlRQREZfVVJMKQokRXJyb3JBY3Rpb25QcmVmZXJlbmNlID0gJ1N0b3AnCiRzaGVsbCA9IE5ldy1PYmplY3QgLUNvbU9iamVjdCBXU2NyaXB0LlNoZWxsCmZ1bmN0aW9uIFNheShbc3RyaW5nXSRtc2csIFtpbnRdJGljb24pIHsgW3ZvaWRdJHNoZWxsLlBvcHVwKCRtc2csIDEwLCAn16jXldeR15nXoNep15jXmdeZ158g16jXldeW16DXmNecIOKAlCDXmdeZ16bXldeQIFBERicsICRpY29uKSB9Cgokd29yZCA9ICRudWxsOyAkZG9jID0gJG51bGw7ICRvd25Xb3JkID0gJGZhbHNlOyAkb3duRG9jID0gJGZhbHNlOyAkcHJldlNlYyA9ICRudWxsCnRyeSB7CiAgJHJhdyA9IFtVcmldOjpVbmVzY2FwZURhdGFTdHJpbmcoW3N0cmluZ10kZW52OkVYUE9SVFBERl9VUkwpIC1yZXBsYWNlICdeZXhwb3J0cGRmOi8qJywgJycKICAkcGFydHMgPSAkcmF3LlNwbGl0KCd8JykKICAkZGlyID0gJHBhcnRzWzBdLlJlcGxhY2UoJy8nLCAnXCcpOyAkdGlrID0gKCRwYXJ0c1sxXSArICcnKS5UcmltKCkKICBpZiAoJHRpayAtbm90bWF0Y2ggJ141XGR7NH0kJykgeyB0aHJvdyAi157Xodek16gg16rXmdenINec15Ag16rXp9eZ1586ICR0aWsiIH0KICBpZiAoLW5vdCAoVGVzdC1QYXRoIC1MaXRlcmFsUGF0aCAkZGlyIC1QYXRoVHlwZSBDb250YWluZXIpKSB7IHRocm93ICLXqteZ16fXmdeZ16og15TXqteZ16cg15zXkCDXoNee16bXkNeUINeR157Xl9ep15E6YG4kZGlyIiB9CgogICMg16fXldeR16Ug15QtV29yZCDXlNei15PXm9eg15kg15HXmdeV16rXqCDXqdep157XlSDXnteq15fXmdecINeR157Xodek16gg15TXqteZ16cgKNeU16rXmden15nXmdeUICsg16jXnteUINeQ15fXqiDXnteq15fXqikKICAkc3JjID0gR2V0LUNoaWxkSXRlbSAtTGl0ZXJhbFBhdGggJGRpciAtUmVjdXJzZSAtRGVwdGggMSAtRmlsZSAtRmlsdGVyICIkdGlrKi5kb2N4IiAtRXJyb3JBY3Rpb24gU2lsZW50bHlDb250aW51ZSB8CiAgICAgICAgIFdoZXJlLU9iamVjdCB7ICRfLk5hbWUgLW5vdGxpa2UgJ34kKicgfSB8IFNvcnQtT2JqZWN0IExhc3RXcml0ZVRpbWUgLURlc2NlbmRpbmcgfCBTZWxlY3QtT2JqZWN0IC1GaXJzdCAxCiAgaWYgKC1ub3QgJHNyYykgeyB0aHJvdyAi15zXkCDXoNee16bXkCDXp9eV15HXpSBXb3JkINep15wg15TXqdeV157XlCAo16nXnSDXqdee16rXl9eZ15wg15EtJHRpaykg15HXqteZ16fXmdeZ15Q6YG4kZGlyIiB9CiAgJHBkZiA9IFtJTy5QYXRoXTo6Q2hhbmdlRXh0ZW5zaW9uKCRzcmMuRnVsbE5hbWUsICcucGRmJykKCiAgIyBXb3JkINek16rXldeXINeb15HXqD8g157Xqdeq157XqdeZ150g15HXlSDXldec15Ag16HXldeS16jXmdedINeQ15XXqteVLiDXkNeX16jXqiDigJQg16TXldeq15fXmdedINee15XXpNeiINeg16HXqteoINeV16HXldeS16jXmdedINeR16HXldejLgogIHRyeSB7ICR3b3JkID0gW1J1bnRpbWUuSW50ZXJvcFNlcnZpY2VzLk1hcnNoYWxdOjpHZXRBY3RpdmVPYmplY3QoJ1dvcmQuQXBwbGljYXRpb24nKSB9IGNhdGNoIHsgJHdvcmQgPSAkbnVsbCB9CiAgaWYgKC1ub3QgJHdvcmQpIHsgJHdvcmQgPSBOZXctT2JqZWN0IC1Db21PYmplY3QgV29yZC5BcHBsaWNhdGlvbjsgJHdvcmQuVmlzaWJsZSA9ICRmYWxzZTsgJG93bldvcmQgPSAkdHJ1ZSB9CiAgJHdvcmQuRGlzcGxheUFsZXJ0cyA9IDAKICAkcHJldlNlYyA9ICR3b3JkLkF1dG9tYXRpb25TZWN1cml0eQogICR3b3JkLkF1dG9tYXRpb25TZWN1cml0eSA9IDMgICAgICAgICAgIyBtc29BdXRvbWF0aW9uU2VjdXJpdHlGb3JjZURpc2FibGUg4oCUINee15DXp9eo15Ug15fXodeV150KCiAgIyDXlNee16HXnteaINeb15HXqCDXpNeq15XXlyDXkNem15wg15TXntep16rXntepPyDXnteZ15nXpteQ15nXnSDXntee16DXlSAo15vXnteVINeZ15nXpteV15Ag15nXk9eg15kpINeV15zXkCDXodeV15LXqNeZ150g4oCUINeQ15nXnyDXkNeZ15HXldeTINei16jXmdeb15XXqgogIGZvcmVhY2ggKCRkIGluICR3b3JkLkRvY3VtZW50cykgeyBpZiAoJGQuRnVsbE5hbWUgLWllcSAkc3JjLkZ1bGxOYW1lKSB7ICRkb2MgPSAkZDsgYnJlYWsgfSB9CiAgaWYgKC1ub3QgJGRvYykgeyAkZG9jID0gJHdvcmQuRG9jdW1lbnRzLk9wZW4oJHNyYy5GdWxsTmFtZSwgJGZhbHNlLCAkdHJ1ZSwgJGZhbHNlKTsgJG93bkRvYyA9ICR0cnVlIH0KCiAgIyDXqNei16DXldefINep15PXldeqINeq15DXqNeZ15ogKERBVEUgLyBUSU1FKSDXkdeb15wg15fXnNen15kg15TXnteh157XmiDigJQg15vXnteVINepLVdvcmQg16LXldep15Qg15HXpNeq15nXl9eUINeV15HXmdeZ16bXldeQINeZ15PXoNeZCiAgZm9yZWFjaCAoJHN0b3J5IGluICRkb2MuU3RvcnlSYW5nZXMpIHsKICAgICRyID0gJHN0b3J5CiAgICB3aGlsZSAoJHIgLW5lICRudWxsKSB7CiAgICAgIGZvcmVhY2ggKCRmIGluICRyLkZpZWxkcykgeyBpZiAoJGYuVHlwZSAtZXEgMzEgLW9yICRmLlR5cGUgLWVxIDMyKSB7IFt2b2lkXSRmLlVwZGF0ZSgpIH0gfQogICAgICAkciA9ICRyLk5leHRTdG9yeVJhbmdlCiAgICB9CiAgfQoKICAkZG9jLkV4cG9ydEFzRml4ZWRGb3JtYXQoJHBkZiwgMTcpICAgICMgd2RFeHBvcnRGb3JtYXRQREYKfQpjYXRjaCB7CiAgU2F5ICgi15TXmdeZ16bXldeQINecLVBERiDXoNeb16nXnDpgbiIgKyAkXy5FeGNlcHRpb24uTWVzc2FnZSkgMTYKfQpmaW5hbGx5IHsKICB0cnkgeyBpZiAoJGRvYyAtYW5kICRvd25Eb2MpIHsgJGRvYy5DbG9zZSgwKSB9IH0gY2F0Y2gge30KICB0cnkgeyBpZiAoJHdvcmQgLWFuZCAkcHJldlNlYyAtbmUgJG51bGwpIHsgJHdvcmQuQXV0b21hdGlvblNlY3VyaXR5ID0gJHByZXZTZWMgfSB9IGNhdGNoIHt9CiAgdHJ5IHsgaWYgKCR3b3JkIC1hbmQgJG93bldvcmQpIHsgJHdvcmQuUXVpdCgpIH0gfSBjYXRjaCB7fQp9Cg==';
+const EXPORTPDF_PS1_B64='77u/IyDXmdeZ16bXldeQINep15XXnteUINecLVBERiDXk9eo15ogV29yZCDXotem157XlSDigJQg15bXlNeUINec15nXmdem15XXkCDXmdeT16DXmSAo16nXnteZ16jXlCDXkdep150g4oaQIFBERikKIyDXnteV16TXotecINee15TXkNeq16gg15PXqNeaIGV4cG9ydHBkZjovLy8816DXqteZ15Eg16rXmden15nXmdeqINeU16rXmdenPnw8157Xodek16gg16rXmdenPiAgKNeU15vXqteV15HXqiDXnteS15nXoteUINeR157Xqdeq16DXlCBFWFBPUlRQREZfVVJMKQokRXJyb3JBY3Rpb25QcmVmZXJlbmNlID0gJ1N0b3AnCiRzaGVsbCA9IE5ldy1PYmplY3QgLUNvbU9iamVjdCBXU2NyaXB0LlNoZWxsCmZ1bmN0aW9uIFNheShbc3RyaW5nXSRtc2csIFtpbnRdJGljb24pIHsgW3ZvaWRdJHNoZWxsLlBvcHVwKCRtc2csIDEwLCAn16jXldeR15nXoNep15jXmdeZ158g16jXldeW16DXmNecIOKAlCDXmdeZ16bXldeQIFBERicsICRpY29uKSB9Cgokd29yZCA9ICRudWxsOyAkZG9jID0gJG51bGw7ICRvd25Xb3JkID0gJGZhbHNlOyAkb3duRG9jID0gJGZhbHNlOyAkcHJldlNlYyA9ICRudWxsCnRyeSB7CiAgJHJhdyA9IFtVcmldOjpVbmVzY2FwZURhdGFTdHJpbmcoW3N0cmluZ10kZW52OkVYUE9SVFBERl9VUkwpIC1yZXBsYWNlICdeZXhwb3J0cGRmOi8qJywgJycKICAkcGFydHMgPSAkcmF3LlNwbGl0KCd8JykKICAkZGlyID0gJHBhcnRzWzBdLlJlcGxhY2UoJy8nLCAnXCcpOyAkdGlrID0gKCRwYXJ0c1sxXSArICcnKS5UcmltKCkKICBpZiAoJHRpayAtbm90bWF0Y2ggJ141XGR7NH0kJykgeyB0aHJvdyAi157Xodek16gg16rXmdenINec15Ag16rXp9eZ1586ICR0aWsiIH0KICAjINeU16DXqteZ15Eg15TXnteT15XXmdenINec15Ag16fXmdeZ150gKNep150g15TXqteZ16fXmdeZ15Qg16nXldeg15Qg157XoteYIC8g15TXqteZ16fXmdeZ15Qg15HXqteZ16fXmdeZ16og16HXmNeY15XXoSDXkNeX16jXqik/INee15DXqteo15nXnSDXnNek15kg157Xodek16gg15TXqteZ16cKICBpZiAoLW5vdCAoVGVzdC1QYXRoIC1MaXRlcmFsUGF0aCAkZGlyIC1QYXRoVHlwZSBDb250YWluZXIpKSB7CiAgICAkc3RhdHVzRGlyID0gU3BsaXQtUGF0aCAkZGlyLlRyaW1FbmQoJ1wnKSAtUGFyZW50CiAgICAkZGlycyA9IEAoJHN0YXR1c0Rpcik7ICRyb290ID0gU3BsaXQtUGF0aCAkc3RhdHVzRGlyIC1QYXJlbnQKICAgIGlmICgkcm9vdCkgeyBmb3JlYWNoICgkbiBpbiBAKCfXpNeo15XXmden15jXmdedINeR15HXmdem15XXoicsICfXpNeo15XXmden15jXmdedINep15TXldep15zXnteVJywgJ9eR15XXmNecJykpIHsgJGRpcnMgKz0gKEpvaW4tUGF0aCAkcm9vdCAkbikgfSB9CiAgICAkZm91bmQgPSBAKCkKICAgIGZvcmVhY2ggKCRkIGluICgkZGlycyB8IFNlbGVjdC1PYmplY3QgLVVuaXF1ZSkpIHsKICAgICAgaWYgKFRlc3QtUGF0aCAtTGl0ZXJhbFBhdGggJGQgLVBhdGhUeXBlIENvbnRhaW5lcikgewogICAgICAgIGZvcmVhY2ggKCRjIGluIFtJTy5EaXJlY3RvcnldOjpHZXREaXJlY3RvcmllcygkZCwgIiokdGlrKiIpKSB7IGlmICgoU3BsaXQtUGF0aCAkYyAtTGVhZikgLW1hdGNoICIoPzwhXGQpJHRpayg/IVxkKSIpIHsgJGZvdW5kICs9ICRjIH0gfQogICAgICB9CiAgICB9CiAgICAkZm91bmQgPSBAKCRmb3VuZCB8IFNlbGVjdC1PYmplY3QgLVVuaXF1ZSkKICAgIGlmICgkZm91bmQuQ291bnQgLWVxIDApIHsgdGhyb3cgItec15Ag16DXntem15DXlCDXkdee15fXqdeRINeq15nXp9eZ15nXlCDXnNeq15nXpyAkdGlrIiB9CiAgICBpZiAoJGZvdW5kLkNvdW50IC1ndCAxKSB7IHRocm93ICgi16DXntem15DXlCDXmdeV16rXqCDXnteq15nXp9eZ15nXlCDXkNeX16og15zXqteZ16cgJHRpayDigJQg15nXqSDXnNeU16nXkNeZ16gg16jXpyDXkNeX16o6YG4iICsgKCRmb3VuZCAtam9pbiAiYG4iKSkgfQogICAgJGRpciA9ICRmb3VuZFswXQogIH0KCiAgIyDXp9eV15HXpSDXlC1Xb3JkINeU16LXk9eb16DXmSDXkdeZ15XXqteoINep16nXnteVINee16rXl9eZ15wg15HXnteh16TXqCDXlNeq15nXpyAo15TXqteZ16fXmdeZ15QgKyDXqNee15Qg15DXl9eqINee16rXl9eqKQogICRzcmMgPSBHZXQtQ2hpbGRJdGVtIC1MaXRlcmFsUGF0aCAkZGlyIC1SZWN1cnNlIC1EZXB0aCAxIC1GaWxlIC1GaWx0ZXIgIiR0aWsqLmRvY3giIC1FcnJvckFjdGlvbiBTaWxlbnRseUNvbnRpbnVlIHwKICAgICAgICAgV2hlcmUtT2JqZWN0IHsgJF8uTmFtZSAtbm90bGlrZSAnfiQqJyB9IHwgU29ydC1PYmplY3QgTGFzdFdyaXRlVGltZSAtRGVzY2VuZGluZyB8IFNlbGVjdC1PYmplY3QgLUZpcnN0IDEKICBpZiAoLW5vdCAkc3JjKSB7IHRocm93ICLXnNeQINeg157XpteQINen15XXkdelIFdvcmQg16nXnCDXlNep15XXnteUICjXqdedINep157XqteX15nXnCDXkS0kdGlrKSDXkdeq15nXp9eZ15nXlDpgbiRkaXIiIH0KICAkcGRmID0gW0lPLlBhdGhdOjpDaGFuZ2VFeHRlbnNpb24oJHNyYy5GdWxsTmFtZSwgJy5wZGYnKQoKICAjIFdvcmQg16TXqteV15cg15vXkdeoPyDXntep16rXntep15nXnSDXkdeVINeV15zXkCDXodeV15LXqNeZ150g15DXldeq15UuINeQ15fXqNeqIOKAlCDXpNeV16rXl9eZ150g157Xldek16Ig16DXodeq16gg15XXodeV15LXqNeZ150g15HXodeV16MuCiAgdHJ5IHsgJHdvcmQgPSBbUnVudGltZS5JbnRlcm9wU2VydmljZXMuTWFyc2hhbF06OkdldEFjdGl2ZU9iamVjdCgnV29yZC5BcHBsaWNhdGlvbicpIH0gY2F0Y2ggeyAkd29yZCA9ICRudWxsIH0KICBpZiAoLW5vdCAkd29yZCkgeyAkd29yZCA9IE5ldy1PYmplY3QgLUNvbU9iamVjdCBXb3JkLkFwcGxpY2F0aW9uOyAkd29yZC5WaXNpYmxlID0gJGZhbHNlOyAkb3duV29yZCA9ICR0cnVlIH0KICAkd29yZC5EaXNwbGF5QWxlcnRzID0gMAogICRwcmV2U2VjID0gJHdvcmQuQXV0b21hdGlvblNlY3VyaXR5CiAgJHdvcmQuQXV0b21hdGlvblNlY3VyaXR5ID0gMyAgICAgICAgICAjIG1zb0F1dG9tYXRpb25TZWN1cml0eUZvcmNlRGlzYWJsZSDigJQg157XkNen16jXlSDXl9eh15XXnQoKICAjINeU157Xodee15og15vXkdeoINek16rXldeXINeQ16bXnCDXlNee16nXqtee16k/INee15nXmdem15DXmdedINee157XoNeVICjXm9ee15Ug15nXmdem15XXkCDXmdeT16DXmSkg15XXnNeQINeh15XXkteo15nXnSDigJQg15DXmdefINeQ15nXkdeV15Mg16LXqNeZ15vXldeqCiAgZm9yZWFjaCAoJGQgaW4gJHdvcmQuRG9jdW1lbnRzKSB7IGlmICgkZC5GdWxsTmFtZSAtaWVxICRzcmMuRnVsbE5hbWUpIHsgJGRvYyA9ICRkOyBicmVhayB9IH0KICBpZiAoLW5vdCAkZG9jKSB7ICRkb2MgPSAkd29yZC5Eb2N1bWVudHMuT3Blbigkc3JjLkZ1bGxOYW1lLCAkZmFsc2UsICR0cnVlLCAkZmFsc2UpOyAkb3duRG9jID0gJHRydWUgfQoKICAjINeo16LXoNeV158g16nXk9eV16og16rXkNeo15nXmiAoREFURSAvIFRJTUUpINeR15vXnCDXl9ec16fXmSDXlNee16HXnteaIOKAlCDXm9ee15Ug16ktV29yZCDXoteV16nXlCDXkdek16rXmdeX15Qg15XXkdeZ15nXpteV15Ag15nXk9eg15kKICBmb3JlYWNoICgkc3RvcnkgaW4gJGRvYy5TdG9yeVJhbmdlcykgewogICAgJHIgPSAkc3RvcnkKICAgIHdoaWxlICgkciAtbmUgJG51bGwpIHsKICAgICAgZm9yZWFjaCAoJGYgaW4gJHIuRmllbGRzKSB7IGlmICgkZi5UeXBlIC1lcSAzMSAtb3IgJGYuVHlwZSAtZXEgMzIpIHsgW3ZvaWRdJGYuVXBkYXRlKCkgfSB9CiAgICAgICRyID0gJHIuTmV4dFN0b3J5UmFuZ2UKICAgIH0KICB9CgogICRkb2MuRXhwb3J0QXNGaXhlZEZvcm1hdCgkcGRmLCAxNykgICAgIyB3ZEV4cG9ydEZvcm1hdFBERgp9CmNhdGNoIHsKICBTYXkgKCLXlNeZ15nXpteV15Ag15wtUERGINeg15vXqdecOmBuIiArICRfLkV4Y2VwdGlvbi5NZXNzYWdlKSAxNgp9CmZpbmFsbHkgewogIHRyeSB7IGlmICgkZG9jIC1hbmQgJG93bkRvYykgeyAkZG9jLkNsb3NlKDApIH0gfSBjYXRjaCB7fQogIHRyeSB7IGlmICgkd29yZCAtYW5kICRwcmV2U2VjIC1uZSAkbnVsbCkgeyAkd29yZC5BdXRvbWF0aW9uU2VjdXJpdHkgPSAkcHJldlNlYyB9IH0gY2F0Y2gge30KICB0cnkgeyBpZiAoJHdvcmQgLWFuZCAkb3duV29yZCkgeyAkd29yZC5RdWl0KCkgfSB9IGNhdGNoIHt9Cn0K';
+// סקריפט פתיחת תיקייה / פתיחת PDF עם איתור לפי מספר תיק (UTF-8 עם BOM, base64). המקור הקריא: 06_desktop_tools/openfolder.ps1 — לעדכן כאן אחרי כל שינוי שם.
+const OPENFOLDER_PS1_B64='77u/IyDXpNeq15nXl9eqINeq15nXp9eZ15nXqiDXqteZ16cgLyDXpNeq15nXl9eqINeb15wg16fXldeR16bXmSDXlC1QREYg16nXkdeUIOKAlCDXnteV16TXotecINee15TXkNeq16gg15PXqNeaIG9wZW5kaXI6Ly8vPNeg16rXmdeRPiDXkNeVIG9wZW5wZGZzOi8vLzzXoNeq15nXkT4KIyAo15TXm9eq15XXkdeqINee15LXmdei15Qg15HXntep16rXoNeUINeU16HXkdeZ15HXlCBSUkZPTERFUl9VUkwpLiDXkNedINeU16DXqteZ15Eg15TXnteT15XXmdenINec15Ag16fXmdeZ150g4oCUINee15DXqteoINeQ16og15TXqteZ16fXmdeZ15Qg15zXpNeZINee16HXpNeoINeU16rXmdenICg1INeh16TXqNeV16opLgokRXJyb3JBY3Rpb25QcmVmZXJlbmNlID0gJ1N0b3AnCiRzaGVsbCA9IE5ldy1PYmplY3QgLUNvbU9iamVjdCBXU2NyaXB0LlNoZWxsCmZ1bmN0aW9uIFNheShbc3RyaW5nXSRtc2csIFtpbnRdJGljb24pIHsgW3ZvaWRdJHNoZWxsLlBvcHVwKCRtc2csIDE1LCAn16jXldeR15nXoNep15jXmdeZ158g16jXldeW16DXmNecIOKAlCDXpNeq15nXl9eqINeq15nXp9eZ15nXlCcsICRpY29uKSB9CgojINee15fXlteZ16gg15DXqiDXoNeq15nXkSDXlNeq15nXp9eZ15nXlCDXkdek15XXotecOiDXlNeg16rXmdeRINeU157Xk9eV15nXpyDXkNedINen15nXmdedLCDXkNeX16jXqiDXl9eZ16TXldepINec16TXmSDXnteh16TXqCDXlNeq15nXpyDXkdep15zXldepINeq15nXp9eZ15XXqiDXlNeh15jXmNeV16EKZnVuY3Rpb24gUmVzb2x2ZS1DYXNlRGlyKFtzdHJpbmddJHApIHsKICAkcCA9ICRwLlRyaW1FbmQoJ1wnKQogIGlmIChUZXN0LVBhdGggLUxpdGVyYWxQYXRoICRwIC1QYXRoVHlwZSBDb250YWluZXIpIHsgcmV0dXJuICRwIH0KICAkbSA9IFtyZWdleF06Ok1hdGNoKChTcGxpdC1QYXRoICRwIC1MZWFmKSwgJyg/PCFcZCk1XGR7NH0oPyFcZCknKQogIGlmICgtbm90ICRtLlN1Y2Nlc3MpIHsgdGhyb3cgIteU16rXmden15nXmdeUINec15Ag16DXntem15DXlCDXkdee15fXqdeROmBuJHAiIH0KICAkbnVtID0gJG0uVmFsdWUKICAkc3RhdHVzRGlyID0gU3BsaXQtUGF0aCAkcCAtUGFyZW50CiAgJGRpcnMgPSBAKCRzdGF0dXNEaXIpCiAgJHJvb3QgPSBTcGxpdC1QYXRoICRzdGF0dXNEaXIgLVBhcmVudAogIGlmICgkcm9vdCkgeyBmb3JlYWNoICgkbiBpbiBAKCfXpNeo15XXmden15jXmdedINeR15HXmdem15XXoicsICfXpNeo15XXmden15jXmdedINep15TXldep15zXnteVJywgJ9eR15XXmNecJykpIHsgJGRpcnMgKz0gKEpvaW4tUGF0aCAkcm9vdCAkbikgfSB9CiAgJGZvdW5kID0gQCgpCiAgZm9yZWFjaCAoJGQgaW4gKCRkaXJzIHwgU2VsZWN0LU9iamVjdCAtVW5pcXVlKSkgewogICAgaWYgKFRlc3QtUGF0aCAtTGl0ZXJhbFBhdGggJGQgLVBhdGhUeXBlIENvbnRhaW5lcikgewogICAgICBmb3JlYWNoICgkYyBpbiBbSU8uRGlyZWN0b3J5XTo6R2V0RGlyZWN0b3JpZXMoJGQsICIqJG51bSoiKSkgewogICAgICAgIGlmICgoU3BsaXQtUGF0aCAkYyAtTGVhZikgLW1hdGNoICIoPzwhXGQpJG51bSg/IVxkKSIpIHsgJGZvdW5kICs9ICRjIH0KICAgICAgfQogICAgfQogIH0KICAkZm91bmQgPSBAKCRmb3VuZCB8IFNlbGVjdC1PYmplY3QgLVVuaXF1ZSkKICBpZiAoJGZvdW5kLkNvdW50IC1lcSAxKSB7IHJldHVybiAkZm91bmRbMF0gfQogIGlmICgkZm91bmQuQ291bnQgLWVxIDApIHsgdGhyb3cgItec15Ag16DXntem15DXlCDXkdee15fXqdeRINeq15nXp9eZ15nXlCDXnNeq15nXpyAkbnVtIiB9CiAgdGhyb3cgKCLXoNee16bXkNeUINeZ15XXqteoINee16rXmden15nXmdeUINeQ15fXqiDXnNeq15nXpyAkbnVtIOKAlCDXmdepINec15TXqdeQ15nXqCDXqNenINeQ15fXqjpgbiIgKyAoJGZvdW5kIC1qb2luICJgbiIpKQp9Cgp0cnkgewogICRyYXcgPSBbVXJpXTo6VW5lc2NhcGVEYXRhU3RyaW5nKFtzdHJpbmddJGVudjpSUkZPTERFUl9VUkwpCiAgJHBkZnMgPSAkcmF3IC1tYXRjaCAnXm9wZW5wZGZzOicKICAkcGF0aCA9ICgkcmF3IC1yZXBsYWNlICdeKG9wZW5kaXJ8b3BlbnBkZnMpOi97MCwzfScsICcnKS5SZXBsYWNlKCcvJywgJ1wnKQogIGlmICgtbm90ICRwYXRoKSB7IHRocm93ICfXnNeQINeU16rXp9eR15wg16DXqteZ15EnIH0KICAkZGlyID0gUmVzb2x2ZS1DYXNlRGlyICRwYXRoCiAgaWYgKCRlbnY6UlJGT0xERVJfRFJZUlVOKSB7IFdyaXRlLU91dHB1dCAkZGlyOyByZXR1cm4gfSAgICMg15zXkdeT15nXp9eV16og15HXnNeR15Mg4oCUINee15PXpNeZ16Eg15XXnNeQINek15XXqteXCiAgaWYgKCRwZGZzKSB7CiAgICAkZmlsZXMgPSBAKEdldC1DaGlsZEl0ZW0gLUxpdGVyYWxQYXRoICRkaXIgLVJlY3Vyc2UgLUZpbGUgLUZpbHRlciAqLnBkZikKICAgIGlmICgkZmlsZXMuQ291bnQgLWVxIDApIHsgdGhyb3cgIteQ15nXnyDXp9eV15HXpteZIFBERiDXkdeq15nXp9eZ15nXlDpgbiRkaXIiIH0KICAgICRmaWxlcyB8IEZvckVhY2gtT2JqZWN0IHsgU3RhcnQtUHJvY2VzcyAtRmlsZVBhdGggJF8uRnVsbE5hbWUgfQogIH0gZWxzZSB7CiAgICBJbnZva2UtSXRlbSAtTGl0ZXJhbFBhdGggJGRpcgogIH0KfQpjYXRjaCB7CiAgaWYgKCRlbnY6UlJGT0xERVJfRFJZUlVOKSB7IFdyaXRlLU91dHB1dCAoJ0VSUjogJyArICRfLkV4Y2VwdGlvbi5NZXNzYWdlKSB9IGVsc2UgeyBTYXkgJF8uRXhjZXB0aW9uLk1lc3NhZ2UgNDggfQp9Cg==';
 // הורדת קובץ .reg להגדרת פרוטוקול opendir://
 function downloadRegFile(){
   // VBS file content — כל תווים מיוחדים בנויים ע"י Chr() כדי להימנע מבעיות escaping
   // wscript.exe //B מריץ ללא שום חלון גלוי (SW_HIDE = 0)
+  // open.vbs / openpdfs.vbs — שניהם מריצים את openfolder.ps1 בלי חלון (הסקריפט מזהה את הפעולה לפי הפרוטוקול שבכתובת)
   const vbsLines=[
-    'Dim url, shell, ps',
+    'Dim url, shell',
     'url = WScript.Arguments(0)',
     'Set shell = CreateObject("WScript.Shell")',
-    'shell.Environment("Process")("OPENDIR_URL") = url',
-    'ps = "powershell -NonInteractive -NoProfile -Command " & Chr(34)',
-    'ps = ps & "$dec=[Uri]::UnescapeDataString($env:OPENDIR_URL);"',
-    'ps = ps & "$p=($dec -replace " & Chr(39) & "^opendir:///" & Chr(39) & "," & Chr(39) & Chr(39) & ")"',
-    'ps = ps & ".Replace(" & Chr(39) & "/" & Chr(39) & "," & Chr(39) & Chr(92) & Chr(39) & ");"',
-    'ps = ps & "Start-Process explorer -ArgumentList $p"',
-    'ps = ps & Chr(34)',
-    'shell.Run ps, 0, False',
+    'shell.Environment("Process")("RRFOLDER_URL") = url',
+    'shell.Run "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File " & Chr(34) & shell.ExpandEnvironmentStrings("%APPDATA%") & "\\RRFolderOpener\\openfolder.ps1" & Chr(34), 0, False',
   ];
-  const vbsContent=vbsLines.join('\r\n');
-  const vbsB64=btoa(vbsContent); // pure ASCII → btoa ישיר
-
-  // VBS שני — פתיחת כל קובצי ה-PDF בתיקייה ובתת-תיקיות (רקורסיבי)
-  const vbsPdfLines=[
-    'Dim url, shell, ps',
-    'url = WScript.Arguments(0)',
-    'Set shell = CreateObject("WScript.Shell")',
-    'shell.Environment("Process")("OPENPDFS_URL") = url',
-    'ps = "powershell -NonInteractive -NoProfile -Command " & Chr(34)',
-    'ps = ps & "$dec=[Uri]::UnescapeDataString($env:OPENPDFS_URL);"',
-    'ps = ps & "$p=($dec -replace " & Chr(39) & "^openpdfs:///" & Chr(39) & "," & Chr(39) & Chr(39) & ")"',
-    'ps = ps & ".Replace(" & Chr(39) & "/" & Chr(39) & "," & Chr(39) & Chr(92) & Chr(39) & ");"',
-    'ps = ps & "Get-ChildItem -LiteralPath $p -Recurse -Filter *.pdf | ForEach-Object { Start-Process $_.FullName }"',
-    'ps = ps & Chr(34)',
-    'shell.Run ps, 0, False',
-  ];
-  const vbsPdfB64=btoa(vbsPdfLines.join('\r\n'));
+  const vbsB64=btoa(vbsLines.join('\r\n')); // pure ASCII → btoa ישיר
+  const vbsPdfB64=vbsB64;
   // VBS שלישי — ייצוא השומה ל-PDF דרך Word (פרוטוקול exportpdf://) — מריץ את exportpdf.ps1 בלי חלון
   const vbsExpLines=[
     'Dim url, shell',
@@ -370,6 +351,7 @@ function downloadRegFile(){
   const psLines=[
     '$dir = "$env:APPDATA\\RRFolderOpener"',
     'if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory | Out-Null }',
+    '[IO.File]::WriteAllBytes("$dir\\openfolder.ps1", [Convert]::FromBase64String(\''+OPENFOLDER_PS1_B64+'\'))',
     '$vbs = "$dir\\open.vbs"',
     '[IO.File]::WriteAllBytes($vbs, [Convert]::FromBase64String(\''+vbsB64+'\'))',
     '$reg = "HKCU:\\Software\\Classes\\opendir"',
@@ -402,23 +384,27 @@ function downloadRegFile(){
   ];
   const psScript=psLines.join('\n');
 
-  // המרה ל-UTF-16LE עבור -EncodedCommand (ללא בעיות escaping בשורת הפקודה)
-  const utf16le=[];
-  for(let i=0;i<psScript.length;i++){
-    const c=psScript.charCodeAt(i);
-    utf16le.push(c&0xff,(c>>8)&0xff);
-  }
-  const psB64=btoa(String.fromCharCode(...utf16le));
+  // הסקריפט (ASCII טהור) מוטמע בסוף קובץ ה-BAT כשורות הערה (::) ב-base64, ו-PowerShell קורא אותו מהקובץ עצמו.
+  // כך אין שורת פקודה ארוכה (‎-EncodedCommand חרג ממגבלת 32K התווים של Windows).
+  const payload=(btoa(psScript).match(/.{1,76}/g)||[]).map(l=>'::'+l);
+  const boot="$ErrorActionPreference='Stop';$l=[IO.File]::ReadAllLines($env:RRSETUP);$i=[Array]::IndexOf($l,'::RRPAYLOAD');"+
+    "$b=-join($l[($i+1)..($l.Length-1)]|ForEach-Object{$_.Substring(2)});"+
+    "iex([Text.Encoding]::ASCII.GetString([Convert]::FromBase64String($b)))";
 
   const batContent=[
     '@echo off',
     'chcp 65001 > nul',
     'echo מגדיר פרוטוקולים לפתיחת תיקיות ו-PDF (ללא חלון) ...',
-    'powershell -NonInteractive -NoProfile -EncodedCommand '+psB64,
+    'set "RRSETUP=%~f0"',
+    'powershell -NonInteractive -NoProfile -ExecutionPolicy Bypass -Command "'+boot+'"',
+    'if errorlevel 1 (echo. & echo  ההגדרה נכשלה - יש לצלם את המסך ולשלוח למיכאל. & echo. & pause & exit /b 1)',
     'echo.',
     'echo  הגדרה הושלמה! פתיחת תיקיות ופתיחת PDF יעבדו ללא חלון.',
     'echo.',
     'pause',
+    'exit /b 0',
+    '::RRPAYLOAD',
+    ...payload,
   ].join('\r\n');
 
   const blob=new Blob([batContent],{type:'text/plain;charset=utf-8'});
