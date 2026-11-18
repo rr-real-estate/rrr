@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v125'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v126'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -2119,7 +2119,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   },[]);
   const workStatus=matchedCase?.status||'בביצוע';
   const _bp=localStorage.getItem('folderBasePath')||'';
-  const _fp=matchedCase?.folderLink||(matchedCase?.folder&&_bp?buildFolderPath(_bp,matchedCase.folder,matchedCase.status):'');
+  const _fp=(matchedCase?.folder&&_bp?buildFolderPath(_bp,matchedCase.folder,matchedCase.status):'')||matchedCase?.folderLink||''; // לפי הסטטוס הנוכחי; עמודה X רק כשאין נתיב בסיס במחשב
   const _driveLink=matchedCase?.driveFolderLink||'';
   // התיקייה שמעל תיקיית התיק במחשב (למשל "פרויקטים בביצוע") — לשינוי שם התיקייה
   const _fpParent=_fp?_fp.replace(/[\\\/]+$/,'').replace(/[\\\/][^\\\/]*$/,''):'';
@@ -3460,7 +3460,7 @@ function ManagedPanel({cas,onClose,onSave,onDelete,onDeleteProject,allCases,addP
           <button onClick={()=>{setForm({...cas});setErr('');}} style={{padding:'9px 14px',borderRadius:9,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:13,color:'#6b5e50'}}>שחזר</button>
           {(()=>{
             const _bp=localStorage.getItem('folderBasePath')||'';
-            const _fp=cas.folderLink||(cas.folder&&_bp?buildFolderPath(_bp,cas.folder,cas.status):'');
+            const _fp=(cas.folder&&_bp?buildFolderPath(_bp,cas.folder,cas.status):'')||cas.folderLink||'';
             const _drive=cas.driveFolderLink;
             return(
               <div style={{display:'flex',gap:6}}>
@@ -3923,7 +3923,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
                     case 'fee': return c.fee?`₪${c.fee}`:'';
                     case '_links': {
                       const _bp=localStorage.getItem('folderBasePath')||'';
-                      const _fp=c.folderLink||(c.folder&&_bp?buildFolderPath(_bp,c.folder,c.status):'');
+                      const _fp=(c.folder&&_bp?buildFolderPath(_bp,c.folder,c.status):'')||c.folderLink||'';
                       const _drive=c.driveFolderLink;
                       return(
                         <div style={{display:'flex',gap:4}} onClick={e=>e.stopPropagation()}>
