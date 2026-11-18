@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v122'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v123'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -704,7 +704,10 @@ function buildCasesFromManaged(rows){
   const managed=all.map((r,i)=>parseManagedCase(r,i)).filter(c=>c.caseNum||c.client);
   const projects=all.map((r,i)=>[r,i]).filter(([r])=>!['הסתיים','בוטל'].includes(g(r,M.status)))
     .map(([r,i])=>parseProject(r,i)).filter(p=>p.name||p._caseNum);   // תיק עם שם ריק עדיין מוצג (מזוהה לפי מספר התיק, עמודה D)
-  return {managed,projects};
+  // תיקים שהסתיימו/בוטלו ועדיין יש בהם משימה פתוחה — מוצגים רק במסכי המשימות (לא חוזרים לרשימת הפעילים)
+  const closedTasks=all.map((r,i)=>[r,i]).filter(([r])=>['הסתיים','בוטל'].includes(g(r,M.status)))
+    .map(([r,i])=>({...parseProject(r,i),_closed:g(r,M.status)})).filter(p=>(p.name||p._caseNum)&&projHasTask(p));
+  return {managed,projects,closedTasks};
 }
 
 function parseMsg(row,i){
@@ -4222,7 +4225,7 @@ function LoginScreen({onLogin,autoLogging}){
 }
 
 // ═══════════════ DASHBOARD VIEW ══════════════════════════════════
-function DashboardView({projects,managed,user,settings,onSetView,onOpenProject,messages,onlineUsers,onPostMessage,onMarkRead,onDeleteMessage}){
+function DashboardView({projects,closedTasks,managed,user,settings,onSetView,onOpenProject,messages,onlineUsers,onPostMessage,onMarkRead,onDeleteMessage}){
   const isMobile=useIsMobile();
   const today=new Date();today.setHours(0,0,0,0);
   const in7=new Date(today);in7.setDate(in7.getDate()+7);
@@ -4407,7 +4410,7 @@ function DashboardView({projects,managed,user,settings,onSetView,onOpenProject,m
           const userFieldMap={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'};
           const userField=userFieldMap[userName];
           if(!userField)return <div/>;
-          const myTasks=activeProjs
+          const myTasks=[...activeProjs,...(closedTasks||[])]
             .filter(p=>p[userField])
             .map(p=>{
               const d=p._dueD||p._expD;
@@ -4442,7 +4445,7 @@ function DashboardView({projects,managed,user,settings,onSetView,onOpenProject,m
                     const rowBg=isOverdue?'#fdf2f2':isToday?'#fdf6ee':p._daysLeft!==null?'#faf8f4':'#fff';
                     const rowBgHover=isOverdue?'#fbe6e4':isToday?'#f9ecdb':p._daysLeft!==null?'#f2ede4':'#f5f1e8';
                     return(
-                      <div key={p._row} onClick={()=>onOpenProject&&onOpenProject(p._row)}
+                      <div key={p._row} onClick={()=>p._closed?onSetView('tasks'):(onOpenProject&&onOpenProject(p._row))}
                         style={{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 20px',
                           borderBottom:i<myTasks.length-1?'1px solid #f0ebe2':'none',
                           borderRight:`3px solid ${borderColor}`,
@@ -4455,7 +4458,7 @@ function DashboardView({projects,managed,user,settings,onSetView,onOpenProject,m
                           {p._dStr&&<span style={{fontSize:10,color:dateFg,opacity:0.8,paddingRight:2}}>{p._dStr}</span>}
                         </div>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:700,color:'#1a1510',marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</div>
+                          <div style={{fontSize:13,fontWeight:700,color:'#1a1510',marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p._closed&&<span style={{fontSize:10,fontWeight:600,color:p._closed==='בוטל'?'#991b1b':'#166534',background:p._closed==='בוטל'?'#fee2e2':'#dcfce7',borderRadius:20,padding:'1px 7px',marginInlineEnd:6}}>{p._closed}</span>}{p.name}</div>
                           <div style={{fontSize:12,color:'#5a4e44',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{renderBold(splitTasks(p[userField]).map(t=>t.text).join(' · '))}</div>
                         </div>
                       </div>
@@ -5426,7 +5429,7 @@ function GoogleConnectivityCheck({sec,secTitle}){
 }
 
 // ═══════════════ TASKS VIEW (משימות) ════════════════════════════
-function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTask,onCompleteTask,isMobile}){
+function TasksView({projects,closedTasks,user,onAddTaskToProject,onAddGeneralTask,onDeleteTask,onCompleteTask,isMobile}){
   const me=USER_BY_EMAIL[(user?.email||'').toLowerCase()]||_currentUserName||'';
   const USERS=['יוסי','מיכאל','פייגי'];
   const UF={'יוסי':'yossi','מיכאל':'michael','פייגי':'feigi'};
@@ -5446,8 +5449,8 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
 
   const entries=React.useMemo(()=>{
     const out=[];
-    (projects||[]).forEach(p=>{
-      if(p.status==='הסתיים'||p.status==='בוטל')return;
+    [...(projects||[]),...(closedTasks||[])].forEach(p=>{
+      if(!p._closed&&(p.status==='הסתיים'||p.status==='בוטל'))return;
       const numMatch=(p.name||'').match(/\b(5\d{4})\b/);
       USERS.forEach(u=>{
         const raw=p[UF[u]];
@@ -5456,12 +5459,13 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
           const dueStr=t.due||p.dueDate||'';
           out.push({row:p._row,field:UF[u],assignee:u,author:t.user,text:t.text,created:t.stamp,
             line:t.line,due:dueStr,caseNum:numMatch?numMatch[1]:'',caseName:p.name||'',
-            isGeneral:!numMatch,_dueD:parseDate(dueStr)});
+            isGeneral:!numMatch,closed:p._closed||'',_dueD:parseDate(dueStr)});
         });
       });
     });
     return out;
-  },[projects]);
+  },[projects,closedTasks]);
+  const closedBadge=e=>e.closed?<span style={{fontSize:10.5,fontWeight:600,color:e.closed==='בוטל'?'#991b1b':'#166534',background:e.closed==='בוטל'?'#fee2e2':'#dcfce7',borderRadius:20,padding:'1px 8px',marginInlineStart:6,whiteSpace:'nowrap'}}>{e.closed}</span>:null;
 
   const shown=entries.filter(e=>!e.isGeneral); // אין יותר משימות ללא שיוך לתיק
   const sorted=[...shown].sort((a,b)=>{
@@ -5563,7 +5567,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
               return(
                 <div key={i} style={{padding:'12px 16px',borderBottom:i<sorted.length-1?'1px solid #f0ebe2':'none'}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
-                    <span style={{fontSize:12.5,color:e.isGeneral?'#7a6a58':'#3a2a00',background:e.isGeneral?'#f0ebe2':'transparent',border:e.isGeneral?'1px solid #ddd0bb':'none',borderRadius:20,padding:e.isGeneral?'2px 9px':0,fontWeight:500}}>{e.isGeneral?'כללי':e.caseName}</span>
+                    <span style={{fontSize:12.5,color:e.isGeneral?'#7a6a58':'#3a2a00',background:e.isGeneral?'#f0ebe2':'transparent',border:e.isGeneral?'1px solid #ddd0bb':'none',borderRadius:20,padding:e.isGeneral?'2px 9px':0,fontWeight:500}}>{e.isGeneral?'כללי':e.caseName}{closedBadge(e)}</span>
                     <div style={{marginInlineStart:'auto',display:'flex',alignItems:'center',gap:8}}>
                       {e.due&&<span style={{fontSize:12,fontWeight:600,color:overdue?'#c0392b':'#b45309'}}>{e.due}</span>}
                       {!e.isGeneral&&<button onClick={()=>complete(e)} title="סמן כבוצע" style={{background:'#fff',border:'2px solid #bdb3a5',borderRadius:6,width:24,height:24,cursor:'pointer',fontSize:13,color:'#16a34a',fontWeight:700,lineHeight:1,display:'flex',alignItems:'center',justifyContent:'center'}}>✓</button>}
@@ -5601,7 +5605,7 @@ function TasksView({projects,user,onAddTaskToProject,onAddGeneralTask,onDeleteTa
                     <td style={{padding:'10px 14px'}}>
                       {e.isGeneral
                         ? <span style={{fontSize:12,color:'#7a6a58',background:'#f0ebe2',border:'1px solid #ddd0bb',borderRadius:20,padding:'2px 9px',fontWeight:500,whiteSpace:'nowrap'}}>כללי</span>
-                        : <span style={{fontSize:12.5,color:'#3a2a00',fontWeight:500,lineHeight:1.4}}>{e.caseName}</span>}
+                        : <span style={{fontSize:12.5,color:'#3a2a00',fontWeight:500,lineHeight:1.4}}>{e.caseName}{closedBadge(e)}</span>}
                     </td>
                     <td style={{padding:'10px 14px',color:'#1a1510',lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{renderBold(e.text)}</td>
                     <td style={{padding:'10px 14px',whiteSpace:'nowrap'}}><span style={{color:uColor[e.assignee]||'#7a6a58',fontWeight:600}}>{e.assignee}</span></td>
@@ -6406,6 +6410,7 @@ function App(){
   React.useLayoutEffect(()=>{if(mainScrollRef.current)mainScrollRef.current.scrollTop=0;},[view]);
   const [managedSearch,setManagedSearch]=useState('');
   const [openProjectRow,setOpenProjectRow]=useState(null);
+  const [closedTasks,setClosedTasks]=useState([]); // תיקים סגורים עם משימות פתוחות
   const [projectSearch,setProjectSearch]=useState('');
   // סגור drawer אוטומטית כשעוברים ל-landscape
   useEffect(()=>{if(!isMobile)setDrawerOpen(false);},[isMobile]);
@@ -6459,9 +6464,10 @@ function App(){
     setLoading(true);setError('');
     try{
       const rows=await api.get("'ניהול תיקים'!A2:BA"); // מקור מאוחד — מרשם + נתוני עבודה
-      const {managed,projects}=buildCasesFromManaged(rows);
+      const {managed,projects,closedTasks}=buildCasesFromManaged(rows);
       setProjects(projects);
       setManaged(managed);
+      setClosedTasks(closedTasks);
     }catch(e){setError('שגיאה בטעינת הנתונים: '+e.message);}
     finally{setLoading(false);}
     loadMsgsPresence();
@@ -6471,9 +6477,10 @@ function App(){
     if(!api.token)return;
     try{
       const rows=await api.get("'ניהול תיקים'!A2:BA");
-      const {managed,projects}=buildCasesFromManaged(rows);
+      const {managed,projects,closedTasks}=buildCasesFromManaged(rows);
       setProjects(projects);
       setManaged(managed);
+      setClosedTasks(closedTasks);
     }catch(e){}
     loadMsgsPresence();
   },[loadMsgsPresence]);
@@ -6579,13 +6586,14 @@ function App(){
   },[]);
   // סימון משימת תיק כבוצעה — מסיר מהשדה ומעביר להיסטוריה (עמודה Z)
   const completeTask=useCallback(async(rowNum,field,taskLine)=>{
-    const p=projects.find(x=>x._row===rowNum);
+    const p=projects.find(x=>x._row===rowNum)||closedTasks.find(x=>x._row===rowNum);
     if(!p)throw new Error('התיק לא נמצא');
     const {newField,historyEntry}=computeCompletion(p,field,taskLine,_currentUserName);
     const upd={...p,[field]:newField,taskHistory:appendHistory(p.taskHistory,historyEntry)};
     await saveWorkToManaged(upd);
-    updateProject(p._row,{...upd});
-  },[projects,updateProject]);
+    if(p._closed)setClosedTasks(cs=>cs.map(c=>c._row===rowNum?{...c,...upd}:c).filter(projHasTask)); // תיק סגור — נעלם כשלא נשארו משימות
+    else updateProject(p._row,{...upd});
+  },[projects,closedTasks,updateProject]);
   // מחיקת תיק — מוחקת שורה מ"ניהול תיקים" ומזיזה _row בשתי הרשימות (מרשם+עבודה יחד)
   const deleteCase=useCallback((rowNum)=>{const sh=arr=>arr.filter(x=>x._row!==rowNum).map(x=>x._row>rowNum?{...x,_row:x._row-1}:x);setManaged(sh);setProjects(sh);},[]);
   const handleUpdateFolderLinks=useCallback(async(basePath)=>{
@@ -6679,11 +6687,11 @@ function App(){
         paddingBottom:isMobile?68:0,
       }}>
         {error&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{error}</div>}
-        {view==='home'&&<DashboardView projects={projects} managed={managed} user={user} settings={settings} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}} messages={messages} onlineUsers={onlineUsers} onPostMessage={postMessage} onMarkRead={markRead} onDeleteMessage={deleteMessage}/>}
+        {view==='home'&&<DashboardView projects={projects} closedTasks={closedTasks} managed={managed} user={user} settings={settings} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}} messages={messages} onlineUsers={onlineUsers} onPostMessage={postMessage} onMarkRead={markRead} onDeleteMessage={deleteMessage}/>}
         {view==='projects'&&<ProjectsView projects={projects} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)} autoOpenSearch={projectSearch} onAutoOpenSearchConsumed={()=>setProjectSearch('')} isMobile={isMobile}/>}
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject} isMobile={isMobile}/>}
         {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject} initialSearch={managedSearch} onSearchConsumed={()=>setManagedSearch('')} isMobile={isMobile} user={user} settings={settings} onUpdate={updateProject}/>}
-        {view==='tasks'&&<TasksView projects={projects} user={user} onAddTaskToProject={addTaskToProject} onAddGeneralTask={addGeneralTask} onDeleteTask={deleteGeneralTask} onCompleteTask={completeTask} isMobile={isMobile}/>}
+        {view==='tasks'&&<TasksView projects={projects} closedTasks={closedTasks} user={user} onAddTaskToProject={addTaskToProject} onAddGeneralTask={addGeneralTask} onDeleteTask={deleteGeneralTask} onCompleteTask={completeTask} isMobile={isMobile}/>}
         {view==='visit'&&<VisitFormView managed={managed} user={user} isMobile={isMobile}/>}
         {view==='reports'&&<ReportsView managed={managed} projects={projects}/>}
         {view==='settings'&&<SettingsView settings={settings} onSetting={onSetting} user={user} managed={managed} onUpdateFolderLinks={handleUpdateFolderLinks}/>}
