@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v127'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v129'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -1982,6 +1982,76 @@ function ExternalLinkButton({caseNum,fullName,driveFolderLink}){
     </div>}
   </div>);
 }
+// לשונית "קישורים" בכרטיס התיק — הפניות ישירות לאתרים חיצוניים לפי גוש/חלקה/עיר של התיק.
+// להוספת קישור: שורה נוספת במערך links (need = מה נדרש כדי שהקישור יהיה פעיל).
+function CaseLinks({block,parcel,city,secStyle}){
+  const num=v=>((String(v||'').match(/\d+/)||[])[0])||'';   // המספר הראשון בשדה (למשל "157+161" → 157)
+  const g=num(block),h=num(parcel),c=String(city||'').trim();
+  const gp=!!(g&&h);
+  const google=q=>'https://www.google.com/search?q='+encodeURIComponent(q);
+  const links=[
+    {name:'govmap',desc:gp?`גוש ${g} חלקה ${h}`:'',ok:gp,need:'גוש וחלקה',url:gp?'https://www.govmap.gov.il/?lay=21,15&q='+encodeURIComponent(`גוש ${g} חלקה ${h}`):''},
+    {name:'גוב נדל"ן',desc:gp?`עסקאות בגוש ${g} חלקה ${h}`:'',ok:gp,need:'גוש וחלקה',url:gp?`https://www.nadlan.gov.il/?view=kparcel_all&id=${g}-${h}&page=deals`:''},
+    {name:'GIS',desc:c?`חיפוש בגוגל: GIS ${c}`:'',ok:!!c,need:'עיר',url:c?google('GIS '+c):''},
+    {name:'ויקיפדיה',desc:c?`חיפוש בגוגל: ${c} ויקיפדיה`:'',ok:!!c,need:'עיר',url:c?google(c+' ויקיפדיה'):''},
+  ];
+  const multi=/\d\D+\d/.test(String(parcel||''));
+  const card=ok=>({display:'flex',flexDirection:'column',gap:4,padding:'14px 16px',borderRadius:12,border:`1px solid ${LINE}`,background:ok?'#fff':'#f5f3ef',color:ok?INK:'#a69c90',textDecoration:'none',cursor:ok?'pointer':'default'});
+  return <div style={secStyle}>
+    <SectionTitle icon="🔗">קישורים</SectionTitle>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}}>
+      {links.map(l=>l.ok
+        ?<a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer" style={card(true)}>
+            <span style={{fontSize:15,fontWeight:600,display:'flex',alignItems:'center',gap:7}}><Icon name="external" size={15} color={GOLD2}/>{l.name}</span>
+            <span style={{fontSize:12,color:'#7a6a58'}}>{l.desc}</span>
+          </a>
+        :<div key={l.name} style={card(false)} title={'חסר בתיק: '+l.need}>
+            <span style={{fontSize:15,fontWeight:600}}>{l.name}</span>
+            <span style={{fontSize:12}}>חסר בתיק: {l.need} (לשונית "נכס")</span>
+          </div>)}
+    </div>
+    {gp&&multi&&<div style={{fontSize:12,color:'#9a5512',marginTop:10}}>בשדה החלקה יש יותר ממספר אחד ({String(parcel).trim()}) — הקישורים נפתחים לחלקה {h} בלבד.</div>}
+  </div>;
+}
+// רשימת תיקים אחרים ב"ניהול תיקים" עם אותו שם / אותו נייד (לקוח או יועץ) — מהחדש לישן; לחיצה פותחת ב"כלל התיקים"
+function RelatedCases({title,hint,managed,selfRow,name,phone,nameKey,phoneKey,secStyle}){
+  const [showAll,setShowAll]=React.useState(false);
+  const normP=v=>{const d=String(v||'').replace(/\D/g,'');return d.length>=9?d.slice(-9):'';};
+  const normN=v=>String(v||'').replace(/\s+/g,' ').trim();
+  const myP=normP(phone),myN=normN(name);
+  if(!myP&&!myN)return null;
+  const others=(managed||[]).filter(c=>c._row!==selfRow&&c.caseNum&&((myP&&normP(c[phoneKey])===myP)||(myN&&normN(c[nameKey])===myN)))
+    .sort((x,y)=>String(y.caseNum).localeCompare(String(x.caseNum)));
+  if(!others.length)return null;
+  const SC={'הסתיים':['#dcfce7','#166534'],'בוטל':['#fee2e2','#991b1b'],'ממתין':['#ffedd5','#9a3412']};
+  const LIMIT=10;const list=showAll?others:others.slice(0,LIMIT);
+  return <div style={secStyle}>
+    <SectionTitle icon="🗂️">{title} ({others.length})</SectionTitle>
+    <div style={{fontSize:11.5,color:'#9a8e84',marginBottom:8}}>{hint}. לחיצה פותחת את התיק ב"כלל התיקים".</div>
+    {list.map(c=>{const sc=SC[c.status]||['#fdf8ee','#4b3400'];return(
+      <div key={c._row} onClick={()=>{_goToManaged&&_goToManaged(c.caseNum);}} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 10px',borderTop:`1px solid ${LINE}`,cursor:'pointer',fontSize:13}}
+        onMouseEnter={e=>e.currentTarget.style.background='#faf7f2'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+        <span style={{flex:1,minWidth:0,color:INK,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.folder||('תיק '+c.caseNum)}</span>
+        {c.openDate&&<span style={{fontSize:11.5,color:'#9a8e84',whiteSpace:'nowrap'}}>{c.openDate}</span>}
+        <span style={{fontSize:11,fontWeight:600,background:sc[0],color:sc[1],borderRadius:20,padding:'1px 9px',whiteSpace:'nowrap'}}>{c.status||'—'}</span>
+      </div>);})}
+    {others.length>LIMIT&&<button onClick={()=>setShowAll(v=>!v)} style={{marginTop:8,padding:'6px 14px',borderRadius:8,border:`1px solid ${LINE}`,background:'#fff',color:'#6b5e50',fontSize:12.5,cursor:'pointer',fontFamily:'inherit'}}>{showAll?'הצג פחות':`הצג את כל ${others.length} התיקים`}</button>}
+  </div>;
+}
+// כפתורי חיוג / וואטסאפ / מייל — מוצגים רק כשיש נייד / מייל תקינים (לשוניות לקוח ויועץ)
+function ContactButtons({phone,email}){
+  const digits=String(phone||'').replace(/\D/g,'');
+  const intl=digits.length>=9?(digits.startsWith('972')?digits:digits.startsWith('0')?'972'+digits.slice(1):'972'+digits):'';
+  const mail=String(email||'').trim();
+  const okMail=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail);
+  if(!intl&&!okMail)return null;
+  const b={display:'inline-flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:9,border:`1px solid ${LINE}`,background:'#fff',color:INK,fontSize:13,fontWeight:500,textDecoration:'none',fontFamily:'inherit'};
+  return <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:12}}>
+    {intl&&<a href={'tel:+'+intl} style={b}>📞 חיוג</a>}
+    {intl&&<a href={'https://wa.me/'+intl} target="_blank" rel="noopener noreferrer" style={b}>💬 וואטסאפ</a>}
+    {okMail&&<a href={'mailto:'+mail} style={b}>✉️ מייל</a>}
+  </div>;
+}
 function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDeleteProject,onDeleteCase,user}){
   const isMobile=useIsMobile();
   const [form,setForm]=useState({...project});
@@ -2314,7 +2384,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const panelTabs=isGeneralTask
     ?[{id:'main',label:'ראשי',icon:'list'}]
     :[{id:'main',label:'ראשי',icon:'list'},{id:'docs',label:'מסמכים',icon:'folder'},{id:'visit',label:'ביקור',icon:'calendar'},{id:'fee',label:'שכ"ט',icon:'coins'},
-      {id:'client',label:'לקוח',icon:'user'},{id:'advisor',label:'יועץ',icon:'handshake'},{id:'property',label:'נכס',icon:'building'}];
+      {id:'client',label:'לקוח',icon:'user'},{id:'advisor',label:'יועץ',icon:'handshake'},{id:'property',label:'נכס',icon:'building'},{id:'links',label:'קישורים',icon:'external'}];
   // מחיקת משימה — מותרת רק למשימות ללא שיוך לתיק
   const handleDeleteTask=async()=>{
     if(!isGeneralTask)return;
@@ -2774,41 +2844,9 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
               <div><FLabel>נייד לקוח</FLabel><input value={caseForm.phone||''} onChange={e=>setCF('phone',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
               <div><FLabel>מייל לקוח</FLabel><input value={caseForm.email||''} onChange={e=>setCF('email',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
             </div>
-            {(()=>{
-              const digits=String(caseForm.phone||'').replace(/\D/g,'');
-              const intl=digits.length>=9?(digits.startsWith('972')?digits:digits.startsWith('0')?'972'+digits.slice(1):'972'+digits):'';
-              const mail=String(caseForm.email||'').trim();
-              const okMail=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail);
-              if(!intl&&!okMail)return null;
-              const b={display:'inline-flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:9,border:`1px solid ${LINE}`,background:'#fff',color:INK,fontSize:13,fontWeight:500,textDecoration:'none',fontFamily:'inherit'};
-              return <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:12}}>
-                {intl&&<a href={'tel:+'+intl} style={b}>📞 חיוג</a>}
-                {intl&&<a href={'https://wa.me/'+intl} target="_blank" rel="noopener noreferrer" style={b}>💬 וואטסאפ</a>}
-                {okMail&&<a href={'mailto:'+mail} style={b}>✉️ מייל</a>}
-              </div>;
-            })()}
+            <ContactButtons phone={caseForm.phone} email={caseForm.email}/>
           </div>}
-          {tab==='client'&&caseForm&&matchedCase&&(()=>{
-            const normP=v=>{const d=String(v||'').replace(/\D/g,'');return d.length>=9?d.slice(-9):'';};
-            const normN=v=>String(v||'').replace(/\s+/g,' ').trim();
-            const myP=normP(caseForm.phone),myN=normN(caseForm.client);
-            if(!myP&&!myN)return null;
-            const others=(managed||[]).filter(c=>c._row!==matchedCase._row&&c.caseNum&&((myP&&normP(c.phone)===myP)||(myN&&normN(c.client)===myN)))
-              .sort((a,b2)=>String(b2.caseNum).localeCompare(String(a.caseNum)));
-            if(!others.length)return null;
-            const SC={'הסתיים':['#dcfce7','#166534'],'בוטל':['#fee2e2','#991b1b'],'ממתין':['#ffedd5','#9a3412']};
-            return <div style={sec}>
-              <SectionTitle icon="🗂️">תיקים נוספים של הלקוח ({others.length})</SectionTitle>
-              <div style={{fontSize:11.5,color:'#9a8e84',marginBottom:8}}>לפי שם לקוח זהה או נייד זהה. לחיצה פותחת את התיק ב"כלל התיקים".</div>
-              {others.map(c=>{const sc=SC[c.status]||['#fdf8ee','#4b3400'];return(
-                <div key={c._row} onClick={()=>{_goToManaged&&_goToManaged(c.caseNum);}} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 10px',borderTop:`1px solid ${LINE}`,cursor:'pointer',fontSize:13}}
-                  onMouseEnter={e=>e.currentTarget.style.background='#faf7f2'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                  <span style={{flex:1,minWidth:0,color:INK,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.folder||('תיק '+c.caseNum)}</span>
-                  {c.openDate&&<span style={{fontSize:11.5,color:'#9a8e84',whiteSpace:'nowrap'}}>{c.openDate}</span>}
-                  <span style={{fontSize:11,fontWeight:600,background:sc[0],color:sc[1],borderRadius:20,padding:'1px 9px',whiteSpace:'nowrap'}}>{c.status||'—'}</span>
-                </div>);})}
-            </div>;
-          })()}
+          {tab==='client'&&caseForm&&matchedCase&&<RelatedCases title="תיקים נוספים של הלקוח" hint="לפי שם לקוח זהה או נייד זהה" managed={managed} selfRow={matchedCase._row} name={caseForm.client} phone={caseForm.phone} nameKey="client" phoneKey="phone" secStyle={sec}/>}
           {tab==='advisor'&&caseForm&&<div style={sec}>
             <SectionTitle icon="🤝">פרטי יועץ משכנתאות</SectionTitle>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
@@ -2816,7 +2854,9 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
               <div><FLabel>נייד יועץ</FLabel><input value={caseForm.advisorPhone||''} onChange={e=>setCF('advisorPhone',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
               <div><FLabel>מייל יועץ</FLabel><input value={caseForm.advisorEmail||''} onChange={e=>setCF('advisorEmail',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
             </div>
+            <ContactButtons phone={caseForm.advisorPhone} email={caseForm.advisorEmail}/>
           </div>}
+          {tab==='advisor'&&caseForm&&matchedCase&&<RelatedCases title="תיקים נוספים של היועץ" hint="לפי שם יועץ זהה או נייד זהה" managed={managed} selfRow={matchedCase._row} name={caseForm.advisor} phone={caseForm.advisorPhone} nameKey="advisor" phoneKey="advisorPhone" secStyle={sec}/>}
           {tab==='property'&&caseForm&&<div style={sec}>
             <SectionTitle icon="🏢">פרטי הנכס</SectionTitle>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
@@ -2832,6 +2872,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
               <div><FLabel>סוג נכס</FLabel><input value={caseForm.propType||''} onChange={e=>setCF('propType',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
             </div>
           </div>}
+          {tab==='links'&&caseForm&&<CaseLinks block={caseForm.block} parcel={caseForm.parcel} city={caseForm.city} secStyle={sec}/>}
         </div>
       </div>
       {confirmKtiva&&(
