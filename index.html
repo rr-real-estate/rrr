@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v129'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v130'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -2102,6 +2102,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const [lastVisit,setLastVisit]=useState(null); // ביקור אחרון מגיליון "ביקורים" (שם שמאי + חותמת זמן)
   const pendingStatusRef=useRef(null);
   const savingRef=useRef(false);
+  const pendingSaveRef=useRef(false);
   const formRef=useRef({...project});
   const dirtyRef=useRef(false);
   const origStatusRef=useRef(project.status);
@@ -2193,20 +2194,24 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const _driveLink=matchedCase?.driveFolderLink||'';
   // התיקייה שמעל תיקיית התיק במחשב (למשל "פרויקטים בביצוע") — לשינוי שם התיקייה
   const _fpParent=_fp?_fp.replace(/[\\\/]+$/,'').replace(/[\\\/][^\\\/]*$/,''):'';
+  // עדכון הטופס באופן סינכרוני: formRef מתעדכן מיד (לא בתוך updater ש-React עשוי לדחות לרינדור),
+  // כך ש-autoSave שנקרא מיד אחרי העדכון שומר תמיד את הערך החדש (אחרת "בוצע" נשמר לפעמים עם הטופס הישן)
+  const setFormSync=(fn)=>{const next=fn(formRef.current);formRef.current=next;setForm(next);};
   const set=(k,v)=>{
     dirtyRef.current=true;
-    setForm(f=>{
+    setFormSync(f=>{
       const next={...f,[k]:v};
       if(['visitDate','postVisitDocs','postVisitComplete','status'].includes(k))next.expected=calcExpected(next);
       formRef.current=next;return next;
     });
   };
   const autoSave=async()=>{
-    if(savingRef.current)return;
+    if(savingRef.current){pendingSaveRef.current=true;return;}   // שמירה כבר רצה — לא מאבדים את השינוי, שומרים שוב כשתסתיים
     savingRef.current=true;setSaving(true);setErr('');dirtyRef.current=false;
     try{await onSave({...formRef.current});setSaved(true);setTimeout(()=>setSaved(false),1500);}
-    catch(e){setErr(e.message);}
+    catch(e){setErr(e.message);dirtyRef.current=true;}   // נכשל — נשאר "מלוכלך" כדי שיישמר שוב בסגירה
     finally{setSaving(false);savingRef.current=false;}
+    if(pendingSaveRef.current){pendingSaveRef.current=false;await autoSave();}
   };
   const doClose=async()=>{
     setDueDateErr(false);setVisitDateErr(false);
@@ -2399,7 +2404,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const doCompleteTask=(field,line)=>{
     const {newField,historyEntry}=computeCompletion(formRef.current,field,line,_currentUserName);
     dirtyRef.current=true;
-    setForm(f=>{const next={...f,[field]:newField,taskHistory:appendHistory(f.taskHistory,historyEntry)};formRef.current=next;return next;});
+    setFormSync(f=>{const next={...f,[field]:newField,taskHistory:appendHistory(f.taskHistory,historyEntry)};formRef.current=next;return next;});
     autoSave();
   };
   const doAddTask=(field,text,due)=>{
@@ -2412,7 +2417,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   // עריכת טקסט משימה קיימת — שומרת את החותמת המקורית (מי רשם/מתי/יעד)
   const doEditTask=(field,oldLine,newLine)=>{
     dirtyRef.current=true;
-    setForm(f=>{
+    setFormSync(f=>{
       const lines=String(f[field]||'').split('\n');
       const idx=lines.findIndex(l=>l.trim()===String(oldLine).trim());
       if(idx>=0)lines[idx]=newLine;
@@ -2426,7 +2431,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
     if(!text||!text.trim())return;
     const stamped=stampTask(text,_currentUserName);
     dirtyRef.current=true;
-    setForm(f=>{
+    setFormSync(f=>{
       const next={...f};
       const ex=String(next[targetField]||'').trim();
       next[targetField]=ex?ex+'\n'+stamped:stamped;
@@ -2441,7 +2446,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
   const doDeleteHistory=(line)=>{
     if(!window.confirm('למחוק רשומה זו מההיסטוריה? הפעולה אינה הפיכה.'))return;
     dirtyRef.current=true;
-    setForm(f=>{
+    setFormSync(f=>{
       const remaining=String(f.taskHistory||'').split('\n').map(l=>l.trim()).filter(Boolean).filter(l=>l!==String(line).trim());
       const next={...f,taskHistory:remaining.join('\n')};formRef.current=next;return next;
     });
@@ -2459,7 +2464,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
     let activeLine=h.text;
     if(regStamp){let inner=regStamp;if(regUser&&regUser!=='—')inner+=' | '+regUser;activeLine=h.text+' ('+inner+')';}
     dirtyRef.current=true;
-    setForm(f=>{
+    setFormSync(f=>{
       const remaining=String(f.taskHistory||'').split('\n').map(l=>l.trim()).filter(Boolean).filter(l=>l!==String(line).trim());
       const existing=(f[field]||'').trim();
       const next={...f,[field]:existing?existing+'\n'+activeLine:activeLine,taskHistory:remaining.join('\n')};
@@ -2647,7 +2652,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                       pendingStatusRef.current=ns;setConfirmKtiva(true);return;
                     }
                     dirtyRef.current=true;
-                    setForm(f=>{const next={...f,status:ns,dueDate:''};formRef.current=next;return next;});
+                    setFormSync(f=>{const next={...f,status:ns,dueDate:''};formRef.current=next;return next;});
                     setDueDateErr(false);
                     autoSave();
                   }} style={{...iS,fontFamily:'inherit'}}>
@@ -2741,7 +2746,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                   const upd={missingDocs:v};
                   if(formRef.current.visitDate){if(v){upd.postVisitDocs=td;upd.postVisitComplete='';}else upd.postVisitComplete=td;}
                   dirtyRef.current=true;
-                  setForm(f=>{const next={...f,...upd};formRef.current=next;return next;});
+                  setFormSync(f=>{const next={...f,...upd};formRef.current=next;return next;});
                 }}
                 onBlur={autoSave}/>
             </div>
@@ -2886,7 +2891,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 setConfirmKtiva(false);
                 const ns=pendingStatusRef.current;
                 dirtyRef.current=true;
-                setForm(f=>{const next={...f,status:ns,dueDate:''};formRef.current=next;return next;});
+                setFormSync(f=>{const next={...f,status:ns,dueDate:''};formRef.current=next;return next;});
                 setDueDateErr(false);autoSave();
               }} style={{padding:'9px 22px',borderRadius:9,border:'none',background:BLACK,color:GOLD,fontWeight:500,cursor:'pointer',fontSize:13}}>כן</button>
               <button onClick={()=>setConfirmKtiva(false)} style={{padding:'9px 22px',borderRadius:9,border:'1px solid #ddd0bb',background:'#fff',cursor:'pointer',fontSize:13,color:'#6b5e50'}}>לא</button>
