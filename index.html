@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v133'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v136'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -1984,19 +1984,20 @@ function ExternalLinkButton({caseNum,fullName,driveFolderLink}){
   </div>);
 }
 // ═══════════════ קישורים לאתרים חיצוניים ═══════════════════════════
-// הגדרות הקישורים נקראות מהגיליון "קישורים" (A=שם, B=כתובת עם מקומות למילוי, C=עיר — ריק = כל הערים).
-// שורה עם עיר גוברת על שורה כללית באותו שם (למשל GIS ישיר לערד במקום חיפוש בגוגל).
-// אם הגיליון לא קיים / ריק — משתמשים ב-LINK_DEFAULTS. קישורים שמורים לתיק: גיליון "קישורי תיקים" (A=תיק,B=שם,C=כתובת,D=מי,E=מתי).
-const LINKS_TAB='קישורים', CASE_LINKS_TAB='קישורי תיקים';
+// הגדרות הקישורים נקראות מהגיליון "קישורים": A=שם, B=כתובת עם מקומות למילוי, C=עיר (ריק = כל הערים), D=עודכן ע"י, E=תאריך.
+// אם הגיליון לא קיים / ריק — משתמשים ב-LINK_DEFAULTS.
+// קישורי עיר (CITY_LINK_NAMES): שלושה כפתורים קבועים בכל תיק. כל משתמש מגדיר/עורך אותם מתוך הלשונית, והם נשמרים
+// כשורה עם שם העיר — כך שהם חלים על כל התיקים של אותה עיר, אצל כולם.
+const LINKS_TAB='קישורים';
+const LINKS_HEADER=['שם','כתובת','עיר (ריק = כל הערים)','עודכן ע"י','תאריך'];
+const CITY_LINK_NAMES=['תיקי בניין','תב"ע','GIS'];
 const LINK_DEFAULTS=[
   ['govmap','https://www.govmap.gov.il/?lay=21,15&q=גוש {גוש} חלקה {חלקה}',''],
   ['גוב נדל"ן','https://www.nadlan.gov.il/?view=kparcel_all&id={גוש}-{חלקה}&page=deals',''],
-  ['GIS','https://www.google.com/search?q=GIS {עיר}',''],
   ['ויקיפדיה','https://www.google.com/search?q={עיר} ויקיפדיה',''],
   ['Google Maps','https://www.google.com/maps/search/?api=1&query={כתובת}',''],
   ['Waze','https://waze.com/ul?q={כתובת}&navigate=yes',''],
   ['מדלן','https://www.google.com/search?q=מדלן {כתובת}',''],
-  ['מנהל התכנון','https://mavat.iplan.gov.il/SV3',''],
   ['נסח טאבו','https://mekarkein-online.justice.gov.il/voucher/main',''],
 ];
 // מקומות למילוי בכתובת → ערך מהתיק
@@ -2012,26 +2013,25 @@ const LINK_FIELDS={
   'מספר תיק':c=>String(c.caseNum||'').trim(),
   'לקוח':c=>String(c.client||'').trim(),
 };
-const linkStore={defs:null,defsTab:false,caseLinks:[],caseTab:false,loaded:false,subs:new Set(),
+// השוואת עיר סלחנית: רווחים כפולים, ו"קריית" = "קרית" (בגיליון מופיעים שני הכתיבים)
+const normCity=v=>String(v||'').replace(/\s+/g,' ').trim().replace(/קריית/g,'קרית');
+const linkStore={defs:null,defsTab:false,loaded:false,subs:new Set(),
   set(p){Object.assign(this,p);this.subs.forEach(f=>f());}};
 function useLinkStore(){
   const [,force]=React.useState(0);
   React.useEffect(()=>{const cb=()=>force(x=>x+1);linkStore.subs.add(cb);return()=>{linkStore.subs.delete(cb);};},[]);
   return linkStore;
 }
+// שורת הגדרה: [שם, כתובת, עיר, עודכן ע"י, תאריך, מספר שורה בגיליון]
 async function loadLinks(){
-  let defs=null,defsTab=false,caseLinks=[],caseTab=false;
+  let defs=null,defsTab=false;
   try{
-    const rows=await api.get(`'${LINKS_TAB}'!A2:C`);defsTab=true;
-    const d=(rows||[]).map(r=>[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim()]).filter(r=>r[0]&&/^https?:\/\//i.test(r[1]));
+    const rows=await api.get(`'${LINKS_TAB}'!A2:E`);defsTab=true;
+    const d=(rows||[]).map((r,i)=>[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim(),String(r[3]||'').trim(),String(r[4]||'').trim(),i+2])
+      .filter(r=>r[0]&&/^https?:\/\//i.test(r[1]));
     if(d.length)defs=d;
   }catch(_){}
-  try{
-    const rows=await api.get(`'${CASE_LINKS_TAB}'!A2:E`);caseTab=true;
-    caseLinks=(rows||[]).map((r,i)=>({_row:i+2,caseNum:String(r[0]||'').trim().replace(/\.0$/,''),name:String(r[1]||'').trim(),url:String(r[2]||'').trim(),by:String(r[3]||'').trim(),at:String(r[4]||'').trim()}))
-      .filter(l=>l.caseNum&&/^https?:\/\//i.test(l.url));
-  }catch(_){}
-  linkStore.set({defs,defsTab,caseLinks,caseTab,loaded:true});
+  linkStore.set({defs,defsTab,loaded:true});
 }
 // יצירת לשונית בגיליון אם אינה קיימת + כותרות (+ שורות התחלה)
 async function ensureSheetTab(title,header,rows){
@@ -2046,32 +2046,162 @@ async function ensureSheetTab(title,header,rows){
   await api.put(`'${title}'!A1`,[header,...(rows||[])]);
   return true;
 }
-// בניית רשימת הקישורים לתיק: מילוי המקומות, עדיפות לשורת עיר, וכפתור נפרד לכל חלקה כשיש כמה
-function buildCaseLinks(c,defs){
-  const city=String(c.city||'').trim();
-  const all=(defs||LINK_DEFAULTS).filter(d=>!d[2]||d[2]===city);
-  const cityNames=new Set(all.filter(d=>d[2]).map(d=>d[0]));
-  const rows=all.filter(d=>d[2]||!cityNames.has(d[0]));
+// מילוי תבנית אחת לתיק — מחזיר כפתור אחד, או כפתור לכל חלקה כשבתיק יש כמה חלקות והתבנית משתמשת ב-{חלקה}
+function fillLink(name,tpl,c){
   const parcels=[...new Set(String(c.parcel||'').match(/\d+/g)||[])];
-  const out=[];
-  rows.forEach(([name,tpl])=>{
-    const keys=[...new Set((tpl.match(/\{([^}]+)\}/g)||[]).map(k=>k.slice(1,-1).trim()))];
-    const variants=(keys.includes('חלקה')&&parcels.length>1)?parcels:[null];
-    variants.forEach(pv=>{
-      const missing=[];let url=tpl;
-      keys.forEach(k=>{
-        const fn=LINK_FIELDS[k];
-        const v=(k==='חלקה'&&pv)?pv:(fn?fn(c):'');
-        if(!v)missing.push(fn?k:('{'+k+'} לא מוכר'));
-        url=url.split('{'+k+'}').join(encodeURIComponent(v));
-      });
-      out.push({name:pv?`${name} · חלקה ${pv}`:name,url,ok:missing.length===0,need:missing.join(', '),
-        desc:keys.filter(k=>LINK_FIELDS[k]).map(k=>(k==='חלקה'&&pv)?pv:LINK_FIELDS[k](c)).filter(Boolean).join(' · ')});
+  const keys=[...new Set((tpl.match(/\{([^}]+)\}/g)||[]).map(k=>k.slice(1,-1).trim()))];
+  const variants=(keys.includes('חלקה')&&parcels.length>1)?parcels:[null];
+  return variants.map(pv=>{
+    const missing=[];let url=tpl;
+    keys.forEach(k=>{
+      const fn=LINK_FIELDS[k];
+      const v=(k==='חלקה'&&pv)?pv:(fn?fn(c):'');
+      if(!v)missing.push(fn?k:('{'+k+'} לא מוכר'));
+      url=url.split('{'+k+'}').join(encodeURIComponent(v));
     });
+    return {name:pv?`${name} · חלקה ${pv}`:name,url,ok:missing.length===0,need:missing.join(', '),
+      desc:keys.filter(k=>LINK_FIELDS[k]).map(k=>(k==='חלקה'&&pv)?pv:LINK_FIELDS[k](c)).filter(Boolean).join(' · ')};
   });
+}
+// הקישורים הכלליים לתיק (בלי שלושת קישורי העיר): שורת עיר גוברת על שורה כללית באותו שם
+function buildCaseLinks(c,defs){
+  const city=normCity(c.city);
+  const all=(defs||LINK_DEFAULTS).filter(d=>!CITY_LINK_NAMES.includes(d[0])&&(!d[2]||normCity(d[2])===city));
+  const cityNames=new Set(all.filter(d=>d[2]).map(d=>d[0]));
+  const out=[];
+  all.filter(d=>d[2]||!cityNames.has(d[0])).forEach(d=>out.push(...fillLink(d[0],d[1],c)));
   return out;
 }
+// שלושת קישורי העיר: לכל שם — ההגדרה של העיר (או null אם עוד לא הוגדר) והכפתורים הממולאים
+function buildCityLinks(c,defs){
+  const city=normCity(c.city);
+  return CITY_LINK_NAMES.map(name=>{
+    const def=city?(defs||[]).find(d=>d[0]===name&&d[2]&&normCity(d[2])===city)||null:null;
+    return {name,def,links:def?fillLink(name,def[1],c):[]};
+  });
+}
+// הפיכת קישור של נכס מסוים לתבנית: הגוש והחלקה של התיק הפתוח מוחלפים ב-{גוש} / {חלקה}, וקוד ה-reCAPTCHA (חד-פעמי) מוסר.
+// מחליפים רק ערך שלם: פרמטר/מקטע נתיב ששווה בדיוק לגוש או לחלקה, או צירוף גוש+חלקה באותו ערך. מחזיר {tpl,g,h,captcha}.
+function urlToTemplate(raw,c){
+  let url=String(raw||'').trim();
+  const G=LINK_FIELDS['גוש'](c);
+  const parcels=[...new Set(String(c.parcel||'').match(/\d+/g)||[])];
+  let foundG=false,foundH=false,captcha=false;
+  const MG='\u0001G\u0001',MH='\u0001H\u0001';
+  const dec=v=>{try{return decodeURIComponent(v.replace(/\+/g,' '));}catch(_){return v;}};
+  const enc=v=>encodeURIComponent(v).split(encodeURIComponent(MG)).join('{גוש}').split(encodeURIComponent(MH)).join('{חלקה}');
+  // ערך אחד (של פרמטר או מקטע נתיב) → ערך תבנית, או null אם אין מה להחליף
+  const conv=(val,key)=>{
+    const d=dec(val);
+    if(/\{(גוש|חלקה)\}/.test(d))return null;                       // כבר תבנית
+    if(G&&d===G){foundG=true;return '{גוש}';}
+    if(G&&d.length<=120){
+      // צירוף באותו ערך: "38243-79", "38243/79", "גוש 38243 חלקה 79"
+      const re=new RegExp('(^|\\D)'+G+'(\\D{1,12})('+parcels.join('|')+')(?=\\D|$)');
+      if(parcels.length&&re.test(d)){foundG=true;foundH=true;return enc(d.replace(re,(m,a,sep)=>a+MG+sep+MH));}
+      const re2=new RegExp('(^|\\D)'+G+'(?=\\D|$)');
+      if(G.length>=3&&re2.test(d)){foundG=true;return enc(d.replace(re2,(m,a)=>a+MG));}
+    }
+    return null;
+  };
+  const hashI=url.indexOf('#');let hash=hashI>=0?url.slice(hashI):'';if(hashI>=0)url=url.slice(0,hashI);
+  const qI=url.indexOf('?');let query=qI>=0?url.slice(qI+1):'';let base=qI>=0?url.slice(0,qI):url;
+  // פרמטרים — קודם הגוש (כדי שהחלקה תזוהה גם כשהיא מופיעה לפניו), ואז השאר
+  const convQuery=q=>{
+    let parts=q.split('&').filter(p=>p!=='');
+    parts=parts.filter(p=>{const k=p.split('=')[0];if(/recaptcha/i.test(k)){captcha=true;return false;}return true;});
+    const kv=parts.map(p=>{const i=p.indexOf('=');return i<0?[p,null]:[p.slice(0,i),p.slice(i+1)];});
+    kv.forEach(x=>{if(x[1]!==null&&G&&dec(x[1])===G){foundG=true;x[1]='{גוש}';}});
+    // פרמטר ששווה בדיוק לחלקה מוחלף רק אם שמו מעיד שזו חלקה; ואם אין פרמטר כזה בכלל — רק הפרמטר הצמוד לגוש.
+    // (מספר חלקה קצר כמו 17 יכול להופיע גם כמספר עמוד / זום — אותם לא מחליפים)
+    const HK=/helk|hlk|parc|חלק/i;
+    const anyHK=kv.some(x=>HK.test(dec(x[0])));
+    const gi=kv.findIndex(x=>x[1]==='{גוש}');
+    kv.forEach((x,i)=>{
+      if(x[1]===null||x[1]==='{גוש}')return;
+      const d=dec(x[1]);
+      if(parcels.includes(d)){
+        if(HK.test(dec(x[0]))||(!anyHK&&gi>=0&&Math.abs(i-gi)===1)){foundH=true;x[1]='{חלקה}';}
+        return;
+      }
+      const t=conv(x[1],'');if(t!==null)x[1]=t;
+    });
+    return kv.map(x=>x[1]===null?x[0]:x[0]+'='+x[1]).join('&');
+  };
+  if(query)query=convQuery(query);
+  if(hash.includes('=')){const hi=hash.indexOf('?');if(hi>=0)hash=hash.slice(0,hi+1)+convQuery(hash.slice(hi+1));}
+  // מקטעי נתיב (אחרי הדומיין)
+  const m=base.match(/^(https?:\/\/[^/]+)(\/.*)?$/i);
+  if(m&&m[2]){
+    const segs=m[2].split('/');
+    segs.forEach((sg,i)=>{if(sg&&G&&dec(sg)===G){foundG=true;segs[i]='{גוש}';}});
+    segs.forEach((sg,i)=>{if(sg&&sg!=='{גוש}'){
+      const d=dec(sg);
+      if(parcels.includes(d)&&segs[i-1]==='{גוש}'){foundH=true;segs[i]='{חלקה}';}
+      else if(G&&parcels.length&&new RegExp('^'+G+'\\D{1,3}('+parcels.join('|')+')$').test(d)){const t=conv(sg,'');if(t!==null)segs[i]=t;}
+    }});
+    base=m[1]+segs.join('/');
+  }
+  return {tpl:base+(query?'?'+query:'')+hash,g:foundG,h:foundH,captcha};
+}
 function copyText(t){try{return navigator.clipboard.writeText(String(t));}catch(_){return Promise.reject();}}
+
+// חלון הגדרה / עריכה של קישור עיר
+function CityLinkEditor({c,name,def,onClose}){
+  const city=normCity(c.city);
+  const [val,setVal]=React.useState(def?def[1]:'');
+  const [busy,setBusy]=React.useState(false),[err,setErr]=React.useState('');
+  const t=urlToTemplate(val,c);
+  const valid=/^https?:\/\/[^\s]+\.[^\s]+/i.test(val.trim())&&!/\s/.test(val.trim());
+  const hasTplG=/\{גוש\}/.test(t.tpl),hasTplH=/\{חלקה\}/.test(t.tpl);
+  const caseHasGH=!!(LINK_FIELDS['גוש'](c)&&LINK_FIELDS['חלקה'](c));
+  // מאמת שהשורה בגיליון עדיין שייכת לקישור הזה (לא זזה מאז הטעינה)
+  const checkRow=async()=>{
+    const cur=await api.get(`'${LINKS_TAB}'!A${def[5]}:C${def[5]}`);const r=(cur&&cur[0])||[];
+    if(String(r[0]||'').trim()!==name||normCity(r[2])!==city){await loadLinks();throw new Error('הרשימה השתנתה בינתיים — סגרו ופתחו שוב');}
+  };
+  const save=async()=>{
+    setErr('');if(!valid){setErr('זו לא כתובת אתר תקינה — היא צריכה להתחיל ב-https:// ובלי רווחים');return;}
+    setBusy(true);
+    try{
+      const row=[name,t.tpl,city,_currentUserName||'',nowHe()];
+      if(def&&def[5]){await checkRow();await api.put(`'${LINKS_TAB}'!A${def[5]}:E${def[5]}`,[row]);}
+      else{await ensureSheetTab(LINKS_TAB,LINKS_HEADER,LINK_DEFAULTS);await api.append(`'${LINKS_TAB}'`,[row]);}
+      await loadLinks();onClose();
+    }catch(e){setErr(e.message);setBusy(false);}
+  };
+  const del=async()=>{
+    if(!window.confirm(`למחוק את הקישור "${name}" של ${city}? הוא יוסר מכל תיקי ${city}.`))return;
+    setBusy(true);setErr('');
+    try{await checkRow();await api.deleteSheetRow(LINKS_TAB,def[5]);await loadLinks();onClose();}
+    catch(e){setErr(e.message);setBusy(false);}
+  };
+  const btn={padding:'9px 20px',borderRadius:10,border:'none',fontSize:14,cursor:busy?'wait':'pointer',fontFamily:'inherit'};
+  return ReactDOM.createPortal(
+    <div onClick={e=>{e.stopPropagation();if(!busy)onClose();}} style={{position:'fixed',inset:0,zIndex:950,background:'rgba(20,17,13,.5)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:16,padding:'22px 24px',width:'100%',maxWidth:560,direction:'rtl',textAlign:'right',boxShadow:'0 24px 60px -16px rgba(0,0,0,.45)'}}>
+        <div style={{fontFamily:SERIF,fontSize:20,color:INK,marginBottom:4}}>{def?'עריכת קישור':'הגדרת קישור'}: {name} — {city}</div>
+        <div style={{fontSize:13,color:'#7a6a58',lineHeight:1.6,marginBottom:12}}>
+          פותחים באתר של {city} את הדף של הנכס הזה, מעתיקים את הכתובת משורת הכתובת ומדביקים כאן. הקישור יישמר לכל תיקי {city}, אצל כל המשתמשים.</div>
+        <textarea value={val} onChange={e=>setVal(e.target.value)} rows={3} placeholder="https://…" autoFocus
+          style={{width:'100%',padding:'9px 12px',borderRadius:9,border:'1px solid #e0d5c5',fontSize:13,background:'#fefcf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box',direction:'ltr',textAlign:'left',resize:'vertical',wordBreak:'break-all'}}/>
+        {val.trim()&&valid&&<div style={{marginTop:10,fontSize:12.5,lineHeight:1.7,background:'#faf7f2',border:`1px solid ${LINE}`,borderRadius:9,padding:'9px 12px',color:'#5a4e44'}}>
+          {hasTplG&&hasTplH&&<div style={{color:'#166534',fontWeight:600}}>✓ זוהו בקישור הגוש והחלקה — בכל תיק הם יוחלפו אוטומטית בגוש ובחלקה של אותו תיק.</div>}
+          {hasTplG&&!hasTplH&&<div style={{color:'#9a5512',fontWeight:600}}>זוהה בקישור רק הגוש. החלקה לא תוחלף.</div>}
+          {!hasTplG&&<div style={{color:'#9a5512',fontWeight:600}}>{caseHasGH?'לא זוהו בקישור הגוש והחלקה של התיק — הקישור ייפתח תמיד באותו דף בדיוק.':'בתיק הזה אין גוש וחלקה, ולכן אי אפשר לזהות אותם בקישור — הוא ייפתח תמיד באותו דף בדיוק.'}</div>}
+          {t.captcha&&<div>קוד האימות החד-פעמי (reCAPTCHA) הוסר מהקישור.</div>}
+          <div style={{direction:'ltr',textAlign:'left',wordBreak:'break-all',color:'#8a7a68',marginTop:4}}>{t.tpl}</div>
+        </div>}
+        {def&&(def[3]||def[4])&&<div style={{fontSize:11.5,color:'#9a8e84',marginTop:8}}>עודכן לאחרונה: {[def[3],def[4]].filter(Boolean).join(' · ')}</div>}
+        {err&&<div style={{fontSize:12.5,color:'#dc2626',marginTop:8}}>{err}</div>}
+        <div style={{display:'flex',gap:10,marginTop:16,flexWrap:'wrap'}}>
+          <button onClick={save} disabled={busy||!val.trim()} style={{...btn,background:busy||!val.trim()?'#e6ddcd':INK,color:busy||!val.trim()?'#b3a898':GOLD_PALE}}>{busy?'שומר…':'שמירה'}</button>
+          <button onClick={onClose} disabled={busy} style={{...btn,background:'#fff',color:'#6b5e50',border:`1px solid ${LINE}`}}>ביטול</button>
+          {def&&<button onClick={del} disabled={busy} style={{...btn,background:'#fff',color:'#c0392b',border:'1px solid #f0cfcb',marginInlineStart:'auto'}}>מחיקת הקישור</button>}
+        </div>
+      </div>
+    </div>,document.body);
+}
 
 // כפתור קטן בפינת כרטיס התיק — תפריט קישורים בלי לפתוח את התיק
 function CardLinksButton({c}){
@@ -2092,8 +2222,8 @@ function CardLinksButton({c}){
     const w=250;
     setPos({top:Math.min(r.bottom+6,window.innerHeight-340),left:Math.max(8,Math.min(r.left,window.innerWidth-w-8)),w});
   };
-  const links=pos?buildCaseLinks(c,store.defs):[];
-  const saved=pos?store.caseLinks.filter(l=>l.caseNum===String(c.caseNum).trim()):[];
+  const cityLinks=pos?buildCityLinks(c,store.defs).flatMap(x=>x.links):[];
+  const links=pos?[...cityLinks,...buildCaseLinks(c,store.defs)]:[];
   const item={display:'block',padding:'8px 14px',fontSize:13,color:INK,textDecoration:'none',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'};
   return <>
     <button ref={btnRef} title="קישורים לאתרים" onClick={toggle}
@@ -2103,73 +2233,56 @@ function CardLinksButton({c}){
     {pos&&ReactDOM.createPortal(
       <div onClick={e=>{e.stopPropagation();setPos(null);}} style={{position:'fixed',inset:0,zIndex:900}}>
         <div onClick={e=>e.stopPropagation()} style={{position:'fixed',top:pos.top,left:pos.left,width:pos.w,maxHeight:330,overflowY:'auto',background:'#fff',border:`1px solid ${LINE}`,borderRadius:12,boxShadow:'0 12px 34px -10px rgba(20,17,13,.35)',padding:'6px 0',direction:'rtl'}}>
-          {saved.map(l=><a key={'s'+l._row} href={l.url} target="_blank" rel="noopener noreferrer" onClick={()=>setPos(null)} style={{...item,fontWeight:600}} title={l.url}>★ {l.name||l.url}</a>)}
-          {saved.length>0&&<div style={{borderTop:`1px solid ${LINE}`,margin:'4px 0'}}/>}
-          {links.map(l=>l.ok
-            ?<a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer" onClick={()=>setPos(null)} style={item}
-                onMouseEnter={e=>e.currentTarget.style.background='#faf7f2'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>{l.name}</a>
-            :<div key={l.name} style={{...item,color:'#b3a898'}} title={'חסר בתיק: '+l.need}>{l.name} <span style={{fontSize:11}}>(חסר: {l.need})</span></div>)}
+          {links.map((l,i)=><React.Fragment key={l.name}>
+            {i===cityLinks.length&&cityLinks.length>0&&<div style={{borderTop:`1px solid ${LINE}`,margin:'4px 0'}}/>}
+            {l.ok
+              ?<a href={l.url} target="_blank" rel="noopener noreferrer" onClick={()=>setPos(null)} style={item}
+                  onMouseEnter={e=>e.currentTarget.style.background='#faf7f2'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>{l.name}</a>
+              :<div style={{...item,color:'#b3a898'}} title={'חסר בתיק: '+l.need}>{l.name} <span style={{fontSize:11}}>(חסר: {l.need})</span></div>}
+          </React.Fragment>)}
         </div>
       </div>,document.body)}
   </>;
 }
 
 // לשונית "קישורים" בכרטיס התיק
-function CaseLinks({c,secStyle,userName,isMichael}){
+function CaseLinks({c,secStyle,isMichael}){
   const store=useLinkStore();
   const [copied,setCopied]=React.useState('');
-  const [nm,setNm]=React.useState(''),[url,setUrl]=React.useState('');
   const [busy,setBusy]=React.useState(false),[err,setErr]=React.useState(''),[note,setNote]=React.useState('');
+  const [edit,setEdit]=React.useState(null);   // {name,def} — חלון הגדרת קישור עיר
+  const city=normCity(c.city);
+  const cityRows=buildCityLinks(c,store.defs);
   const links=buildCaseLinks(c,store.defs);
-  const okLinks=links.filter(l=>l.ok);
+  const okLinks=[...cityRows.flatMap(x=>x.links),...links].filter(l=>l.ok);
   const caseNum=String(c.caseNum||'').trim();
-  const saved=store.caseLinks.filter(l=>l.caseNum===caseNum);
   const chips=[['גוש',LINK_FIELDS['גוש'](c)],['חלקה',String(c.parcel||'').trim()],['תת חלקה',LINK_FIELDS['תת חלקה'](c)],['כתובת',LINK_FIELDS['כתובת'](c)],['מספר תיק',caseNum]].filter(x=>x[1]);
   const doCopy=(k,v)=>{copyText(v).then(()=>{setCopied(k);setTimeout(()=>setCopied(''),1300);}).catch(()=>setErr('ההעתקה נכשלה'));};
-  const openAll=()=>{
-    let blocked=0;okLinks.forEach(l=>{const w=window.open(l.url,'_blank','noopener');if(!w)blocked++;});
-    setNote(blocked?`הדפדפן חסם ${blocked} חלונות — יש לאשר חלונות קופצים לאתר (סמל בשורת הכתובת) ולנסות שוב.`:'');
-  };
-  const addSaved=async()=>{
-    setErr('');
-    const u=url.trim();
-    if(!/^https?:\/\//i.test(u)){setErr('הקישור צריך להתחיל ב-http:// או https://');return;}
-    if(!caseNum){setErr('לתיק זה אין מספר תיק');return;}
-    setBusy(true);
-    try{
-      await ensureSheetTab(CASE_LINKS_TAB,['מספר תיק','שם','קישור','נוסף ע"י','תאריך']);
-      await api.append(`'${CASE_LINKS_TAB}'`,[[caseNum,nm.trim()||u.replace(/^https?:\/\/(www\.)?/i,'').split(/[/?#]/)[0],u,userName||'',nowHe()]]);
-      setNm('');setUrl('');await loadLinks();
-    }catch(e){setErr(e.message);}
-    finally{setBusy(false);}
-  };
-  const delSaved=async(l)=>{
-    if(!window.confirm('למחוק את הקישור "'+(l.name||l.url)+'"?'))return;
-    setBusy(true);setErr('');
-    try{
-      // מאמתים שהשורה לא זזה מאז הטעינה — מוחקים רק אם היא עדיין אותו קישור
-      const cur=await api.get(`'${CASE_LINKS_TAB}'!A${l._row}:C${l._row}`);
-      const r=(cur&&cur[0])||[];
-      if(String(r[0]||'').trim().replace(/\.0$/,'')!==l.caseNum||String(r[2]||'').trim()!==l.url){await loadLinks();throw new Error('הרשימה השתנתה — רעננו ונסו שוב');}
-      await api.deleteSheetRow(CASE_LINKS_TAB,l._row);await loadLinks();
-    }catch(e){setErr(e.message);}
-    finally{setBusy(false);}
-  };
+  const openAll=()=>{okLinks.forEach(l=>{window.open(l.url,'_blank','noopener');});};
   const createTable=async()=>{
     setBusy(true);setErr('');
     try{
-      await ensureSheetTab(LINKS_TAB,['שם','כתובת','עיר (ריק = כל הערים)'],LINK_DEFAULTS);
+      await ensureSheetTab(LINKS_TAB,LINKS_HEADER,LINK_DEFAULTS);
       await loadLinks();setNote('הטבלה נוצרה בגיליון "'+LINKS_TAB+'".');
     }catch(e){setErr(e.message);}
     finally{setBusy(false);}
   };
   const card=ok=>({display:'flex',flexDirection:'column',gap:4,padding:'14px 16px',borderRadius:12,border:`1px solid ${LINE}`,background:ok?'#fff':'#f5f3ef',color:ok?INK:'#a69c90',textDecoration:'none',cursor:ok?'pointer':'default',minWidth:0});
-  const iS={padding:'8px 11px',borderRadius:9,border:'1px solid #e0d5c5',fontSize:13.5,background:'#fefcf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box',minWidth:0};
+  const grid={display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(190px,1fr))',gap:10};
+  const linkCard=l=>l.ok
+    ?<a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer" style={card(true)}>
+        <span style={{fontSize:15,fontWeight:600,display:'flex',alignItems:'center',gap:7}}><Icon name="external" size={15} color={GOLD2}/>{l.name}</span>
+        {l.desc&&<span style={{fontSize:12,color:'#7a6a58',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.desc}</span>}
+      </a>
+    :<div key={l.name} style={card(false)} title={'חסר בתיק: '+l.need}>
+        <span style={{fontSize:15,fontWeight:600}}>{l.name}</span>
+        <span style={{fontSize:12}}>חסר בתיק: {l.need}</span>
+      </div>;
   const sheetUrl=`https://docs.google.com/spreadsheets/d/${CONFIG.SPREADSHEET_ID}/edit`;
   return <>
     <div style={secStyle}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,flexWrap:'wrap'}}>
-        <SectionTitle icon="🔗">קישורים</SectionTitle>
+        <SectionTitle icon="🏛️">{city?'קישורי '+city:'קישורי עיר'}</SectionTitle>
         {okLinks.length>1&&<button onClick={openAll} style={{padding:'6px 14px',borderRadius:9,border:`1px solid ${LINE}`,background:'#fff',color:INK,fontSize:12.5,cursor:'pointer',fontFamily:'inherit'}}>פתח הכול ({okLinks.length})</button>}
       </div>
       {chips.length>0&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
@@ -2177,42 +2290,36 @@ function CaseLinks({c,secStyle,userName,isMichael}){
           style={{padding:'4px 11px',borderRadius:20,border:`1px solid ${LINE}`,background:copied===k?'#dcfce7':'#faf7f2',color:copied===k?'#166534':'#5a4e44',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
           {copied===k?'✓ הועתק':<><span style={{color:'#9a8e84'}}>{k}: </span>{v} ⧉</>}</button>)}
       </div>}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(190px,1fr))',gap:10}}>
-        {links.map(l=>l.ok
-          ?<a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer" style={card(true)}>
-              <span style={{fontSize:15,fontWeight:600,display:'flex',alignItems:'center',gap:7}}><Icon name="external" size={15} color={GOLD2}/>{l.name}</span>
-              {l.desc&&<span style={{fontSize:12,color:'#7a6a58',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.desc}</span>}
-            </a>
-          :<div key={l.name} style={card(false)} title={'חסר בתיק: '+l.need}>
-              <span style={{fontSize:15,fontWeight:600}}>{l.name}</span>
-              <span style={{fontSize:12}}>חסר בתיק: {l.need}</span>
-            </div>)}
-      </div>
+      {!city
+        ?<div style={{fontSize:13,color:'#9a8e84'}}>בתיק הזה לא רשומה עיר (לשונית "נכס"), ולכן אין קישורי עיר.</div>
+        :<div style={grid}>
+          {cityRows.map(row=>row.def
+            ?<div key={row.name} style={{display:'flex',flexDirection:'column',gap:6,minWidth:0}}>
+                {row.links.map(linkCard)}
+                <button onClick={()=>setEdit({name:row.name,def:row.def})} title={'עודכן: '+[row.def[3],row.def[4]].filter(Boolean).join(' · ')}
+                  style={{alignSelf:'flex-start',background:'none',border:'none',color:'#9a8e84',fontSize:11.5,cursor:'pointer',fontFamily:'inherit',padding:'0 4px',display:'inline-flex',alignItems:'center',gap:4}}>
+                  <Icon name="pencil" size={12}/>עריכת הקישור</button>
+              </div>
+            :<button key={row.name} onClick={()=>setEdit({name:row.name,def:null})}
+                style={{...card(true),border:`1.5px dashed ${GOLD2}`,background:'#fffdf6',textAlign:'right',fontFamily:'inherit',alignSelf:'flex-start'}}>
+                <span style={{fontSize:15,fontWeight:600}}>{row.name}</span>
+                <span style={{fontSize:12,color:'#8a6d1f'}}>＋ הגדרת קישור ל{city}</span>
+              </button>)}
+        </div>}
+    </div>
+    <div style={secStyle}>
+      <SectionTitle icon="🔗">קישורים כלליים</SectionTitle>
+      <div style={grid}>{links.map(linkCard)}</div>
       {note&&<div style={{fontSize:12.5,color:'#9a5512',marginTop:10}}>{note}</div>}
+      {err&&<div style={{fontSize:12.5,color:'#dc2626',marginTop:8}}>{err}</div>}
       {isMichael&&<div style={{fontSize:12,color:'#9a8e84',marginTop:12,display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
         {store.defsTab
-          ?<span>רשימת הקישורים נערכת בגיליון "{LINKS_TAB}": שם, כתובת, עיר. <a href={sheetUrl} target="_blank" rel="noopener noreferrer" style={{color:GOLD3}}>פתח את הגיליון</a></span>
-          :<><span>הקישורים כרגע הם ברירת המחדל שבאתר.</span>
+          ?<span>כל הקישורים נשמרים בגיליון "{LINKS_TAB}" (שם, כתובת, עיר). <a href={sheetUrl} target="_blank" rel="noopener noreferrer" style={{color:GOLD3}}>פתח את הגיליון</a></span>
+          :<><span>הקישורים הכלליים כרגע הם ברירת המחדל שבאתר.</span>
             <button onClick={createTable} disabled={busy} style={{padding:'5px 12px',borderRadius:8,border:`1px solid ${LINE}`,background:'#fff',color:INK,fontSize:12,cursor:busy?'wait':'pointer',fontFamily:'inherit'}}>צור טבלת קישורים לעריכה בגיליון</button></>}
       </div>}
     </div>
-    <div style={secStyle}>
-      <SectionTitle icon="⭐">קישורים שמורים לתיק</SectionTitle>
-      {saved.length===0&&<div style={{fontSize:12.5,color:'#9a8e84',marginBottom:10}}>עדיין לא נשמרו קישורים לתיק הזה (למשל דף תיק הבניין באתר העירייה).</div>}
-      {saved.map(l=>(
-        <div key={l._row} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 4px',borderTop:`1px solid ${LINE}`,fontSize:13,minWidth:0}}>
-          <a href={l.url} target="_blank" rel="noopener noreferrer" title={l.url} style={{flex:1,minWidth:0,color:INK,fontWeight:500,textDecoration:'none',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-            <Icon name="external" size={13} color={GOLD2} style={{marginInlineEnd:6,verticalAlign:'middle'}}/>{l.name||l.url}</a>
-          {(l.by||l.at)&&<span style={{fontSize:11,color:'#9a8e84',whiteSpace:'nowrap'}}>{[l.by,l.at].filter(Boolean).join(' · ')}</span>}
-          <button onClick={()=>delSaved(l)} disabled={busy} title="מחיקת הקישור" style={{background:'none',border:'none',cursor:'pointer',color:'#c0392b',padding:'2px 4px'}}><Icon name="trash" size={14}/></button>
-        </div>))}
-      <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:12}}>
-        <input value={nm} onChange={e=>setNm(e.target.value)} placeholder="שם (למשל: תיק בניין)" style={{...iS,flex:'1 1 150px'}}/>
-        <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="הדבקת קישור — https://…" style={{...iS,flex:'2 1 240px',direction:'ltr',textAlign:'left'}}/>
-        <button onClick={addSaved} disabled={busy||!url.trim()} style={{padding:'8px 18px',borderRadius:9,border:'none',background:busy||!url.trim()?'#e6ddcd':INK,color:busy||!url.trim()?'#b3a898':GOLD_PALE,fontSize:13.5,cursor:busy||!url.trim()?'default':'pointer',fontFamily:'inherit'}}>{busy?'שומר…':'שמור קישור'}</button>
-      </div>
-      {err&&<div style={{fontSize:12.5,color:'#dc2626',marginTop:8}}>{err}</div>}
-    </div>
+    {edit&&<CityLinkEditor c={c} name={edit.name} def={edit.def} onClose={()=>setEdit(null)}/>}
   </>;
 }
 // רשימת תיקים אחרים ב"ניהול תיקים" עם אותו שם / אותו נייד (לקוח או יועץ) — מהחדש לישן; לחיצה פותחת ב"כלל התיקים"
@@ -3079,7 +3186,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
               <div><FLabel>סוג נכס</FLabel><input value={caseForm.propType||''} onChange={e=>setCF('propType',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
             </div>
           </div>}
-          {tab==='links'&&caseForm&&<CaseLinks c={caseForm} secStyle={sec} userName={_currentUserName} isMichael={_currentUserName==='מיכאל'}/>}
+          {tab==='links'&&caseForm&&<CaseLinks c={caseForm} secStyle={sec} isMichael={_currentUserName==='מיכאל'}/>}
         </div>
       </div>
       {confirmKtiva&&(
@@ -6789,7 +6896,7 @@ function App(){
     }catch(e){setError('שגיאה בטעינת הנתונים: '+e.message);}
     finally{setLoading(false);}
     loadMsgsPresence();
-    loadLinks().catch(()=>{});   // הגדרות קישורים + קישורים שמורים לתיקים
+    loadLinks().catch(()=>{});   // הגדרות הקישורים לאתרים (גיליון "קישורים")
   },[loadMsgsPresence]);
   // רענון שקט — ללא ספינר, פועל אוטומטית ברקע כל 15 שניות
   const silentRefresh=useCallback(async()=>{
