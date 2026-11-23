@@ -3,7 +3,7 @@
 //  אסטרטגיה: Cache-First לקבצים סטטיים, Network-First לשאר
 // ═══════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'rr-v136';
+const CACHE_NAME = 'rr-v137';
 
 // קבצים שיישמרו בcache בעת ההתקנה
 const STATIC_ASSETS = [
