@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v131'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v133'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -1794,7 +1794,7 @@ function openCaseFolder(folderName,e){
   e.stopPropagation();e.preventDefault();
   window.location.href='openrr:'+getCaseBase()+'/'+folderName;
 }
-function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf}){
+function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,caseInfo}){
   const [copied,setCopied]=React.useState(false);
   const isMobile=useIsMobile();
   const m=STATUS_META[project.status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
@@ -1850,6 +1850,7 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf}){
             </div>}
         </div>
         {!isGeneral&&<div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+          <CardLinksButton c={caseInfo}/>
           {_folderPath&&!isMobile&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_folderPath);}}
             style={{background:'none',border:'none',cursor:'pointer',padding:'3px 4px',lineHeight:1,borderRadius:6,transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
@@ -1982,36 +1983,237 @@ function ExternalLinkButton({caseNum,fullName,driveFolderLink}){
     </div>}
   </div>);
 }
-// לשונית "קישורים" בכרטיס התיק — הפניות ישירות לאתרים חיצוניים לפי גוש/חלקה/עיר של התיק.
-// להוספת קישור: שורה נוספת במערך links (need = מה נדרש כדי שהקישור יהיה פעיל).
-function CaseLinks({block,parcel,city,secStyle}){
-  const num=v=>((String(v||'').match(/\d+/)||[])[0])||'';   // המספר הראשון בשדה (למשל "157+161" → 157)
-  const g=num(block),h=num(parcel),c=String(city||'').trim();
-  const gp=!!(g&&h);
-  const google=q=>'https://www.google.com/search?q='+encodeURIComponent(q);
-  const links=[
-    {name:'govmap',desc:gp?`גוש ${g} חלקה ${h}`:'',ok:gp,need:'גוש וחלקה',url:gp?'https://www.govmap.gov.il/?lay=21,15&q='+encodeURIComponent(`גוש ${g} חלקה ${h}`):''},
-    {name:'גוב נדל"ן',desc:gp?`עסקאות בגוש ${g} חלקה ${h}`:'',ok:gp,need:'גוש וחלקה',url:gp?`https://www.nadlan.gov.il/?view=kparcel_all&id=${g}-${h}&page=deals`:''},
-    {name:'GIS',desc:c?`חיפוש בגוגל: GIS ${c}`:'',ok:!!c,need:'עיר',url:c?google('GIS '+c):''},
-    {name:'ויקיפדיה',desc:c?`חיפוש בגוגל: ${c} ויקיפדיה`:'',ok:!!c,need:'עיר',url:c?google(c+' ויקיפדיה'):''},
-  ];
-  const multi=/\d\D+\d/.test(String(parcel||''));
-  const card=ok=>({display:'flex',flexDirection:'column',gap:4,padding:'14px 16px',borderRadius:12,border:`1px solid ${LINE}`,background:ok?'#fff':'#f5f3ef',color:ok?INK:'#a69c90',textDecoration:'none',cursor:ok?'pointer':'default'});
-  return <div style={secStyle}>
-    <SectionTitle icon="🔗">קישורים</SectionTitle>
-    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}}>
-      {links.map(l=>l.ok
-        ?<a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer" style={card(true)}>
-            <span style={{fontSize:15,fontWeight:600,display:'flex',alignItems:'center',gap:7}}><Icon name="external" size={15} color={GOLD2}/>{l.name}</span>
-            <span style={{fontSize:12,color:'#7a6a58'}}>{l.desc}</span>
-          </a>
-        :<div key={l.name} style={card(false)} title={'חסר בתיק: '+l.need}>
-            <span style={{fontSize:15,fontWeight:600}}>{l.name}</span>
-            <span style={{fontSize:12}}>חסר בתיק: {l.need} (לשונית "נכס")</span>
-          </div>)}
+// ═══════════════ קישורים לאתרים חיצוניים ═══════════════════════════
+// הגדרות הקישורים נקראות מהגיליון "קישורים" (A=שם, B=כתובת עם מקומות למילוי, C=עיר — ריק = כל הערים).
+// שורה עם עיר גוברת על שורה כללית באותו שם (למשל GIS ישיר לערד במקום חיפוש בגוגל).
+// אם הגיליון לא קיים / ריק — משתמשים ב-LINK_DEFAULTS. קישורים שמורים לתיק: גיליון "קישורי תיקים" (A=תיק,B=שם,C=כתובת,D=מי,E=מתי).
+const LINKS_TAB='קישורים', CASE_LINKS_TAB='קישורי תיקים';
+const LINK_DEFAULTS=[
+  ['govmap','https://www.govmap.gov.il/?lay=21,15&q=גוש {גוש} חלקה {חלקה}',''],
+  ['גוב נדל"ן','https://www.nadlan.gov.il/?view=kparcel_all&id={גוש}-{חלקה}&page=deals',''],
+  ['GIS','https://www.google.com/search?q=GIS {עיר}',''],
+  ['ויקיפדיה','https://www.google.com/search?q={עיר} ויקיפדיה',''],
+  ['Google Maps','https://www.google.com/maps/search/?api=1&query={כתובת}',''],
+  ['Waze','https://waze.com/ul?q={כתובת}&navigate=yes',''],
+  ['מדלן','https://www.google.com/search?q=מדלן {כתובת}',''],
+  ['מנהל התכנון','https://mavat.iplan.gov.il/SV3',''],
+  ['נסח טאבו','https://mekarkein-online.justice.gov.il/voucher/main',''],
+];
+// מקומות למילוי בכתובת → ערך מהתיק
+const LINK_FIELDS={
+  'גוש':c=>((String(c.block||'').match(/\d+/)||[])[0])||'',
+  'חלקה':c=>((String(c.parcel||'').match(/\d+/)||[])[0])||'',
+  'תת חלקה':c=>((String(c.subParcel||'').match(/\d+/)||[])[0])||'',
+  'עיר':c=>String(c.city||'').trim(),
+  'רחוב':c=>String(c.street||'').trim(),
+  'מספר בית':c=>String(c.houseNum||'').trim(),
+  'דירה':c=>String(c.aptNum||'').trim(),
+  'כתובת':c=>{const st=String(c.street||'').trim(),ci=String(c.city||'').trim();return st&&ci?[st,String(c.houseNum||'').trim()].filter(Boolean).join(' ')+', '+ci:'';},
+  'מספר תיק':c=>String(c.caseNum||'').trim(),
+  'לקוח':c=>String(c.client||'').trim(),
+};
+const linkStore={defs:null,defsTab:false,caseLinks:[],caseTab:false,loaded:false,subs:new Set(),
+  set(p){Object.assign(this,p);this.subs.forEach(f=>f());}};
+function useLinkStore(){
+  const [,force]=React.useState(0);
+  React.useEffect(()=>{const cb=()=>force(x=>x+1);linkStore.subs.add(cb);return()=>{linkStore.subs.delete(cb);};},[]);
+  return linkStore;
+}
+async function loadLinks(){
+  let defs=null,defsTab=false,caseLinks=[],caseTab=false;
+  try{
+    const rows=await api.get(`'${LINKS_TAB}'!A2:C`);defsTab=true;
+    const d=(rows||[]).map(r=>[String(r[0]||'').trim(),String(r[1]||'').trim(),String(r[2]||'').trim()]).filter(r=>r[0]&&/^https?:\/\//i.test(r[1]));
+    if(d.length)defs=d;
+  }catch(_){}
+  try{
+    const rows=await api.get(`'${CASE_LINKS_TAB}'!A2:E`);caseTab=true;
+    caseLinks=(rows||[]).map((r,i)=>({_row:i+2,caseNum:String(r[0]||'').trim().replace(/\.0$/,''),name:String(r[1]||'').trim(),url:String(r[2]||'').trim(),by:String(r[3]||'').trim(),at:String(r[4]||'').trim()}))
+      .filter(l=>l.caseNum&&/^https?:\/\//i.test(l.url));
+  }catch(_){}
+  linkStore.set({defs,defsTab,caseLinks,caseTab,loaded:true});
+}
+// יצירת לשונית בגיליון אם אינה קיימת + כותרות (+ שורות התחלה)
+async function ensureSheetTab(title,header,rows){
+  const id=CONFIG.SPREADSHEET_ID;
+  const meta=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=sheets.properties.title`,{headers:{Authorization:`Bearer ${api.token}`}});
+  const md=await meta.json();
+  if((md.sheets||[]).some(s=>s.properties.title===title))return false;
+  const r=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`,{method:'POST',
+    headers:{Authorization:`Bearer ${api.token}`,'Content-Type':'application/json'},
+    body:JSON.stringify({requests:[{addSheet:{properties:{title,rightToLeft:true,gridProperties:{frozenRowCount:1}}}}]})});
+  if(!r.ok)throw new Error((await r.json())?.error?.message||r.statusText);
+  await api.put(`'${title}'!A1`,[header,...(rows||[])]);
+  return true;
+}
+// בניית רשימת הקישורים לתיק: מילוי המקומות, עדיפות לשורת עיר, וכפתור נפרד לכל חלקה כשיש כמה
+function buildCaseLinks(c,defs){
+  const city=String(c.city||'').trim();
+  const all=(defs||LINK_DEFAULTS).filter(d=>!d[2]||d[2]===city);
+  const cityNames=new Set(all.filter(d=>d[2]).map(d=>d[0]));
+  const rows=all.filter(d=>d[2]||!cityNames.has(d[0]));
+  const parcels=[...new Set(String(c.parcel||'').match(/\d+/g)||[])];
+  const out=[];
+  rows.forEach(([name,tpl])=>{
+    const keys=[...new Set((tpl.match(/\{([^}]+)\}/g)||[]).map(k=>k.slice(1,-1).trim()))];
+    const variants=(keys.includes('חלקה')&&parcels.length>1)?parcels:[null];
+    variants.forEach(pv=>{
+      const missing=[];let url=tpl;
+      keys.forEach(k=>{
+        const fn=LINK_FIELDS[k];
+        const v=(k==='חלקה'&&pv)?pv:(fn?fn(c):'');
+        if(!v)missing.push(fn?k:('{'+k+'} לא מוכר'));
+        url=url.split('{'+k+'}').join(encodeURIComponent(v));
+      });
+      out.push({name:pv?`${name} · חלקה ${pv}`:name,url,ok:missing.length===0,need:missing.join(', '),
+        desc:keys.filter(k=>LINK_FIELDS[k]).map(k=>(k==='חלקה'&&pv)?pv:LINK_FIELDS[k](c)).filter(Boolean).join(' · ')});
+    });
+  });
+  return out;
+}
+function copyText(t){try{return navigator.clipboard.writeText(String(t));}catch(_){return Promise.reject();}}
+
+// כפתור קטן בפינת כרטיס התיק — תפריט קישורים בלי לפתוח את התיק
+function CardLinksButton({c}){
+  const store=useLinkStore();
+  const [pos,setPos]=React.useState(null);
+  const btnRef=React.useRef(null);
+  React.useEffect(()=>{
+    if(!pos)return;
+    const close=()=>setPos(null);
+    window.addEventListener('scroll',close,true);window.addEventListener('resize',close);
+    return()=>{window.removeEventListener('scroll',close,true);window.removeEventListener('resize',close);};
+  },[pos]);
+  if(!c||!c.caseNum)return null;
+  const toggle=e=>{
+    e.stopPropagation();
+    if(pos){setPos(null);return;}
+    const r=btnRef.current.getBoundingClientRect();
+    const w=250;
+    setPos({top:Math.min(r.bottom+6,window.innerHeight-340),left:Math.max(8,Math.min(r.left,window.innerWidth-w-8)),w});
+  };
+  const links=pos?buildCaseLinks(c,store.defs):[];
+  const saved=pos?store.caseLinks.filter(l=>l.caseNum===String(c.caseNum).trim()):[];
+  const item={display:'block',padding:'8px 14px',fontSize:13,color:INK,textDecoration:'none',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'};
+  return <>
+    <button ref={btnRef} title="קישורים לאתרים" onClick={toggle}
+      style={{background:pos?'#f0e8d8':'none',border:'none',cursor:'pointer',padding:'3px 4px',lineHeight:1,borderRadius:6,transition:'background 0.15s',display:'inline-flex'}}
+      onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'} onMouseLeave={e=>{if(!pos)e.currentTarget.style.background='none';}}>
+      <Icon name="external" size={18} color={GOLD2}/></button>
+    {pos&&ReactDOM.createPortal(
+      <div onClick={e=>{e.stopPropagation();setPos(null);}} style={{position:'fixed',inset:0,zIndex:900}}>
+        <div onClick={e=>e.stopPropagation()} style={{position:'fixed',top:pos.top,left:pos.left,width:pos.w,maxHeight:330,overflowY:'auto',background:'#fff',border:`1px solid ${LINE}`,borderRadius:12,boxShadow:'0 12px 34px -10px rgba(20,17,13,.35)',padding:'6px 0',direction:'rtl'}}>
+          {saved.map(l=><a key={'s'+l._row} href={l.url} target="_blank" rel="noopener noreferrer" onClick={()=>setPos(null)} style={{...item,fontWeight:600}} title={l.url}>★ {l.name||l.url}</a>)}
+          {saved.length>0&&<div style={{borderTop:`1px solid ${LINE}`,margin:'4px 0'}}/>}
+          {links.map(l=>l.ok
+            ?<a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer" onClick={()=>setPos(null)} style={item}
+                onMouseEnter={e=>e.currentTarget.style.background='#faf7f2'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>{l.name}</a>
+            :<div key={l.name} style={{...item,color:'#b3a898'}} title={'חסר בתיק: '+l.need}>{l.name} <span style={{fontSize:11}}>(חסר: {l.need})</span></div>)}
+        </div>
+      </div>,document.body)}
+  </>;
+}
+
+// לשונית "קישורים" בכרטיס התיק
+function CaseLinks({c,secStyle,userName,isMichael}){
+  const store=useLinkStore();
+  const [copied,setCopied]=React.useState('');
+  const [nm,setNm]=React.useState(''),[url,setUrl]=React.useState('');
+  const [busy,setBusy]=React.useState(false),[err,setErr]=React.useState(''),[note,setNote]=React.useState('');
+  const links=buildCaseLinks(c,store.defs);
+  const okLinks=links.filter(l=>l.ok);
+  const caseNum=String(c.caseNum||'').trim();
+  const saved=store.caseLinks.filter(l=>l.caseNum===caseNum);
+  const chips=[['גוש',LINK_FIELDS['גוש'](c)],['חלקה',String(c.parcel||'').trim()],['תת חלקה',LINK_FIELDS['תת חלקה'](c)],['כתובת',LINK_FIELDS['כתובת'](c)],['מספר תיק',caseNum]].filter(x=>x[1]);
+  const doCopy=(k,v)=>{copyText(v).then(()=>{setCopied(k);setTimeout(()=>setCopied(''),1300);}).catch(()=>setErr('ההעתקה נכשלה'));};
+  const openAll=()=>{
+    let blocked=0;okLinks.forEach(l=>{const w=window.open(l.url,'_blank','noopener');if(!w)blocked++;});
+    setNote(blocked?`הדפדפן חסם ${blocked} חלונות — יש לאשר חלונות קופצים לאתר (סמל בשורת הכתובת) ולנסות שוב.`:'');
+  };
+  const addSaved=async()=>{
+    setErr('');
+    const u=url.trim();
+    if(!/^https?:\/\//i.test(u)){setErr('הקישור צריך להתחיל ב-http:// או https://');return;}
+    if(!caseNum){setErr('לתיק זה אין מספר תיק');return;}
+    setBusy(true);
+    try{
+      await ensureSheetTab(CASE_LINKS_TAB,['מספר תיק','שם','קישור','נוסף ע"י','תאריך']);
+      await api.append(`'${CASE_LINKS_TAB}'`,[[caseNum,nm.trim()||u.replace(/^https?:\/\/(www\.)?/i,'').split(/[/?#]/)[0],u,userName||'',nowHe()]]);
+      setNm('');setUrl('');await loadLinks();
+    }catch(e){setErr(e.message);}
+    finally{setBusy(false);}
+  };
+  const delSaved=async(l)=>{
+    if(!window.confirm('למחוק את הקישור "'+(l.name||l.url)+'"?'))return;
+    setBusy(true);setErr('');
+    try{
+      // מאמתים שהשורה לא זזה מאז הטעינה — מוחקים רק אם היא עדיין אותו קישור
+      const cur=await api.get(`'${CASE_LINKS_TAB}'!A${l._row}:C${l._row}`);
+      const r=(cur&&cur[0])||[];
+      if(String(r[0]||'').trim().replace(/\.0$/,'')!==l.caseNum||String(r[2]||'').trim()!==l.url){await loadLinks();throw new Error('הרשימה השתנתה — רעננו ונסו שוב');}
+      await api.deleteSheetRow(CASE_LINKS_TAB,l._row);await loadLinks();
+    }catch(e){setErr(e.message);}
+    finally{setBusy(false);}
+  };
+  const createTable=async()=>{
+    setBusy(true);setErr('');
+    try{
+      await ensureSheetTab(LINKS_TAB,['שם','כתובת','עיר (ריק = כל הערים)'],LINK_DEFAULTS);
+      await loadLinks();setNote('הטבלה נוצרה בגיליון "'+LINKS_TAB+'".');
+    }catch(e){setErr(e.message);}
+    finally{setBusy(false);}
+  };
+  const card=ok=>({display:'flex',flexDirection:'column',gap:4,padding:'14px 16px',borderRadius:12,border:`1px solid ${LINE}`,background:ok?'#fff':'#f5f3ef',color:ok?INK:'#a69c90',textDecoration:'none',cursor:ok?'pointer':'default',minWidth:0});
+  const iS={padding:'8px 11px',borderRadius:9,border:'1px solid #e0d5c5',fontSize:13.5,background:'#fefcf8',outline:'none',fontFamily:'inherit',boxSizing:'border-box',minWidth:0};
+  const sheetUrl=`https://docs.google.com/spreadsheets/d/${CONFIG.SPREADSHEET_ID}/edit`;
+  return <>
+    <div style={secStyle}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,flexWrap:'wrap'}}>
+        <SectionTitle icon="🔗">קישורים</SectionTitle>
+        {okLinks.length>1&&<button onClick={openAll} style={{padding:'6px 14px',borderRadius:9,border:`1px solid ${LINE}`,background:'#fff',color:INK,fontSize:12.5,cursor:'pointer',fontFamily:'inherit'}}>פתח הכול ({okLinks.length})</button>}
+      </div>
+      {chips.length>0&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
+        {chips.map(([k,v])=><button key={k} onClick={()=>doCopy(k,v)} title="העתקה ללוח"
+          style={{padding:'4px 11px',borderRadius:20,border:`1px solid ${LINE}`,background:copied===k?'#dcfce7':'#faf7f2',color:copied===k?'#166534':'#5a4e44',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
+          {copied===k?'✓ הועתק':<><span style={{color:'#9a8e84'}}>{k}: </span>{v} ⧉</>}</button>)}
+      </div>}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(190px,1fr))',gap:10}}>
+        {links.map(l=>l.ok
+          ?<a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer" style={card(true)}>
+              <span style={{fontSize:15,fontWeight:600,display:'flex',alignItems:'center',gap:7}}><Icon name="external" size={15} color={GOLD2}/>{l.name}</span>
+              {l.desc&&<span style={{fontSize:12,color:'#7a6a58',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.desc}</span>}
+            </a>
+          :<div key={l.name} style={card(false)} title={'חסר בתיק: '+l.need}>
+              <span style={{fontSize:15,fontWeight:600}}>{l.name}</span>
+              <span style={{fontSize:12}}>חסר בתיק: {l.need}</span>
+            </div>)}
+      </div>
+      {note&&<div style={{fontSize:12.5,color:'#9a5512',marginTop:10}}>{note}</div>}
+      {isMichael&&<div style={{fontSize:12,color:'#9a8e84',marginTop:12,display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+        {store.defsTab
+          ?<span>רשימת הקישורים נערכת בגיליון "{LINKS_TAB}": שם, כתובת, עיר. <a href={sheetUrl} target="_blank" rel="noopener noreferrer" style={{color:GOLD3}}>פתח את הגיליון</a></span>
+          :<><span>הקישורים כרגע הם ברירת המחדל שבאתר.</span>
+            <button onClick={createTable} disabled={busy} style={{padding:'5px 12px',borderRadius:8,border:`1px solid ${LINE}`,background:'#fff',color:INK,fontSize:12,cursor:busy?'wait':'pointer',fontFamily:'inherit'}}>צור טבלת קישורים לעריכה בגיליון</button></>}
+      </div>}
     </div>
-    {gp&&multi&&<div style={{fontSize:12,color:'#9a5512',marginTop:10}}>בשדה החלקה יש יותר ממספר אחד ({String(parcel).trim()}) — הקישורים נפתחים לחלקה {h} בלבד.</div>}
-  </div>;
+    <div style={secStyle}>
+      <SectionTitle icon="⭐">קישורים שמורים לתיק</SectionTitle>
+      {saved.length===0&&<div style={{fontSize:12.5,color:'#9a8e84',marginBottom:10}}>עדיין לא נשמרו קישורים לתיק הזה (למשל דף תיק הבניין באתר העירייה).</div>}
+      {saved.map(l=>(
+        <div key={l._row} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 4px',borderTop:`1px solid ${LINE}`,fontSize:13,minWidth:0}}>
+          <a href={l.url} target="_blank" rel="noopener noreferrer" title={l.url} style={{flex:1,minWidth:0,color:INK,fontWeight:500,textDecoration:'none',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+            <Icon name="external" size={13} color={GOLD2} style={{marginInlineEnd:6,verticalAlign:'middle'}}/>{l.name||l.url}</a>
+          {(l.by||l.at)&&<span style={{fontSize:11,color:'#9a8e84',whiteSpace:'nowrap'}}>{[l.by,l.at].filter(Boolean).join(' · ')}</span>}
+          <button onClick={()=>delSaved(l)} disabled={busy} title="מחיקת הקישור" style={{background:'none',border:'none',cursor:'pointer',color:'#c0392b',padding:'2px 4px'}}><Icon name="trash" size={14}/></button>
+        </div>))}
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:12}}>
+        <input value={nm} onChange={e=>setNm(e.target.value)} placeholder="שם (למשל: תיק בניין)" style={{...iS,flex:'1 1 150px'}}/>
+        <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="הדבקת קישור — https://…" style={{...iS,flex:'2 1 240px',direction:'ltr',textAlign:'left'}}/>
+        <button onClick={addSaved} disabled={busy||!url.trim()} style={{padding:'8px 18px',borderRadius:9,border:'none',background:busy||!url.trim()?'#e6ddcd':INK,color:busy||!url.trim()?'#b3a898':GOLD_PALE,fontSize:13.5,cursor:busy||!url.trim()?'default':'pointer',fontFamily:'inherit'}}>{busy?'שומר…':'שמור קישור'}</button>
+      </div>
+      {err&&<div style={{fontSize:12.5,color:'#dc2626',marginTop:8}}>{err}</div>}
+    </div>
+  </>;
 }
 // רשימת תיקים אחרים ב"ניהול תיקים" עם אותו שם / אותו נייד (לקוח או יועץ) — מהחדש לישן; לחיצה פותחת ב"כלל התיקים"
 function RelatedCases({title,hint,managed,selfRow,name,phone,nameKey,phoneKey,secStyle}){
@@ -2570,7 +2772,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
           <ParcelMap opacity={0.16}/>
           <div style={{position:'relative',display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
             <div style={{flex:1,minWidth:0}}>
-              {caseNum&&<span onClick={()=>{_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={{fontSize:12,fontWeight:600,color:GOLD2,display:'inline-block',marginBottom:4,letterSpacing:'0.08em',cursor:'pointer'}}>תיק {caseNum}</span>}
+              {caseNum&&<span style={{fontSize:12,fontWeight:600,color:GOLD2,display:'inline-block',marginBottom:4,letterSpacing:'0.08em'}}>תיק {caseNum}</span>}
               {(matchedCase?.folder||project.name)
                 ?<div style={{fontFamily:SERIF,fontSize:isMobile?19:24,fontWeight:500,color:GOLD_PALE,lineHeight:1.35,marginBottom:10}}>{matchedCase?.folder||project.name}</div>
                 :<div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:10}}>
@@ -2877,7 +3079,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
               <div><FLabel>סוג נכס</FLabel><input value={caseForm.propType||''} onChange={e=>setCF('propType',e.target.value)} onBlur={saveCaseRegistry} style={iS}/></div>
             </div>
           </div>}
-          {tab==='links'&&caseForm&&<CaseLinks block={caseForm.block} parcel={caseForm.parcel} city={caseForm.city} secStyle={sec}/>}
+          {tab==='links'&&caseForm&&<CaseLinks c={caseForm} secStyle={sec} userName={_currentUserName} isMichael={_currentUserName==='מיכאל'}/>}
         </div>
       </div>
       {confirmKtiva&&(
@@ -3164,7 +3366,7 @@ function ProjectsView({projects,closedTasks,onUpdate,user,managed,onUpdateCase,s
       {/* תיקים סגורים עם משימה פתוחה — קבוצה נפרדת בראש המסך */}
       {viewMode==='cards'&&closedShown.length>0&&(
         <StatusGroup label="תיקים סגורים עם משימה פתוחה" dot="#4a8c5e" count={closedShown.length} isOpen={!collapsed.__closedTasks} onToggle={()=>toggle('__closedTasks')} isMobile={isMobile}>
-          {closedShown.map(p=>{const _mc=(managed||[]).find(c=>c._row===p._row);return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}} showPdf/>);})}
+          {closedShown.map(p=>{const _mc=(managed||[]).find(c=>c._row===p._row);return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} caseInfo={_mc} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}} showPdf/>);})}
         </StatusGroup>
       )}
       {viewMode==='cards'&&Object.keys(groups).length===0?(closedShown.length>0?null:
@@ -3177,7 +3379,7 @@ function ProjectsView({projects,closedTasks,onUpdate,user,managed,onUpdateCase,s
           const isOpen=!collapsed[status];
           return(
             <StatusGroup key={status} label={status} dot={m.dot} count={items.length} isOpen={isOpen} onToggle={()=>toggle(status)} isMobile={isMobile}>
-              {items.map(p=>{const _mc=(managed||[]).find(c=>c.folder&&c.folder.trim()===p.name.trim());return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}} showPdf/>);})}
+              {items.map(p=>{const _mc=(managed||[]).find(c=>c.folder&&c.folder.trim()===p.name.trim());return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} caseInfo={_mc} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}} showPdf/>);})}
             </StatusGroup>
           );
         })
@@ -3365,7 +3567,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
           const isOpen=!collapsed[status];
           return(
             <StatusGroup key={status} label={status} dot={m.dot} count={items.length} isOpen={isOpen} onToggle={()=>setCollapsed(c=>({...c,[status]:!c[status]}))} isMobile={isMobile}>
-              {items.map(p=>{const _mc=(managed||[]).find(c=>c.folder&&c.folder.trim()===p.name.trim());return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} onClick={()=>setPanelProject(p)} hideDate/>);})}
+              {items.map(p=>{const _mc=(managed||[]).find(c=>c.folder&&c.folder.trim()===p.name.trim());return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} caseInfo={_mc} onClick={()=>setPanelProject(p)} hideDate/>);})}
             </StatusGroup>
           );
         })
@@ -3412,6 +3614,7 @@ function ManagedCaseCard({cas,onClick,isMobile}){
           <div style={{fontFamily:SERIF,fontSize:17,fontWeight:500,color:INK,lineHeight:1.35,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={title}>{title}</div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+          <CardLinksButton c={cas}/>
           {_fp&&!isMobile&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_fp);}} style={ib}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'} onMouseLeave={e=>e.currentTarget.style.background='none'}><WinFolderIcon size={20}/></button>}
           {_fp&&!isMobile&&<button title="פתח את כל קובצי ה-PDF שבתיקייה" onClick={e=>{e.stopPropagation();openPdfs(_fp);}} style={ib}
@@ -6586,6 +6789,7 @@ function App(){
     }catch(e){setError('שגיאה בטעינת הנתונים: '+e.message);}
     finally{setLoading(false);}
     loadMsgsPresence();
+    loadLinks().catch(()=>{});   // הגדרות קישורים + קישורים שמורים לתיקים
   },[loadMsgsPresence]);
   // רענון שקט — ללא ספינר, פועל אוטומטית ברקע כל 15 שניות
   const silentRefresh=useCallback(async()=>{
