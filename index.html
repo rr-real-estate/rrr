@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v130'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v131'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -95,7 +95,7 @@ const INK='#14110d', IVORY='#fbf8f2', LINE='#e9e0cd', LINE2='#f1eadb', GOLD_PALE
 const CARD_SHADOW='0 1px 2px rgba(20,17,13,0.04), inset -4px 0 9px -6px rgba(20,17,13,0.4)';
 const CARD_SHADOW_HOVER='0 12px 28px -12px rgba(20,17,13,0.22), inset -4px 0 9px -6px rgba(20,17,13,0.4)';
 // מספר תיק — זהב, מרווח אותיות (כמו בראש כרטיס התיק)
-const CASE_NUM_STYLE={fontSize:12,fontWeight:600,color:GOLD2,letterSpacing:'0.08em',display:'inline-block',marginBottom:4,cursor:'pointer',userSelect:'none'};
+const CASE_NUM_STYLE={fontSize:12,fontWeight:600,color:GOLD2,letterSpacing:'0.08em',display:'inline-block',marginBottom:4};
 const pageTitle=(m)=>({fontFamily:SERIF,fontSize:m?22:28,fontWeight:500,color:INK,letterSpacing:'-0.01em',lineHeight:1.2});
 // הגדרות משתמש (נשמרות במכשיר — localStorage 'rrr_settings'):
 // defaultPerson ('' = כולם) · defaultDays · managedViewMode ('last'|'cards'|'table')
@@ -1840,7 +1840,7 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf}){
       {/* Title */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10,gap:6}}>
         <div style={{flex:1,minWidth:0}}>
-          {caseNum&&<span onClick={e=>{e.stopPropagation();_goToManaged&&_goToManaged(caseNum);}} title="עבור לתיק בכלל התיקים" style={CASE_NUM_STYLE}>תיק {caseNum}</span>}
+          {caseNum&&<span style={CASE_NUM_STYLE}>תיק {caseNum}</span>}
           {project._closed&&<span style={{fontSize:10.5,fontWeight:600,color:project._closed==='בוטל'?'#991b1b':'#166534',background:project._closed==='בוטל'?'#fee2e2':'#dcfce7',borderRadius:20,padding:'1px 8px',marginInlineStart:6,whiteSpace:'nowrap'}}>{project._closed}</span>}
           {nameMissing
             ?<div style={{fontSize:14,fontWeight:600,color:'#b45309',lineHeight:1.35,display:'flex',alignItems:'center',gap:6}}><Icon name="alert" size={15}/>שם התיק חסר בגיליון — פתחו את התיק לשחזור</div>
@@ -1854,7 +1854,7 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf}){
             style={{background:'none',border:'none',cursor:'pointer',padding:'3px 4px',lineHeight:1,borderRadius:6,transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
             onMouseLeave={e=>e.currentTarget.style.background='none'}><WinFolderIcon size={20}/></button>}
-          {showPdf&&_folderPath&&!isMobile&&<button title="פתח את כל קובצי ה-PDF שבתיקייה" onClick={e=>{e.stopPropagation();openPdfs(_folderPath);}}
+          {_folderPath&&!isMobile&&<button title="פתח את כל קובצי ה-PDF שבתיקייה" onClick={e=>{e.stopPropagation();openPdfs(_folderPath);}}
             style={{background:'none',border:'none',cursor:'pointer',padding:'3px 4px',lineHeight:1,borderRadius:6,transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
             onMouseLeave={e=>e.currentTarget.style.background='none'}><PdfStackIcon size={20}/></button>}
@@ -3385,6 +3385,16 @@ function ManagedCaseCard({cas,onClick,isMobile}){
   const gp=[cas.block,cas.parcel,cas.subParcel].filter(Boolean).join(' / ');
   const addr=[cas.street,cas.houseNum].filter(Boolean).join(' ');
   const title=[cas.city,addr,cas.client].filter(Boolean).join(' — ')||cas.folder||'—';
+  // כפתורי הפינה — כמו בכרטיס תיק פעיל: הנתיב לפי בסיס המחשב + הסטטוס הנוכחי
+  const _bp=React.useMemo(()=>localStorage.getItem('folderBasePath')||'',[]);
+  const _fp=(cas.folder&&_bp?buildFolderPath(_bp,cas.folder,cas.status):'')||cas.folderLink||'';
+  const _drive=cas.driveFolderLink||'';
+  const ib={background:'none',border:'none',cursor:'pointer',padding:'3px 4px',lineHeight:1,borderRadius:6,transition:'background 0.15s'};
+  // משימות / הערה שנשארו בתיק (עמודות AA–AD) — מוצגות רק אם קיימות; בלי התראת "אין משימה"
+  const raw=cas._raw||[];
+  const tasks=[['יוסי',PU.yossi,INK],['מיכאל',PU.michael,GOLD2],['פייגי',PU.feigi,'#8a7a68']]
+    .map(([n,i,c])=>({n,c,v:splitTasks(raw[i]).map(t=>t.text).join(' · ')})).filter(t=>t.v);
+  const noteText=parseNoteStamp(String(raw[PU.notes]||'')).text;
   const Row=({l,v})=>v?(
     <div style={{display:'flex',gap:6,fontSize:12.5,lineHeight:1.55,minWidth:0}}>
       <span style={{color:'#9a8e84',flexShrink:0}}>{l}:</span>
@@ -3401,9 +3411,18 @@ function ManagedCaseCard({cas,onClick,isMobile}){
           <span style={CASE_NUM_STYLE}>תיק {cas.caseNum}</span>
           <div style={{fontFamily:SERIF,fontSize:17,fontWeight:500,color:INK,lineHeight:1.35,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={title}>{title}</div>
         </div>
-        <span style={{background:sc.bg,color:sc.fg,padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:600,whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:6,border:`1px solid ${sc.bar}33`,flexShrink:0}}>
-          <span style={{width:6,height:6,borderRadius:'50%',background:sc.bar,flexShrink:0}}/>{cas.status||'—'}
-        </span>
+        <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+          {_fp&&!isMobile&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_fp);}} style={ib}
+            onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'} onMouseLeave={e=>e.currentTarget.style.background='none'}><WinFolderIcon size={20}/></button>}
+          {_fp&&!isMobile&&<button title="פתח את כל קובצי ה-PDF שבתיקייה" onClick={e=>{e.stopPropagation();openPdfs(_fp);}} style={ib}
+            onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'} onMouseLeave={e=>e.currentTarget.style.background='none'}><PdfStackIcon size={20}/></button>}
+          {_drive&&<a href={_drive} target="_blank" rel="noopener noreferrer" title="פתח תיקייה בגוגל דרייב" onClick={e=>e.stopPropagation()}
+            style={{...ib,display:'inline-flex',alignItems:'center',justifyContent:'center',textDecoration:'none'}}
+            onMouseEnter={e=>e.currentTarget.style.background='#e8f0fe'} onMouseLeave={e=>e.currentTarget.style.background='none'}><DriveIcon size={19}/></a>}
+          <span style={{background:sc.bg,color:sc.fg,padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:600,whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:6,border:`1px solid ${sc.bar}33`,flexShrink:0}}>
+            <span style={{width:6,height:6,borderRadius:'50%',background:sc.bar,flexShrink:0}}/>{cas.status||'—'}
+          </span>
+        </div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'2px 14px',minWidth:0}}>
         <Row l="דירה" v={cas.aptNum}/>
@@ -3413,6 +3432,13 @@ function ManagedCaseCard({cas,onClick,isMobile}){
         <Row l="מטרה" v={cas.purpose}/>
         <Row l="יועץ" v={cas.advisor}/>
       </div>
+      {tasks.length>0&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:10}}>
+        {tasks.map(t=>(
+          <div key={t.n} style={{background:`${t.c}14`,border:`1px solid ${t.c}33`,borderRadius:8,padding:'4px 11px',fontSize:13,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>
+            <span style={{color:t.c,fontWeight:500}}>{t.n}: </span><span style={{color:'#3a3228'}}>{renderBold(t.v)}</span>
+          </div>))}
+      </div>}
+      {noteText&&<div style={{marginTop:6,fontSize:12,color:'#6b5e50',background:'#fafaf7',border:'1px solid #e8e2d8',borderRadius:7,padding:'5px 9px',overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{renderBold(noteText)}</div>}
     </div>
   );
 }
