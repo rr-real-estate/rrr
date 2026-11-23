@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v139'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v141'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -546,6 +546,8 @@ const DATE_RE=/^\d{1,2}\/\d{1,2}\/\d{4}$/;
 let _tokenClient=null;
 let _grantedScopes='';   // ההרשאות שהוענקו בפועל לטוקן האחרון (r.scope) — לבדיקה לפני פעולות שדורשות הרשאה נוספת
 let _tokenRefreshTimer=null;
+let _openCaseAt=null;      // פתיחת כרטיס תיק ב"כלל התיקים" ישר בלשונית מסוימת: _openCaseAt(caseNum,'links')
+let _pendingCaseOpen=null; // {caseNum,tab} — ממתין ש-ManagedView ייטען ויפתח את התיק
 let _goToManaged=null;  // פונקציה גלובלית לניווט לכלל התיקים עם חיפוש
 let _goToProject=null;  // פונקציה גלובלית לניווט לפרויקט לפי מספר תיק
 function _startTokenRefresh(onNewToken){
@@ -2147,7 +2149,7 @@ function urlToTemplate(raw,c){
 
 // חלון "עריכת קישורים": קישורי העיר של התיק הפתוח (שלושה קבועים) + הקישורים הכלליים (לכל הערים).
 // השמירה כותבת מחדש את גיליון "קישורים": שורות של ערים אחרות נשארות כמו שהן, והשורות הכלליות ושורות העיר מוחלפות במה שבחלון.
-function LinksEditor({c,focusName,onClose}){
+function LinksEditor({c,only,onClose}){
   const city=normCity(c.city);
   const defs=linkStore.defs;
   const initCity=CITY_LINK_NAMES.map(name=>{const d=city?(defs||[]).find(x=>x[0]===name&&x[2]&&normCity(x[2])===city):null;return {name,url:d?d[1]:'',orig:d||null};});
@@ -2162,8 +2164,8 @@ function LinksEditor({c,focusName,onClose}){
   const save=async()=>{
     setErr('');
     // בדיקות
-    for(const r of cityRows){if(r.url.trim()&&!isUrl(r.url)){setErr(`הקישור של "${r.name}" צריך להתחיל ב-https://`);return;}}
-    const genClean=gen.map(g=>({...g,name:g.name.trim(),url:g.url.trim()})).filter(g=>g.name||g.url);
+    for(const r of cityRows){if((!only||r.name===only)&&r.url.trim()&&!isUrl(r.url)){setErr(`הקישור של "${r.name}" צריך להתחיל ב-https://`);return;}}
+    const genClean=only?[]:gen.map(g=>({...g,name:g.name.trim(),url:g.url.trim()})).filter(g=>g.name||g.url);
     for(const g of genClean){
       if(!g.name){setErr('יש קישור כללי בלי שם');return;}
       if(!isUrl(g.url)){setErr(`הקישור של "${g.name}" צריך להתחיל ב-https://`);return;}
@@ -2177,14 +2179,18 @@ function LinksEditor({c,focusName,onClose}){
       const cur=(await api.get(`'${LINKS_TAB}'!A2:E`))||[];
       const norm=r=>[0,1,2,3,4].map(i=>String(r[i]||'').trim());
       const keep=cur.map(norm).filter(r=>r[0]||r[1]).filter(r=>{
+        if(only)return !(r[2]&&normCity(r[2])===city&&r[0]===only);        // הגדרת קישור יחיד — מוחלפת רק השורה שלו
         if(!r[2])return false;                                             // כלליות — מוחלפות
         if(city&&normCity(r[2])===city&&CITY_LINK_NAMES.includes(r[0]))return false;   // קישורי העיר הזו — מוחלפים
         return true;                                                       // ערים אחרות / שורות אחרות — נשארות
       });
       const who=_currentUserName||'',when=nowHe();
       const stamp=(name,url,orig)=>(orig&&orig[0]===name&&orig[1]===url)?[orig[3]||'',orig[4]||'']:[who,when];
-      const genRows=genClean.map(g=>{const u=urlToTemplate(g.url,c).tpl;return [g.name,u,'',...stamp(g.name,u,g.orig)];});
-      const cRows=city?cityRows.filter(r=>r.url.trim()).map(r=>{const u=urlToTemplate(r.url,c).tpl;return [r.name,u,city,...stamp(r.name,u,r.orig)];}):[];
+      // בהגדרת קישור יחיד הכלליים נשארים כמו בגיליון; אם הגיליון עוד ריק מכלליים (נוצר עכשיו) — נכתבות ברירות המחדל
+      const genRows=only
+        ?((linkStore.defs===null&&!keep.some(r=>!r[2]))?LINK_DEFAULTS.map(d=>[d[0],d[1],'','','']):[])
+        :genClean.map(g=>{const u=urlToTemplate(g.url,c).tpl;return [g.name,u,'',...stamp(g.name,u,g.orig)];});
+      const cRows=city?cityRows.filter(r=>(!only||r.name===only)&&r.url.trim()).map(r=>{const u=urlToTemplate(r.url,c).tpl;return [r.name,u,city,...stamp(r.name,u,r.orig)];}):[];
       const all=[...genRows,...cRows,...keep];
       // ריפוד בשורות ריקות עד אורך הגיליון הקודם — כדי למחוק שאריות
       const out=[...all];while(out.length<cur.length)out.push(['','','','','']);
@@ -2206,24 +2212,25 @@ function LinksEditor({c,focusName,onClose}){
   };
   return ReactDOM.createPortal(
     <div onClick={e=>{e.stopPropagation();if(!busy)onClose();}} style={{position:'fixed',inset:0,zIndex:950,background:'rgba(20,17,13,.5)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:16,width:'100%',maxWidth:780,maxHeight:'90vh',display:'flex',flexDirection:'column',direction:'rtl',textAlign:'right',boxShadow:'0 24px 60px -16px rgba(0,0,0,.45)',overflow:'hidden'}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:16,width:'100%',maxWidth:only?600:780,maxHeight:'90vh',display:'flex',flexDirection:'column',direction:'rtl',textAlign:'right',boxShadow:'0 24px 60px -16px rgba(0,0,0,.45)',overflow:'hidden'}}>
         <div style={{padding:'20px 24px 12px',borderBottom:`1px solid ${LINE}`}}>
-          <div style={{fontFamily:SERIF,fontSize:21,color:INK}}>עריכת קישורים</div>
-          <div style={{fontSize:12.5,color:'#7a6a58',marginTop:4,lineHeight:1.6}}>השינויים נשמרים לכל המשתמשים. קישורי העיר חלים על כל תיקי העיר, והקישורים הכלליים על כל התיקים.</div>
+          <div style={{fontFamily:SERIF,fontSize:21,color:INK}}>{only?`הגדרת קישור: ${only} — ${city}`:'עריכת קישורים'}</div>
+          <div style={{fontSize:12.5,color:'#7a6a58',marginTop:4,lineHeight:1.6}}>{only?`הקישור יישמר לכל תיקי ${city}, אצל כל המשתמשים.`:'השינויים נשמרים לכל המשתמשים. קישורי העיר חלים על כל תיקי העיר, והקישורים הכלליים על כל התיקים.'}</div>
         </div>
         <div style={{padding:'0 24px 16px',overflowY:'auto',flex:1}}>
           {city
             ?<>
-              <div style={head}>קישורי {city}</div>
-              <div style={{fontSize:12,color:'#9a8e84',marginBottom:10,lineHeight:1.6}}>פותחים באתר של {city} את הדף של הנכס שבתיק הזה, מעתיקים את הכתובת משורת הכתובת ומדביקים. שדה ריק = הקישור לא מוגדר.</div>
-              {cityRows.map(r=>(
+              {!only&&<div style={head}>קישורי {city}</div>}
+              <div style={{fontSize:12,color:'#9a8e84',marginBottom:10,lineHeight:1.6}}>פותחים באתר של {city} את הדף של הנכס שבתיק הזה, מעתיקים את הכתובת משורת הכתובת ומדביקים.{only?'':' שדה ריק = הקישור לא מוגדר.'}</div>
+              {cityRows.filter(r=>!only||r.name===only).map(r=>(
                 <div key={r.name} style={{display:'grid',gridTemplateColumns:'96px 1fr',gap:'4px 10px',alignItems:'center',marginBottom:10}}>
                   <div style={{fontSize:13.5,fontWeight:600,color:INK}}>{r.name}</div>
-                  <input value={r.url} onChange={e=>setCityUrl(r.name,e.target.value)} placeholder="https://…" autoFocus={r.name===focusName} style={{...iS,...ltr}}/>
+                  <input value={r.url} onChange={e=>setCityUrl(r.name,e.target.value)} placeholder="https://…" autoFocus={r.name===only} style={{...iS,...ltr}}/>
                   <div/><div style={{fontSize:11.5}}>{hint(r)}</div>
                 </div>))}
             </>
             :<div style={{fontSize:12.5,color:'#9a8e84',marginTop:14}}>בתיק הזה לא רשומה עיר, ולכן אפשר לערוך כאן רק את הקישורים הכלליים.</div>}
+          {!only&&<>
           <div style={head}>קישורים כלליים</div>
           <div style={{fontSize:12,color:'#9a8e84',marginBottom:10,lineHeight:1.7}}>
             בכתובת אפשר לשלב מקומות שמתמלאים מהתיק: <span style={{color:'#5a4e44'}}>{Object.keys(LINK_FIELDS).map(k=>'{'+k+'}').join('  ')}</span></div>
@@ -2235,6 +2242,7 @@ function LinksEditor({c,focusName,onClose}){
             </div>))}
           <button onClick={()=>{const id='g'+(nextId.current++);setGen(gs=>[...gs,{id,name:'',url:'',orig:null}]);}}
             style={{marginTop:4,padding:'7px 14px',borderRadius:9,border:`1.5px dashed ${GOLD2}`,background:'#fffdf6',color:'#8a6d1f',fontSize:13,cursor:'pointer',fontFamily:'inherit'}}>＋ הוספת קישור כללי</button>
+          </>}
         </div>
         <div style={{padding:'12px 24px 18px',borderTop:`1px solid ${LINE}`}}>
           {err&&<div style={{fontSize:12.5,color:'#dc2626',marginBottom:8}}>{err}</div>}
@@ -2292,7 +2300,7 @@ function CardLinksButton({c}){
 // לשונית "קישורים" בכרטיס התיק
 function CaseLinks({c,secStyle}){
   const store=useLinkStore();
-  const [edit,setEdit]=React.useState(null);   // {focus} — חלון "עריכת קישורים"
+  const [edit,setEdit]=React.useState(null);   // {only} — חלון הגדרת קישור יחיד (only=שם) או עריכת הכול (only='')
   const city=normCity(c.city);
   const cityRows=buildCityLinks(c,store.defs);
   const undefinedRows=cityRows.filter(r=>!r.def), cityLinks=cityRows.flatMap(r=>r.links);
@@ -2317,7 +2325,7 @@ function CaseLinks({c,secStyle}){
       <SectionTitle icon="🏛️">{'קישורי '+city+' — עוד לא הוגדרו'}</SectionTitle>
       <div style={grid}>
         {undefinedRows.map(row=>(
-          <button key={row.name} onClick={()=>setEdit({focus:row.name})}
+          <button key={row.name} onClick={()=>setEdit({only:row.name})}
             style={{...card(true),border:`1.5px dashed ${GOLD2}`,background:'#fffdf6',textAlign:'right',fontFamily:'inherit',alignSelf:'flex-start'}}>
             <span style={{fontSize:15,fontWeight:600}}>{row.name}</span>
             <span style={{fontSize:12,color:'#8a6d1f'}}>＋ הגדרת קישור ל{city}</span>
@@ -2332,10 +2340,10 @@ function CaseLinks({c,secStyle}){
       {!city&&<div style={{fontSize:12.5,color:'#9a8e84',marginBottom:10}}>בתיק הזה לא רשומה עיר (לשונית "נכס"), ולכן אין קישורי עיר.</div>}
       <div style={grid}>{links.map(linkCard)}</div>
       <div style={{marginTop:14}}>
-        <button onClick={()=>setEdit({focus:''})} style={topBtn}><Icon name="pencil" size={13} color={GOLD2}/>ערוך קישורים</button>
+        <button onClick={()=>setEdit({only:''})} style={topBtn}><Icon name="pencil" size={13} color={GOLD2}/>ערוך קישורים</button>
       </div>
     </div>
-    {edit&&<LinksEditor c={c} focusName={edit.focus} onClose={()=>setEdit(null)}/>}
+    {edit&&<LinksEditor c={c} only={edit.only} onClose={()=>setEdit(null)}/>}
   </>;
 }
 // מעקב קישורים (הגדרות ← ניהול מערכת): לכל עיר שיש בה תיקים — אילו משלושת קישורי העיר כבר הוגדרו ואילו חסרים
@@ -2347,8 +2355,12 @@ function LinksTracker({managed,sec,secTitle}){
     (managed||[]).forEach(c=>{
       if(!/^5\d{4}$/.test(String(c.caseNum||'').trim()))return;
       const city=normCity(c.city);if(!city)return;
-      const r=by[city]||(by[city]={city,total:0,open:0});
+      const r=by[city]||(by[city]={city,total:0,open:0,latest:'',latestGH:''});
       r.total++;if(c.status!=='הסתיים'&&c.status!=='בוטל')r.open++;
+      // התיק האחרון של העיר — עדיפות לתיק שיש בו גוש וחלקה (נדרשים לזיהוי בקישור)
+      const num=String(c.caseNum).trim();
+      if(num>r.latest)r.latest=num;
+      if(String(c.block||'').match(/\d/)&&String(c.parcel||'').match(/\d/)&&num>r.latestGH)r.latestGH=num;
     });
     return Object.values(by).map(r=>{
       const have=CITY_LINK_NAMES.map(n=>(store.defs||[]).find(d=>d[0]===n&&d[2]&&normCity(d[2])===r.city)||null);
@@ -2359,7 +2371,7 @@ function LinksTracker({managed,sec,secTitle}){
   const none=rows.filter(r=>r.count===0).length;
   const part=rows.length-full-none;
   const shown=onlyMissing?rows.filter(r=>r.count<CITY_LINK_NAMES.length):rows;
-  const noCity=(managed||[]).filter(c=>/^5\d{4}$/.test(String(c.caseNum||'').trim())&&!normCity(c.city)).length;
+  const noCity=(managed||[]).filter(c=>/^5\d{4}$/.test(String(c.caseNum||'').trim())&&!normCity(c.city)).map(c=>String(c.caseNum).trim());
   const stat=(n,label,bg,bd,fg)=>(
     <div style={{flex:1,minWidth:90,background:bg,border:`1px solid ${bd}`,borderRadius:10,padding:'12px 16px',textAlign:'center'}}>
       <div style={{fontSize:22,fontWeight:500,color:fg}}>{n}</div>
@@ -2389,6 +2401,7 @@ function LinksTracker({managed,sec,secTitle}){
               <thead><tr style={{background:'#faf7f2',position:'sticky',top:0}}>
                 <th style={th}>עיר</th><th style={th}>תיקים</th><th style={th}>פתוחים</th>
                 {CITY_LINK_NAMES.map(n=><th key={n} style={{...th,textAlign:'center'}}>{n}</th>)}
+                <th style={th}/>
               </tr></thead>
               <tbody>
                 {shown.map(r=>(
@@ -2400,12 +2413,16 @@ function LinksTracker({managed,sec,secTitle}){
                       <td key={i} style={{...td,textAlign:'center'}} title={d?(d[1]+([d[3],d[4]].filter(Boolean).length?'\nעודכן: '+[d[3],d[4]].filter(Boolean).join(' · '):'')):'לא הוגדר'}>
                         {d?<span style={{color:'#16a34a',fontWeight:700}}>✓</span>:<span style={{color:'#dc2626',fontWeight:700}}>✗</span>}
                       </td>))}
+                    <td style={{...td,textAlign:'left',whiteSpace:'nowrap'}}>
+                      <button onClick={()=>_openCaseAt&&_openCaseAt(r.latestGH||r.latest,'links')} title={'פותח את תיק '+(r.latestGH||r.latest)+' בלשונית "קישורים"'+(r.latestGH?'':' (בתיקי העיר אין גוש וחלקה)')}
+                        style={{padding:'4px 12px',borderRadius:8,border:`1px solid ${LINE}`,background:'#fff',color:INK,fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>{r.count<CITY_LINK_NAMES.length?'הגדרת קישורים':'פתיחת תיק'} ←</button>
+                    </td>
                   </tr>))}
-                {shown.length===0&&<tr><td style={{...td,textAlign:'center',color:'#9a8e84'}} colSpan={3+CITY_LINK_NAMES.length}>{rows.length?'בכל הערים מוגדרים כל הקישורים':'אין תיקים עם עיר'}</td></tr>}
+                {shown.length===0&&<tr><td style={{...td,textAlign:'center',color:'#9a8e84'}} colSpan={4+CITY_LINK_NAMES.length}>{rows.length?'בכל הערים מוגדרים כל הקישורים':'אין תיקים עם עיר'}</td></tr>}
               </tbody>
             </table>
           </div>
-          {noCity>0&&<div style={{fontSize:12,color:'#9a8e84',marginTop:8}}>{noCity===1?'תיק אחד רשום':noCity+' תיקים רשומים'} בלי עיר ולא נכללים בטבלה.</div>}
+          {noCity.length>0&&<div style={{fontSize:12,color:'#9a8e84',marginTop:8}}>תיקים שלא רשומה בהם עיר (לשונית "נכס"), ולכן אינם משויכים לאף שורה בטבלה: {noCity.join(', ')}</div>}
         </>}
     </div>
   );
@@ -2449,13 +2466,13 @@ function ContactButtons({phone,email}){
     {okMail&&<a href={'mailto:'+mail} style={b}>✉️ מייל</a>}
   </div>;
 }
-function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDeleteProject,onDeleteCase,user}){
+function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDeleteProject,onDeleteCase,user,initialTab}){
   const isMobile=useIsMobile();
   const [form,setForm]=useState({...project});
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
   const [err,setErr]=useState('');
-  const [tab,setTab]=useState('main');
+  const [tab,setTab]=useState(initialTab||'main');
   const [closingWork,setClosingWork]=useState(false);
   const [folderReminderStatus,setFolderReminderStatus]=useState(null); // סטטוס ממתין לאישור
   const [verifyingFolder,setVerifyingFolder]=useState(false); // בדיקת מיקום התיקייה ב-Drive לפני אישור
@@ -4270,6 +4287,12 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
   },[initialSearch]);
   const [page,setPage]=useState(0);
   const [selected,setSelected]=useState(null);
+  const [initTab,setInitTab]=useState(null);   // לשונית פתיחה כשהתיק נפתח מבחוץ (_openCaseAt)
+  useEffect(()=>{
+    if(!_pendingCaseOpen)return;
+    const p=_pendingCaseOpen;const cs=(cases||[]).find(x=>String(x.caseNum||'').trim()===p.caseNum);
+    if(cs){_pendingCaseOpen=null;setInitTab(p.tab);setSelected(cs);}
+  },[cases]);
   const [adding,setAdding]=useState(false);
   const [sortKey,setSortKey]=useState('caseNum');
   const [sortDir,setSortDir]=useState('desc');
@@ -4486,7 +4509,7 @@ function ManagedView({cases,onUpdateCase,onAddCase,addProject,projects,onDeleteC
           syncVisitCalendar(prev,upd);
           if(upd.status==='בכתיבה'&&prev.status!=='בכתיבה'){const tk=(upd.name.match(/\b(5\d{4})\b/)||[])[1];if(tk)fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({type:'ktiva',tikNum:tk})}).catch(()=>{});}
         };
-        return <ProjectDetailPanel project={proj} onClose={()=>setSelected(null)} onSave={handleSaveWork}
+        return <ProjectDetailPanel project={proj} initialTab={initTab} onClose={()=>{setSelected(null);setInitTab(null);}} onSave={handleSaveWork}
           managed={cases} onUpdateCase={onUpdateCase}
           onDeleteProject={(rowNum)=>{if(onDeleteProject)onDeleteProject(rowNum);setSelected(null);}}
           onDeleteCase={(rowNum)=>{if(onDeleteCase)onDeleteCase(rowNum);setSelected(null);}}
@@ -6928,7 +6951,8 @@ function App(){
   const [projectSearch,setProjectSearch]=useState('');
   // סגור drawer אוטומטית כשעוברים ל-landscape
   useEffect(()=>{if(!isMobile)setDrawerOpen(false);},[isMobile]);
-  React.useEffect(()=>{_goToManaged=(caseNum)=>{setManagedSearch(caseNum||'');setView('managed');};},[]);
+  React.useEffect(()=>{_goToManaged=(caseNum)=>{setManagedSearch(caseNum||'');setView('managed');};
+    _openCaseAt=(caseNum,tab)=>{_pendingCaseOpen={caseNum:String(caseNum||'').trim(),tab:tab||'main'};setView('managed');};},[]);
   React.useEffect(()=>{
     _goToProject=(caseNum)=>{
       const cn=String(caseNum||'').trim();
