@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v142'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v143'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -2346,6 +2346,48 @@ function CaseLinks({c,secStyle}){
     {edit&&<LinksEditor c={c} only={edit.only} onClose={()=>setEdit(null)}/>}
   </>;
 }
+// הודעה קופצת בפתיחת תיק שלעיר שלו עוד לא הוגדרו קישורי עיר (תיקי בניין / תב"ע / GIS).
+// מוצגת פעם אחת לכל עיר בכל כניסה לאתר; "אל תציג שוב לעיר הזו" נשמר בדפדפן (localStorage).
+const _linksNudgeSeen=new Set();
+const LINKS_NUDGE_OFF_KEY='rr_links_nudge_off';
+function linksNudgeOff(){try{const a=JSON.parse(localStorage.getItem(LINKS_NUDGE_OFF_KEY)||'[]');return Array.isArray(a)?a:[];}catch(_){return [];}}
+function CityLinksNudge({c,active,onGo}){
+  const store=useLinkStore();
+  const cityRef=React.useRef(normCity(c.city));   // העיר כפי שהייתה בפתיחת התיק (לא קופץ תוך כדי הקלדת עיר)
+  const city=cityRef.current;
+  const [open,setOpen]=React.useState(false);
+  const missing=city?buildCityLinks({...c,city},store.defs).filter(r=>!r.def).map(r=>r.name):[];
+  React.useEffect(()=>{
+    if(!store.loaded||!store.defsTab||!city||!missing.length)return;   // לא נטען / אין לשונית בגיליון — לא מציגים (למניעת הודעת שווא)
+    if(_linksNudgeSeen.has(city)||linksNudgeOff().includes(city))return;
+    _linksNudgeSeen.add(city);setOpen(true);
+  },[store.loaded]);
+  if(!open||!active||!missing.length)return null;
+  const never=()=>{try{localStorage.setItem(LINKS_NUDGE_OFF_KEY,JSON.stringify([...new Set([...linksNudgeOff(),city])]));}catch(_){}setOpen(false);};
+  const btn={padding:'9px 16px',borderRadius:10,border:`1px solid ${LINE}`,background:'#fff',color:INK,fontSize:13.5,cursor:'pointer',fontFamily:'inherit'};
+  const step={display:'flex',gap:9,alignItems:'flex-start',fontSize:13.5,lineHeight:1.6,color:INK};
+  const num={flex:'0 0 22px',height:22,borderRadius:11,background:'#fffdf6',border:`1px solid ${GOLD2}`,color:'#8a6d1f',fontSize:12,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',marginTop:1};
+  return ReactDOM.createPortal(
+    <div onClick={()=>setOpen(false)} style={{position:'fixed',inset:0,background:'rgba(30,24,16,.45)',zIndex:4000,display:'flex',alignItems:'center',justifyContent:'center',padding:16,direction:'rtl'}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:16,width:'100%',maxWidth:480,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 18px 50px rgba(0,0,0,.28)',padding:'22px 24px 18px'}}>
+        <div style={{fontFamily:SERIF,fontSize:21,color:INK}}>שים לב — ל{city} עוד לא הוגדרו קישורים</div>
+        <div style={{fontSize:13.5,color:'#5c5044',marginTop:8,lineHeight:1.7}}>
+          חסר: <b>{missing.join(' · ')}</b>.<br/>
+          אפשר לתרום לכל המשרד: מגדירים את הקישור <b>פעם אחת</b>, ומאותו רגע הוא ייפתח בלחיצה בכל תיקי {city}, אצל כל המשתמשים — ישר על הגוש והחלקה של התיק.
+        </div>
+        <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:8}}>
+          <div style={step}><span style={num}>1</span><span>נכנסים לאתר של העירייה / הוועדה ומגיעים לדף של <b>הגוש והחלקה של התיק הזה</b>.</span></div>
+          <div style={step}><span style={num}>2</span><span>מעתיקים את הכתובת משורת הכתובת של הדפדפן.</span></div>
+          <div style={step}><span style={num}>3</span><span>בלשונית <b>"קישורים"</b> לוחצים על הכפתור המקווקו המתאים, מדביקים ושומרים. המערכת מזהה לבד את הגוש והחלקה.</span></div>
+        </div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:18,alignItems:'center'}}>
+          <button onClick={()=>{setOpen(false);onGo&&onGo();}} style={{...btn,background:INK,color:'#fff',border:`1px solid ${INK}`,fontWeight:600}}>להגדרת הקישורים ←</button>
+          <button onClick={()=>setOpen(false)} style={btn}>לא עכשיו</button>
+          <button onClick={never} style={{...btn,border:'none',background:'none',color:'#9a8e84',fontSize:12.5,padding:'9px 6px',marginInlineStart:'auto'}}>אל תציג שוב ל{city}</button>
+        </div>
+      </div>
+    </div>,document.body);
+}
 // מעקב קישורים (הגדרות ← ניהול מערכת): לכל עיר שיש בה תיקים — אילו משלושת קישורי העיר כבר הוגדרו ואילו חסרים
 function LinksTracker({managed,sec,secTitle}){
   const store=useLinkStore();
@@ -3300,6 +3342,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
             </div>
           </div>}
           {tab==='links'&&caseForm&&<CaseLinks c={caseForm} secStyle={sec}/>}
+          {caseForm&&<CityLinksNudge c={caseForm} active={tab!=='links'} onGo={()=>setTab('links')}/>}
         </div>
       </div>
       {confirmKtiva&&(
