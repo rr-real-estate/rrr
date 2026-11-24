@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v147'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v148'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -160,6 +160,18 @@ const PU={name:5,status:25,yossi:26,michael:27,feigi:28,notes:29,dueDate:30,expe
   visitAppraiser:52}; // BA — שמאי מבקר לתיאום (לניתוב ליומן)
 const WORK_FIRST_COL=25; // Z (0-based) — תחילת בלוק העבודה שנכתב ל"ניהול תיקים"
 const WORK_LAST_COL=52;  // BA (0-based)
+// עדיפות לביצוע (עמודה BB) — משותפת לכל המשרד. נשמרת כ-"מספר|סטטוס": המספר תקף רק כל עוד התיק באותו סטטוס,
+// כך ששינוי סטטוס (מהאתר, מהגיליון או מסקריפט) מאפס את העדיפות מעצמו. נכתבת בתא נפרד, לא כחלק מבלוק Z–BA.
+const PRIORITY_COL=53;   // BB (0-based)
+function parsePriority(raw,status){
+  const m=String(raw||'').match(/^\s*(\d{1,2})\s*\|(.*)$/);
+  if(!m||m[2].trim()!==String(status||'').trim())return '';
+  const n=parseInt(m[1],10);return n>0?n:'';
+}
+// מיון יציב: תיקים עם עדיפות קודם (1, 2, 3...), אחריהם השאר בסדר הרגיל
+function sortByPriority(items){
+  return items.map((p,i)=>[p,i]).sort((a,b)=>((a[0].priority||999)-(b[0].priority||999))||(a[1]-b[1])).map(x=>x[0]);
+}
 
 // ═══════════════ TASK EMAIL + NOTES DATE ════════════════════════
 // מיפוי מייל → שם (זהה ל-Apps Script)
@@ -825,8 +837,32 @@ const api={
        body:JSON.stringify({requests:[{deleteDimension:{range:{sheetId:sh.properties.sheetId,dimension:'ROWS',startIndex:rowNum-1,endIndex:rowNum}}}]})});
     if(!r.ok)throw new Error((await r.json())?.error?.message||r.statusText);
     return r.json();
+  },
+  // מוסיף עמודה אחת בסוף הגיליון (כשכותבים לעמודה שעדיין לא קיימת בו)
+  async addColumn(sheetName,id=CONFIG.SPREADSHEET_ID){
+    const meta=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=sheets.properties`,
+      {headers:{Authorization:`Bearer ${this.token}`}});
+    const mdata=await meta.json();
+    const sh=(mdata.sheets||[]).find(s=>s.properties.title===sheetName);
+    if(!sh)throw new Error('גיליון לא נמצא: '+sheetName);
+    const r=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`,
+      {method:'POST',headers:{Authorization:`Bearer ${this.token}`,'Content-Type':'application/json'},
+       body:JSON.stringify({requests:[{appendDimension:{sheetId:sh.properties.sheetId,dimension:'COLUMNS',length:1}}]})});
+    if(!r.ok)throw new Error((await r.json())?.error?.message||r.statusText);
+    return r.json();
   }
 };
+// כתיבת עדיפות לביצוע (עמודה BB). אם העמודה עדיין לא קיימת בגיליון — מוסיף אותה עם כותרת ומנסה שוב.
+async function putPriority(row,val){
+  const rng=`'ניהול תיקים'!BB${row}`;
+  try{await api.put(rng,[[val]]);}
+  catch(e){
+    if(!/grid limits|exceeds/i.test(String(e&&e.message||'')))throw e;
+    await api.addColumn('ניהול תיקים');
+    await api.put(`'ניהול תיקים'!BB1`,[['עדיפות לביצוע']]);
+    await api.put(rng,[[val]]);
+  }
+}
 
 // ═══════════════ HELPERS ══════════════════════════════════════════
 function colLetter(n){let s='';while(n>0){s=String.fromCharCode(64+((n-1)%26+1))+s;n=Math.floor((n-1)/26);}return s;}
@@ -869,6 +905,7 @@ function parseProject(row,ri){
     fee:g(row,PU.fee),feeStatus:g(row,PU.feeStatus),feeNotes:g(row,PU.feeNotes),
     advanceAmount:g(row,PU.advanceAmount),feeCompletion:g(row,PU.feeCompletion),balance:g(row,PU.balance),
     taskHistory:g(row,PU.taskHistory),
+    priority:parsePriority(g(row,PRIORITY_COL),status),
     _expD:parseDate(g(row,PU.expected)),_dueD:parseDate(g(row,PU.dueDate)),_visitD:parseDate(g(row,PU.visitDate)),
   };
 }
@@ -1997,7 +2034,35 @@ function openCaseFolder(folderName,e){
   e.stopPropagation();e.preventDefault();
   window.location.href='openrr:'+getCaseBase()+'/'+folderName;
 }
-function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,caseInfo}){
+// איפוס עדיפות כשהסטטוס משתנה (העדיפות נכונה רק לשלב שבו סומנה)
+function dropPriorityOnStatusChange(prev,upd){
+  if(prev&&prev.priority&&upd.status!==prev.status){upd.priority='';putPriority(upd._row,'').catch(()=>{});}
+}
+// סימון עדיפות לביצוע בכרטיס תיק: עיגול ריק → לחיצה פותחת בחירת מספר (1–9) או ניקוי
+function PriorityPicker({value,onPick}){
+  const [pos,setPos]=React.useState(null);
+  const open=e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();
+    setPos({top:Math.min(r.bottom+6,window.innerHeight-150),left:Math.max(8,Math.min(r.left+r.width/2-78,window.innerWidth-164))});};
+  const pick=(e,n)=>{e.stopPropagation();setPos(null);onPick(n);};
+  const cell={width:40,height:40,borderRadius:10,border:`1px solid ${LINE}`,background:'#fff',cursor:'pointer',fontFamily:'Heebo,sans-serif',fontSize:15,fontWeight:600,color:INK,padding:0};
+  return(<>
+    <button onClick={open} title={value?`עדיפות לביצוע: ${value} — לחץ לשינוי`:'סמן עדיפות לביצוע'}
+      style={{minWidth:24,height:24,borderRadius:12,padding:value?'0 7px':0,boxSizing:'border-box',cursor:'pointer',fontFamily:'Heebo,sans-serif',fontSize:13,fontWeight:700,lineHeight:1,
+        display:'inline-flex',alignItems:'center',justifyContent:'center',
+        background:value?INK:'transparent',color:value?GOLD_PALE:'#b8ab98',border:value?`1px solid ${INK}`:'1.5px dashed #c9bda9'}}>{value||''}</button>
+    {pos&&ReactDOM.createPortal(
+      <div onClick={e=>{e.stopPropagation();setPos(null);}} style={{position:'fixed',inset:0,zIndex:4000}}>
+        <div onClick={e=>e.stopPropagation()} style={{position:'fixed',top:pos.top,left:pos.left,width:156,background:'#fff',border:`1px solid ${LINE}`,borderRadius:12,boxShadow:'0 10px 30px rgba(0,0,0,0.18)',padding:10,direction:'rtl'}}>
+          <div style={{fontSize:12,color:'#6b5e50',marginBottom:8,fontWeight:600}}>עדיפות לביצוע</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,40px)',gap:6,justifyContent:'center'}}>
+            {[1,2,3,4,5,6,7,8,9].map(n=><button key={n} onClick={e=>pick(e,n)} style={{...cell,...(value===n?{background:INK,color:GOLD_PALE,borderColor:INK}:{})}}>{n}</button>)}
+          </div>
+          {value?<button onClick={e=>pick(e,'')} style={{...cell,width:'100%',height:32,marginTop:8,fontSize:12.5,fontWeight:500,color:'#a83b2f'}}>ללא עדיפות</button>:null}
+        </div>
+      </div>,document.body)}
+  </>);
+}
+function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,caseInfo,onPriority}){
   const [copied,setCopied]=React.useState(false);
   const isMobile=useIsMobile();
   const m=STATUS_META[project.status]||{bg:'#e8e8e8',fg:'#404040',dot:'#9e9e9e'};
@@ -2070,7 +2135,10 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,case
             onMouseLeave={e=>e.currentTarget.style.background='none'}>
             <DriveIcon size={19}/>
           </a>}
-          <Badge status={project.status} size="sm"/>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:5}}>
+            <Badge status={project.status} size="sm"/>
+            {onPriority&&<PriorityPicker value={project.priority} onPick={onPriority}/>}
+          </div>
         </div>}
       </div>
 
@@ -3688,7 +3756,7 @@ function ProjectsView({projects,closedTasks,onUpdate,user,managed,onUpdateCase,s
       : STATUS_ORDER.filter(s=>!CLIENT_STATUSES.includes(s));
     allowedStatuses.forEach(s=>{
       const items=filtered.filter(p=>p.status===s);
-      if(items.length)byStatus[s]=items;
+      if(items.length)byStatus[s]=sortByPriority(items);   // עדיפות לביצוע — בתוך כל סטטוס
     });
     // תיקים עם סטטוס שלא מוגדר ב-STATUS_ORDER
     const unknown=filtered.filter(p=>!STATUS_ORDER.includes(p.status));
@@ -3700,6 +3768,7 @@ function ProjectsView({projects,closedTasks,onUpdate,user,managed,onUpdateCase,s
     const prev=projects.find(p=>p._row===upd._row)||(closedTasks||[]).find(p=>p._row===upd._row)||{};
     const finalNotes=withNoteDate(upd.notes);
     const finalUpd={...upd,notes:finalNotes};
+    dropPriorityOnStatusChange(prev,finalUpd);
     await saveWorkToManaged(finalUpd);
     onUpdate(finalUpd._row,{...finalUpd});
     // אוטומציות (רקע)
@@ -3716,6 +3785,14 @@ function ProjectsView({projects,closedTasks,onUpdate,user,managed,onUpdateCase,s
   };
 
   const toggle=(s)=>setCollapsed(c=>({...c,[s]:!c[s]}));
+  // עדיפות לביצוע — עדכון מיידי במסך ושמירה לגיליון; בכישלון חוזר לערך הקודם
+  const setPriority=async(p,n)=>{
+    const old=p.priority||'';
+    if((n||'')===old)return;
+    onUpdate(p._row,{priority:n||''});
+    try{await putPriority(p._row,n?`${n}|${p.status}`:'');}
+    catch(e){onUpdate(p._row,{priority:old});alert('שמירת העדיפות נכשלה: '+(e.message||e));}
+  };
 
   const inp={padding:'9px 14px',borderRadius:10,border:'1px solid #e0d5c5',fontSize:14,background:'#fff',outline:'none',fontFamily:'Heebo,sans-serif',transition:'border-color 0.15s,box-shadow 0.15s'};
 
@@ -3747,6 +3824,7 @@ function ProjectsView({projects,closedTasks,onUpdate,user,managed,onUpdateCase,s
         const handleInlineSave=async(proj,field,val)=>{
           const finalVal=['yossi','michael','feigi'].includes(field)?(val&&val.trim()?stampTask(val,_currentUserName):''):val;
           const upd={...proj,[field]:finalVal};
+          dropPriorityOnStatusChange(proj,upd);
           await saveWorkToManaged(upd);
           onUpdate(upd._row,{...upd});
         };
@@ -3872,7 +3950,7 @@ function ProjectsView({projects,closedTasks,onUpdate,user,managed,onUpdateCase,s
           const isOpen=!collapsed[status];
           return(
             <StatusGroup key={status} label={status} dot={m.dot} count={items.length} isOpen={isOpen} onToggle={()=>toggle(status)} isMobile={isMobile}>
-              {items.map(p=>{const _mc=(managed||[]).find(c=>c.folder&&c.folder.trim()===p.name.trim());return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} caseInfo={_mc} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}} showPdf/>);})}
+              {items.map(p=>{const _mc=(managed||[]).find(c=>c.folder&&c.folder.trim()===p.name.trim());return(<ProjectCard key={p._row} project={p} driveLink={_mc?.driveFolderLink||''} caseInfo={_mc} onClick={e=>{const r=e?.currentTarget?.getBoundingClientRect();setPanelAnchor(r?{top:r.bottom,left:r.left,width:r.width}:null);setPanelProject(p);}} showPdf onPriority={n=>setPriority(p,n)}/>);})}
             </StatusGroup>
           );
         })
@@ -3945,6 +4023,7 @@ function ClientView({projects,onUpdate,user,managed,onUpdateCase,settings,onDele
         const handleInlineSave=async(proj,field,val)=>{
           const finalVal=['yossi','michael','feigi'].includes(field)?(val&&val.trim()?stampTask(val,_currentUserName):''):val;
           const upd={...proj,[field]:finalVal};
+          dropPriorityOnStatusChange(proj,upd);
           await saveWorkToManaged(upd);
           onUpdate(upd._row,{...upd});
         };
@@ -7332,7 +7411,7 @@ function App(){
   const loadAll=useCallback(async()=>{
     setLoading(true);setError('');
     try{
-      const rows=await api.get("'ניהול תיקים'!A2:BA"); // מקור מאוחד — מרשם + נתוני עבודה
+      const rows=await api.get("'ניהול תיקים'!A2:BB"); // מקור מאוחד — מרשם + נתוני עבודה + עדיפות (BB)
       const {managed,projects,closedTasks}=buildCasesFromManaged(rows);
       setProjects(projects);
       setManaged(managed);
@@ -7346,7 +7425,7 @@ function App(){
   const silentRefresh=useCallback(async()=>{
     if(!api.token)return;
     try{
-      const rows=await api.get("'ניהול תיקים'!A2:BA");
+      const rows=await api.get("'ניהול תיקים'!A2:BB");
       const {managed,projects,closedTasks}=buildCasesFromManaged(rows);
       setProjects(projects);
       setManaged(managed);
