@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v146'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v147'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -3058,7 +3058,9 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
         const matches=(rows||[]).filter(r=>String(r[1]||'').trim()===caseNum);
         if(!alive)return;
         if(matches.length){
-          const last=matches[matches.length-1];
+          // האחרון לפי חותמת הזמן (ולא לפי מיקום השורה — שורה שנמחקה מתמלאת מחדש בביקור הבא)
+          const tsNum=s=>{const m=String(s||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);return m?new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0),+(m[6]||0)).getTime():0;};
+          const last=matches.reduce((a,b)=>tsNum(b[0])>=tsNum(a[0])?b:a);
           const appr=String(last[2]||'').trim()==='אחר'?(last[3]||''):(last[2]||'');
           setLastVisit({ts:String(last[0]||'').trim(),appraiser:String(appr||'').trim()});
         }else setLastVisit(null);
@@ -6633,6 +6635,13 @@ function VisitFormView({managed,user,isMobile,offline}){
   },[managed]);
   const casesSrc=(managed&&managed.length)?managed:cachedCases;
   const caseNums=[...new Set(casesSrc.map(c=>String(c.caseNum||'').trim()).filter(Boolean))];
+  // בחירת תיק לפי מספר או שם: ברשימה מוצג שם התיק המלא (כולל המספר), ובבחירה נשמר מספר התיק. החדשים ראשונים.
+  const {caseLabels,caseByLabel}=React.useMemo(()=>{
+    const by={},seen=new Set();
+    casesSrc.forEach(c=>{const n=String(c.caseNum||'').trim();if(!n||seen.has(n))return;seen.add(n);
+      const nm=String(c.folder||'').trim();by[nm?(nm.includes(n)?nm:nm+' - '+n):n]=n;});
+    return {caseLabels:Object.keys(by).sort((a,b)=>String(by[b]).localeCompare(String(by[a]),undefined,{numeric:true})),caseByLabel:by};
+  },[casesSrc]);
   // ── מצב חיבור ותור ממתינים ──
   const [pending,setPending]=React.useState(()=>vqGet().length);
   const [online,setOnline]=React.useState(()=>navigator.onLine);
@@ -6800,7 +6809,10 @@ function VisitFormView({managed,user,isMobile,offline}){
   const loadHist=React.useCallback(async()=>{
     try{const rows=await api.get("'ביקורים'!A2:AS",MAAGAR_ID);
       const arr=(rows||[]).map((r,i)=>({rowNum:i+2,row:r,ts:r[0]||'',caseNum:r[1]||'',appraiser:r[3]||r[2]||'',date:r[5]||'',web:['אתר','שמאי חיצוני'].includes(r[33]||''),ext:(r[33]||'')==='שמאי חיצוני'})).filter(x=>x.web);
-      setHist(arr.reverse());  // כל הביקורים — החיפוש בהיסטוריה עובר על הכל
+      // החדש ביותר ראשון — לפי חותמת הזמן (שורה שנמחקה מתמלאת מחדש בביקור הבא, ולכן סדר השורות אינו סדר הזמן)
+      const tsNum=s=>{const m=String(s||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);return m?new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0),+(m[6]||0)).getTime():0;};
+      arr.reverse();
+      setHist(arr.map((x,i)=>({x,i,t:tsNum(x.ts)})).sort((a,b)=>(b.t-a.t)||(a.i-b.i)).map(o=>o.x));  // כל הביקורים — החיפוש בהיסטוריה עובר על הכל
     }catch(e){/* שקט */}
   },[]);
   // ── קישור עריכה לשמאי חיצוני — פותח את הביקור הקיים לתיקון (מעדכן אותה שורה) ──
@@ -6868,6 +6880,25 @@ function VisitFormView({managed,user,isMobile,offline}){
     window.scrollTo({top:0,behavior:'smooth'});
   };
   const cancelEdit=()=>{setEditRow(null);setEditOldDate('');setF(blankForm());setErr('');setMsg('');};
+  // מחיקת ביקור מהגיליון "ביקורים": השורה מרוקנת (לא נמחקת), כדי שמספרי השורות של שאר הביקורים — שקישורי עריכה נשענים עליהם — לא יזוזו.
+  // לפני הריקון בודקים שהשורה בגיליון היא עדיין אותו ביקור. קבצים ב-Drive (תמונות, סרטונים, דוח) לא נמחקים.
+  const [delBusy,setDelBusy]=React.useState(null);
+  const deleteVisit=async(h)=>{
+    const nm=(casesSrc.find(c=>String(c.caseNum||'').trim()===String(h.caseNum||'').trim())||{}).folder||('תיק '+h.caseNum);
+    if(!window.confirm(`למחוק את הביקור?\n\n${nm}\n${h.date||h.ts}${h.appraiser?' · '+h.appraiser:''}\n\nהביקור יימחק מהיסטוריית הביקורים ומ"שמאי מבקר" בכרטיס התיק. אי אפשר לבטל.\nהתמונות, הסרטונים והדוח שבתיקיית "ביקור בנכס" לא נמחקים.`))return;
+    setDelBusy(h.rowNum);setErr('');setMsg('');
+    try{
+      const cur=(await api.get(`'ביקורים'!A${h.rowNum}:B${h.rowNum}`,MAAGAR_ID))[0]||[];
+      if(String(cur[0]||'').trim()!==String(h.ts||'').trim()||String(cur[1]||'').trim()!==String(h.caseNum||'').trim()){
+        await loadHist();throw new Error('השורה בגיליון השתנתה מאז שהרשימה נטענה — הרשימה רועננה, נסו שוב');
+      }
+      await api.put(`'ביקורים'!A${h.rowNum}`,[Array(45).fill('')],MAAGAR_ID);
+      if(editRow===h.rowNum)cancelEdit();
+      setHist(hs=>hs.filter(x=>x.rowNum!==h.rowNum));
+      setMsg('הביקור נמחק ✓');setTimeout(()=>setMsg(''),3500);
+    }catch(e){setErr('המחיקה נכשלה: '+e.message);}
+    finally{setDelBusy(null);}
+  };
   // הפקה חוזרת של דוח מרשומת היסטוריה
   const genReport=(h)=>{
     const pairs=VISIT_COLS.map((label,idx)=>[label,h.row[idx]||'']).filter((p,idx)=>idx>0&&idx!==16&&idx!==33&&String(p[1]).trim()!=='');
@@ -6893,7 +6924,7 @@ function VisitFormView({managed,user,isMobile,offline}){
     if(fl.t==='levelSpecs'&&(f.divisionLevels||[]).length<=1)return null; // מפרט גימור לפי מפלס — רק אם הוסיפו מפלסים
     const v=f[fl.k];
     let inp;
-    if(fl.t==='case') inp=<div><AutocompleteInput value={v||''} onChange={x=>set(fl.k,x)} options={caseNums} style={iS} placeholder="הקלד/בחר מספר תיק..."/>{matchedCase&&matchedCase.folder&&<div style={{fontSize:12.5,color:GOLD3,marginTop:6,fontWeight:600,background:'#fef9e8',border:`1px solid ${GOLD}55`,borderRadius:8,padding:'6px 10px'}}>{matchedCase.folder}</div>}</div>;
+    if(fl.t==='case') inp=<div><AutocompleteInput value={v||''} onChange={x=>set(fl.k,caseByLabel[x]||x)} options={caseLabels} style={iS} placeholder="הקלד מספר תיק או חלק מהשם (עיר / רחוב / לקוח)..."/>{matchedCase&&matchedCase.folder&&<div style={{fontSize:12.5,color:GOLD3,marginTop:6,fontWeight:600,background:'#fef9e8',border:`1px solid ${GOLD}55`,borderRadius:8,padding:'6px 10px'}}>{matchedCase.folder}</div>}</div>;
     else if(fl.t==='text') inp=<input value={v||''} onChange={e=>set(fl.k,e.target.value)} style={iS}/>;
     else if(fl.t==='num') inp=<input type="number" inputMode="decimal" value={v||''} onChange={e=>set(fl.k,e.target.value)} style={iS}/>;
     else if(fl.t==='long') inp=<textarea value={v||''} onChange={e=>set(fl.k,e.target.value)} rows={2} style={{...iS,resize:'vertical',lineHeight:1.5}}/>;
@@ -6988,6 +7019,7 @@ function VisitFormView({managed,user,isMobile,offline}){
   const save=async()=>{
     setErr('');setMsg('');
     if(!String(f.caseNum||'').trim()){setErr('יש להזין מספר תיק');return;}
+    if(!matchedCase&&!/^\d{4,6}$/.test(String(f.caseNum).trim())){setErr('יש לבחור תיק מהרשימה (או להקליד מספר תיק)');window.scrollTo({top:0,behavior:'smooth'});return;}
     if(f.appraiser==='אחר'){ // שמאי חיצוני — כל השדות חובה
       const miss=missingRequiredVisitFields(f);
       if(miss.length){setErr('יש למלא את כל השדות. חסר: '+miss.join(', '));window.scrollTo({top:0,behavior:'smooth'});return;}
@@ -7186,6 +7218,7 @@ function VisitFormView({managed,user,isMobile,offline}){
               <button onClick={()=>editVisit(h)} title="ערוך ביקור" style={{background:'#fff',border:'1px solid #ddd0bb',borderRadius:8,padding:'4px 10px',cursor:'pointer',fontSize:12,color:'#6b5e50',fontFamily:'inherit'}}>ערוך</button>
               {h.ext&&<button onClick={()=>genEditLink(h)} title="צור קישור שהשמאי החיצוני יתקן בו את הביקור" style={{background:'#fff',border:'1px solid #cdb8e6',borderRadius:8,padding:'4px 10px',cursor:'pointer',fontSize:12,color:'#6b21a8',fontFamily:'inherit'}}>קישור לשמאי</button>}
               <button onClick={()=>genReport(h)} title="הפק דוח מחדש" style={{background:'#fff',border:'1px solid #ddd0bb',borderRadius:8,padding:'4px 10px',cursor:'pointer',fontSize:12,color:'#6b5e50',fontFamily:'inherit'}}>📄 הפק דוח</button>
+              <button onClick={()=>deleteVisit(h)} disabled={delBusy===h.rowNum} title="מחק את הביקור" style={{background:'#fff',border:'1px solid #f3c2c2',borderRadius:8,padding:'4px 10px',cursor:delBusy===h.rowNum?'default':'pointer',fontSize:12,color:'#b91c1c',fontFamily:'inherit'}}>{delBusy===h.rowNum?'מוחק…':'מחק'}</button>
             </div>
             {editLink&&editLink.rowNum===h.rowNum&&(
               <div style={{flexBasis:'100%',marginTop:4,background:'#f5f0fb',border:'1px solid #e0d0f0',borderRadius:8,padding:'8px 10px'}}>
