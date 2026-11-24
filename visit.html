@@ -48,7 +48,7 @@ function compressImage(file,maxDim,quality){
   });
 }
 const blobToDataURL=blob=>new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=()=>res(null);r.readAsDataURL(blob);});
-const MAX_VIDEO_MB=200;
+const MAX_VIDEO_MB=2048;
 function encodeLevelTexts(levels,key){
   return (levels||[]).map((lv,i)=>{const t=String((lv&&lv[key])||'').trim();if(!t)return '';const nm=String((lv&&lv.name)||'').trim();return 'מפלס '+(i+1)+(nm?' ('+nm+')':'')+': '+t;}).filter(Boolean).join(' | ');
 }
@@ -99,47 +99,225 @@ function fetchT(url,opts,ms){
   const tm=ac?setTimeout(()=>ac.abort(),ms):null;
   return fetch(url,Object.assign({},opts,ac?{signal:ac.signal}:{})).finally(()=>{if(tm)clearTimeout(tm);});
 }
-const STALL_MS=60000;     // אם אין התקדמות בהעלאה 60 שניות — מדלגים על הקובץ
-const AFTER_SEND_MS=30000; // אחרי שכל הבייטים נשלחו — ממתינים לתשובה עד 30 שניות
-const FALLBACK_MAX_MB=15; // נפילה ל-base64 רק לקבצים קטנים (מגבלת Apps Script)
-// PUT ישיר של הבייטים ל-Drive (session URI), עם התקדמות וזיהוי היתקעות
-function directPut(url,blob,onProg){
+const _blobToDataURL=blobToDataURL, imgToBlob=compressImage;
+// ── מנוע העלאת קבצי ביקור (זהה למנוע שבאתר; כאן it.folderId מחזיק את טוקן הקישור ונשלח כ-t) ──
+// תור של 3 קבצים במקביל · ניסיונות חוזרים · סרטונים בחלקים עם המשך מהנקודה שנעצרה · דילוג על קובץ שכבר קיים בתיקייה ·
+// אימות מול התיקייה ב-Drive לפני שמסמנים ✓. חי מחוץ לקומפוננטה — ההעלאה ממשיכה גם כשעוברים למסך אחר באתר.
+const VU_PAR=3, VU_TRIES=3, VU_CHUNK=8*1024*1024, VU_STALL=60000, VU_AFTER=30000, VU_FALLBACK_MB=15, VU_MAX_VIDEO_MB=2048;
+const _sleep=ms=>new Promise(r=>setTimeout(r,ms));
+// קריאה לסקריפט הביקור עם הגבלת זמן — מחזיר JSON או null
+async function extPost(body,ms){
+  const ac=(typeof AbortController!=='undefined')?new AbortController():null;
+  const tm=ac?setTimeout(()=>ac.abort(),ms||30000):null;
+  try{const r=await fetch(EXT_APPS_URL,Object.assign({method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)},ac?{signal:ac.signal}:{}));return await r.json();}
+  catch(_){return null;}
+  finally{if(tm)clearTimeout(tm);}
+}
+// PUT של בייטים ל-Drive (session URI), עם זיהוי היתקעות. מחזיר {status,sent}; status 0 = אין תשובה קריאה
+function vuPut(url,blob,range,type,onProg){
   return new Promise(resolve=>{
-    let sent=false,finished=false,timer=null;
-    const finish=v=>{if(finished)return;finished=true;if(timer)clearTimeout(timer);resolve(v);};
+    let sent=false,fin=false,timer=null;const xhr=new XMLHttpRequest();
+    const finish=st=>{if(fin)return;fin=true;if(timer)clearTimeout(timer);resolve({status:st,sent});};
+    const arm=ms=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>{try{xhr.abort();}catch(_){}finish(0);},ms);};
     try{
-      const xhr=new XMLHttpRequest();
-      const arm=ms=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>{try{xhr.abort();}catch(_){} finish(sent);},ms);};
       xhr.open('PUT',url,true);
-      xhr.setRequestHeader('Content-Type',blob.type||'application/octet-stream');
+      xhr.setRequestHeader('Content-Type',type||'application/octet-stream');
+      if(range)xhr.setRequestHeader('Content-Range',range);
       if(xhr.upload){
-        xhr.upload.onprogress=ev=>{if(ev.lengthComputable){if(onProg)onProg(ev.loaded/ev.total);if(ev.loaded>=ev.total){sent=true;arm(AFTER_SEND_MS);}else arm(STALL_MS);}};
-        xhr.upload.onload=()=>{sent=true;arm(AFTER_SEND_MS);};
+        xhr.upload.onprogress=ev=>{if(!ev.lengthComputable)return;if(onProg)onProg(ev.loaded/ev.total);if(ev.loaded>=ev.total){sent=true;arm(VU_AFTER);}else arm(VU_STALL);};
+        xhr.upload.onload=()=>{sent=true;arm(VU_AFTER);};
       }
-      // אם התשובה קריאה — לפי הסטטוס; אם חסומה ב-CORS (status 0) — לפי סיום שליחת הבייטים
-      xhr.onload=()=>finish(xhr.status===0?sent:(xhr.status>=200&&xhr.status<300));
-      xhr.onerror=()=>finish(sent);
-      xhr.onabort=()=>finish(sent);
-      arm(STALL_MS);
-      xhr.send(blob);
-    }catch(_){finish(false);}
+      xhr.onload=()=>finish(xhr.status);xhr.onerror=()=>finish(0);xhr.onabort=()=>finish(0);
+      arm(VU_STALL);xhr.send(blob);
+    }catch(_){finish(0);}
   });
 }
-// העלאת קובץ בודד: ניסיון ישיר ל-Drive, ואם נכשל — נפילה ל-base64 דרך ה-Apps Script (לקבצים קטנים בלבד)
-async function uploadOne(fileObj, gate, onProg){
-  try{
-    const r=await fetchT(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action:'startUpload',name:fileObj.name,mimeType:fileObj.blob.type||'application/octet-stream'},gate))},30000);
-    const j=await r.json();
-    if(j&&j.ok&&j.uploadUrl){ const ok=await directPut(j.uploadUrl,fileObj.blob,onProg); if(ok)return true; }
-  }catch(_){}
-  if((fileObj.blob.size||0)>FALLBACK_MAX_MB*1024*1024) return false;
-  try{
-    const dataUrl=await blobToDataURL(fileObj.blob);
-    if(!dataUrl) return false;
-    const r=await fetchT(EXT_APPS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action:'uploadFile',name:fileObj.name,data:dataUrl},gate))},120000);
-    const j=await r.json(); return !!(j&&j.ok);
-  }catch(_){return false;}
+async function vuStart(it){
+  const j=await extPost({action:'startUpload',name:it.name,mimeType:it.blob.type||'application/octet-stream',origin:location.origin,t:it.folderId},30000);
+  return (j&&j.ok&&j.uploadUrl)?j.uploadUrl:'';
 }
+// מצב העלאה לפי Drive עצמו (דרך הסקריפט): {done,received} או null כשלא ידוע
+async function vuStatus(url){const j=await extPost({action:'uploadStatus',uploadUrl:url},30000);return (j&&j.ok)?j:null;}
+// שמות הקבצים שכבר בתת-תיקיית "ביקור בנכס": {שם:כמות}, או null כשלא ניתן לבדוק
+async function vuList(folderId){
+  const j=await extPost({action:'listFiles',t:folderId},45000);
+  if(!(j&&j.ok&&Array.isArray(j.files)))return null;
+  const m={};j.files.forEach(f=>{const n=String(f.name||'');m[n]=(m[n]||0)+1;});return m;
+}
+// העלאה בבקשה אחת (תמונות וקבצים קטנים) → 'ok' / 'unverified' (נשלח, אין אישור) / 'fail'
+async function vuSingle(it,onProg){
+  const url=await vuStart(it);if(!url)return 'fail';
+  const r=await vuPut(url,it.blob,null,it.blob.type,onProg);
+  if(r.status>=200&&r.status<300)return 'ok';
+  if(r.status===0&&r.sent){const st=await vuStatus(url);if(st)return st.done?'ok':'fail';return 'unverified';}
+  return 'fail';
+}
+// העלאה בחלקים של 8MB (סרטונים): אחרי תקלה שואלים את Drive כמה התקבל וממשיכים משם → 'ok' / 'unverified' / 'fail' / 'nochunk'
+async function vuChunked(it,onProg){
+  const url=await vuStart(it);if(!url)return 'fail';
+  const total=it.blob.size,type=it.blob.type||'application/octet-stream';let off=0,bad=0,moved=false;
+  while(off<total){
+    const end=Math.min(off+VU_CHUNK,total),o=off;
+    const r=await vuPut(url,it.blob.slice(o,end),`bytes ${o}-${end-1}/${total}`,type,p=>onProg&&onProg((o+p*(end-o))/total));
+    if(r.status>=200&&r.status<300)return 'ok';
+    if(r.status===308){off=end;bad=0;moved=true;continue;}
+    const st=await vuStatus(url);
+    if(st&&st.done)return 'ok';
+    if(st&&typeof st.received==='number'){
+      if(st.received>off){moved=true;bad=0;off=st.received;continue;}
+      off=st.received;
+    }
+    if(++bad>=5)return moved?'fail':'nochunk';
+    await _sleep(1500*bad);
+  }
+  const st=await vuStatus(url);return st?(st.done?'ok':'fail'):'unverified';
+}
+// קובץ אחד עד הסוף → הסטטוס הבא שלו: 'done' / 'verify' (ייבדק מול התיקייה)
+async function vuRun(it){
+  let last=0;const prog=p=>{if(p-last>=0.04||p>=1){last=p;vu.patch(it,{prog:p});}};
+  for(let a=1;a<=VU_TRIES;a++){
+    let res;last=0;
+    if(it.blob.size>VU_CHUNK&&!it.noChunk){res=await vuChunked(it,prog);if(res==='nochunk'){it.noChunk=true;res=await vuSingle(it,prog);}}
+    else res=await vuSingle(it,prog);
+    if(res==='ok')return 'done';
+    if(res==='unverified'){it.sentAll=true;return 'verify';}
+    const m=await vuList(it.folderId);if(m&&m[it.name])return 'done';   // נכשל לכאורה — אולי בכל זאת הגיע
+    if(a<VU_TRIES)await _sleep(2000*a);
+  }
+  // גיבוי אחרון לקבצים קטנים: שליחה דרך הסקריפט
+  if(it.blob.size<=VU_FALLBACK_MB*1024*1024){
+    const d=await _blobToDataURL(it.blob);
+    if(d){const j=await extPost({action:'uploadFile',name:it.name,data:d,t:it.folderId},120000);if(j&&j.ok)return 'done';}
+  }
+  return 'verify';
+}
+// תאריך הצילום מתוך ה-EXIF של JPEG → 'YYYYMMDD_HHMMSS' (או '' אם אין)
+async function exifDate(file){
+  try{
+    const v=new DataView(await file.slice(0,262144).arrayBuffer());
+    if(v.getUint16(0)!==0xFFD8)return '';
+    let p=2;
+    while(p+4<v.byteLength){
+      if(v.getUint8(p)!==0xFF)return '';
+      const mk=v.getUint8(p+1),len=v.getUint16(p+2);
+      if(mk===0xE1&&v.getUint32(p+4)===0x45786966){
+        const t=p+10,le=v.getUint16(t)===0x4949;
+        const u16=o=>v.getUint16(o,le),u32=o=>v.getUint32(o,le);
+        const find=(ifd,tag)=>{const n=u16(ifd);for(let i=0;i<n;i++){const e=ifd+2+i*12;if(u16(e)===tag)return t+u32(e+8);}return 0;};
+        const ifd0=t+u32(t+4),sub=find(ifd0,0x8769);
+        const at=(sub?find(sub,0x9003):0)||find(ifd0,0x0132);
+        if(!at)return '';
+        let s='';for(let i=0;i<19;i++)s+=String.fromCharCode(v.getUint8(at+i));
+        const m=s.match(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+        return (m&&m[1]!=='0000')?m[1]+m[2]+m[3]+'_'+m[4]+m[5]+m[6]:'';
+      }
+      if(mk===0xDA)return '';
+      p+=2+len;
+    }
+  }catch(_){}
+  return '';
+}
+// שם הקובץ ב-Drive: לפי תאריך ושעת הצילום (כמו במצלמה: 20261124_114519.jpg), כדי שלא יישמר המספר הסידורי שבורר התמונות של אנדרואיד נותן
+async function visitMediaName(file,isVideo,pickedAt){
+  const o=String(file.name||''),base=o.replace(/\.[^.]+$/,'');
+  const ext=isVideo?((o.match(/\.[A-Za-z0-9]{2,5}$/)||['.mp4'])[0].toLowerCase()):'.jpg';
+  if(/^([A-Za-z]{2,4}_)?\d{8}[_-]\d{6}/.test(base))return base+ext;          // כבר שם של מצלמה
+  let d=isVideo?'':await exifDate(file);
+  if(!d){
+    const t=+file.lastModified||0;                                            // זמן הקובץ — רק אם הוא לא "עכשיו" (יש בוררים שמחזירים את רגע הבחירה)
+    if(t>0&&t<pickedAt-10000){const x=new Date(t),q=n=>String(n).padStart(2,'0');d=x.getFullYear()+q(x.getMonth()+1)+q(x.getDate())+'_'+q(x.getHours())+q(x.getMinutes())+q(x.getSeconds());}
+  }
+  return (d||base||'ביקור')+ext;
+}
+const vu={items:[],running:0,seq:0,verifying:false,locked:false,wl:null,subs:new Set(),
+  emit(){this.subs.forEach(f=>f());},
+  patch(it,p){Object.assign(it,p);this.emit();},
+  busy(){return this.running>0||this.verifying||this.items.some(x=>['prep','queued','uploading','verify'].includes(x.status));},
+  _bu(e){e.preventDefault();e.returnValue='';return '';},
+  lock(){
+    if(this.locked)return;this.locked=true;window.addEventListener('beforeunload',this._bu);
+    try{if(navigator.wakeLock)navigator.wakeLock.request('screen').then(w=>{if(this.locked)this.wl=w;else w.release();}).catch(()=>{});}catch(_){}
+  },
+  unlock(){
+    if(!this.locked||this.busy())return;this.locked=false;window.removeEventListener('beforeunload',this._bu);
+    try{if(this.wl)this.wl.release();}catch(_){}this.wl=null;
+  },
+  // הוספת קבצים שנבחרו לתיקיית Drive של התיק
+  async add(fileList,folderId){
+    const pickedAt=Date.now(),fresh=[];
+    for(const file of fileList){
+      // אותו קובץ כבר ברשימה של התיק הזה? לא מוסיפים שוב (אם נכשל קודם — מחזירים אותו לתור)
+      const dup=this.items.find(x=>x.folderId===folderId&&x.orig===file.name&&x.osize===file.size);
+      if(dup){if(dup.status==='failed'&&dup.blob){dup.status='queued';dup.note='';}continue;}
+      const it={id:++this.seq,folderId,file,orig:file.name,osize:file.size,isVideo:/^video\//.test(file.type),name:file.name,url:'',status:'prep',prog:0,note:'',blob:null};
+      this.items.push(it);fresh.push(it);
+    }
+    this.lock();this.emit();
+    const existing=fresh.length?await vuList(folderId):null;
+    for(const it of fresh){
+      const file=it.file;it.file=null;
+      if(it.isVideo&&file.size>VU_MAX_VIDEO_MB*1024*1024){this.patch(it,{status:'failed',note:'סרטון גדול מדי (מעל 2GB)'});continue;}
+      let name=await visitMediaName(file,it.isVideo,pickedAt);
+      if(this.items.some(x=>x!==it&&x.folderId===folderId&&x.name===name)){   // שני קבצים שונים מאותה שנייה — מוסיפים את השם המקורי
+        const ob=String(it.orig||'').replace(/\.[^.]+$/,''),m=name.match(/^(.*)(\.[^.]+)$/);name=m[1]+'_'+(ob||it.id)+m[2];
+      }
+      it.name=name;
+      if(existing&&existing[name]){this.patch(it,{status:'exists'});continue;}
+      if(it.isVideo)it.blob=file;
+      else{
+        const b=await imgToBlob(file,2560,0.9);
+        if(b){it.blob=b;it.url=URL.createObjectURL(b);}
+        else{it.blob=file;it.name=name.replace(/\.jpg$/,(String(it.orig||'').match(/\.[A-Za-z0-9]{2,5}$/)||['.jpg'])[0].toLowerCase());}   // לא נפתחה כתמונה — עולה כמו שהיא
+      }
+      this.patch(it,{status:'queued'});this.pump();
+    }
+    this.pump();
+  },
+  async addReady(list,key){
+    const fresh=list.filter(p=>!this.items.some(x=>x.src===p)).map(p=>({id:++this.seq,folderId:key,src:p,isVideo:!!p.isVideo,name:p.name,url:p.url||'',status:'prep',prog:0,note:'',blob:p.blob}));
+    this.items.push(...fresh);this.lock();this.emit();
+    const existing=fresh.length?await vuList(key):null;
+    fresh.forEach(it=>{it.status=(existing&&existing[it.name])?'exists':'queued';});
+    this.emit();this.pump();
+  },
+  pump(){
+    while(this.running<VU_PAR){
+      const it=this.items.find(x=>x.status==='queued');if(!it)break;
+      this.running++;it.status='uploading';it.prog=0;this.lock();this.emit();
+      vuRun(it).then(s=>{it.status=s;},()=>{it.status='verify';}).then(()=>{this.running--;this.emit();this.pump();});
+    }
+    if(!this.running&&!this.items.some(x=>x.status==='queued'||x.status==='prep'))this.verify();
+  },
+  // אימות מול התיקייה: קובץ שנשלח אבל לא התקבל עליו אישור מסומן ✓ רק אם הוא באמת נמצא ב-Drive
+  async verify(){
+    if(this.verifying)return;
+    const pend=this.items.filter(x=>x.status==='verify');
+    if(!pend.length){this.unlock();this.emit();return;}
+    this.verifying=true;this.emit();
+    for(const fid of [...new Set(pend.map(x=>x.folderId))]){
+      const mine=pend.filter(x=>x.folderId===fid);
+      let m=await vuList(fid);
+      if(m&&mine.some(x=>!m[x.name])){await _sleep(4000);m=(await vuList(fid))||m;}
+      mine.forEach(x=>{
+        const ok=m?!!m[x.name]:!!x.sentAll;   // אין אפשרות לבדוק (אין רשת / סקריפט ישן) — מסתמכים על כך שכל הבייטים נשלחו
+        x.status=ok?'done':'failed';if(!ok)x.note='הקובץ לא הגיע ל-Drive';
+      });
+    }
+    this.verifying=false;this.emit();
+    if(this.items.some(x=>x.status==='queued'))this.pump();else{this.unlock();this.emit();}
+  },
+  retry(folderId){
+    this.items.forEach(x=>{if(x.folderId===folderId&&x.status==='failed'&&x.blob){x.status='queued';x.note='';x.sentAll=false;}});
+    this.emit();this.pump();
+  },
+};
+vu._bu=vu._bu.bind(vu);
+function useVisitUp(){
+  const [,force]=React.useState(0);
+  React.useEffect(()=>{const cb=()=>force(x=>x+1);vu.subs.add(cb);return()=>{vu.subs.delete(cb);};},[]);
+  return vu;
+}
+const vuIdle=async()=>{await _sleep(50);while(vu.busy())await _sleep(300);};
 // שמירת טיוטה מקומית בטלפון (לא נשלח לשום מקום)
 const draftKey=t=>'rr_visit_draft_'+t;
 function loadDraft(t){try{const s=localStorage.getItem(draftKey(t));return s?JSON.parse(s):null;}catch(_){return null;}}
@@ -231,20 +409,30 @@ function App(){
   const [photos,setPhotos]=useState([]);
   const [progress,setProgress]=useState('');
   const [failedFiles,setFailedFiles]=useState([]); // קבצים שלא עלו — לניסיון חוזר
+  useVisitUp();   // מנוע ההעלאה (vu) — רינדור מחדש בכל שינוי
+  const vuN=vu.items.length,vuOk=vu.items.filter(x=>x.status==='done'||x.status==='exists').length,vuVid=vu.items.find(x=>x.status==='uploading'&&x.isVideo);
+  const vuNotDone=list=>list.filter(p=>{const it=vu.items.find(x=>x.src===p);return !it||it.status==='failed';});
   const [draftNote,setDraftNote]=useState(false);
   const draftReady=useRef(false);
   const set=(k,v)=>setF(s=>({...s,[k]:v}));
   const toggleMulti=(k,o)=>setF(s=>{const cur=s[k]||[];return {...s,[k]:cur.includes(o)?cur.filter(x=>x!==o):[...cur,o]};});
+  const photosRef=useRef([]);photosRef.current=photos;
   const onPickFiles=async(e)=>{
     const list=Array.from(e.target.files||[]); e.target.value=''; setErr('');
+    const pickedAt=Date.now(),taken=photosRef.current.slice();   // מה שכבר נבחר + מה שנוסף בסבב הזה
     for(const file of list){
-      if(/^video\//.test(file.type)){
-        if(file.size>MAX_VIDEO_MB*1024*1024){setErr('סרטון גדול מדי (מעל '+MAX_VIDEO_MB+'MB): '+file.name);continue;}
-        setPhotos(ps=>[...ps,{name:file.name,blob:file,isVideo:true,url:''}]);
-      }else{
-        const blob=await compressImage(file,2048,0.85);
-        if(blob){const nm=(file.name.replace(/\.[^.]+$/,'')||'photo')+'.jpg';setPhotos(ps=>[...ps,{name:nm,blob,isVideo:false,url:URL.createObjectURL(blob)}]);}
+      if(taken.some(p=>p.orig===file.name&&p.osize===file.size))continue;   // אותו קובץ נבחר כבר
+      const isVideo=/^video\//.test(file.type);
+      if(isVideo&&file.size>MAX_VIDEO_MB*1024*1024){setErr('סרטון גדול מדי (מעל 2GB): '+file.name);continue;}
+      let name=await visitMediaName(file,isVideo,pickedAt),blob=file,url='';
+      if(!isVideo){
+        const b=await compressImage(file,2048,0.85);
+        if(b){blob=b;url=URL.createObjectURL(b);}
+        else name=name.replace(/\.jpg$/,(String(file.name||'').match(/\.[A-Za-z0-9]{2,5}$/)||['.jpg'])[0].toLowerCase());   // לא נפתחה כתמונה — עולה כמו שהיא
       }
+      if(taken.some(p=>p.name===name)){const ob=String(file.name||'').replace(/\.[^.]+$/,''),m=name.match(/^(.*)(\.[^.]+)$/);name=m[1]+'_'+(ob||taken.length)+m[2];}   // שני קבצים מאותה שנייה
+      const item={name,blob,isVideo,url,orig:file.name,osize:file.size};
+      taken.push(item);setPhotos(ps=>[...ps,item]);
     }
   };
   const removePhoto=i=>setPhotos(ps=>ps.filter((_,j)=>j!==i));
@@ -401,23 +589,8 @@ function App(){
     return ()=>window.removeEventListener('beforeunload',h);
   },[status]);
 
-  // העלאת קבצים (אחרי שהטופס כבר נשמר) — מחזיר את רשימת הקבצים שנכשלו
-  const uploadFiles=async(list)=>{
-    let wl=null; try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen');}catch(_){} // מונע כיבוי מסך
-    const failed=[]; let done=0, idx=0; const total=list.length;
-    setProgress(`מעלה קבצים… 0/${total}`);
-    const worker=async()=>{
-      while(idx<total){
-        const i=idx++;
-        const ok=await uploadOne(list[i],{t:token}); if(!ok)failed.push(list[i]);
-        done++; setProgress(`מעלה קבצים… ${done}/${total}`);
-      }
-    };
-    await Promise.all(Array.from({length:Math.min(3,total)},()=>worker()));
-    try{if(wl)wl.release();}catch(_){}
-    setProgress('');
-    return failed;
-  };
+  // העלאת קבצים (אחרי שהטופס כבר נשמר) — תור, ניסיונות חוזרים, דילוג על קיימים ואימות מול התיקייה. מחזיר את מה שלא עלה
+  const uploadFiles=async(list)=>{await vu.addReady(list,token);await vuIdle();return vuNotDone(list);};
 
   const submit=async()=>{
     setErr('');
@@ -449,8 +622,8 @@ function App(){
   const retryFailed=async()=>{
     const list=failedFiles; if(!list.length)return;
     setStatus('uploading');
-    const failed=await uploadFiles(list);
-    setFailedFiles(failed);
+    vu.retry(token);await vuIdle();
+    setFailedFiles(vuNotDone(list));
     setStatus('done');
   };
 
@@ -480,7 +653,7 @@ function App(){
         <div style={{fontSize:40,marginBottom:8}}>✅</div>
         <div style={{fontSize:17,fontWeight:600,color:'#15803d',marginBottom:14}}>פרטי הביקור נשמרו במשרד</div>
         <div style={{width:48,height:48,margin:'0 auto',borderRadius:'50%',border:'3px solid rgba(217,175,52,.18)',borderTopColor:GOLD,animation:'spin .9s linear infinite'}}/>
-        <div style={{marginTop:12,fontSize:16,fontWeight:600,color:GOLD3}}>{progress||'מעלה קבצים…'}</div>
+        <div style={{marginTop:12,fontSize:16,fontWeight:600,color:GOLD3}}>{vuN?`מעלה קבצים… ${vuOk}/${vuN}`+(vuVid?` · סרטון ${Math.round((vuVid.prog||0)*100)}%`:''):(progress||'מעלה קבצים…')}</div>
         <div style={{marginTop:12,background:'#fff7e0',border:'1px solid #f0d78a',borderRadius:10,padding:'10px 14px',color:'#7a5a00',fontSize:14,lineHeight:1.6}}>
           ⚠️ נא לא לסגור את הדף ולא לנעול את המסך עד לסיום העלאת התמונות.
         </div>
@@ -535,7 +708,7 @@ function App(){
         {VISIT_FIELDS.map(renderField)}
         {info&&info.photos&&<div style={{borderTop:'1px solid #f0ebe2',paddingTop:16,marginTop:8}}>
           <div style={{fontSize:14,fontWeight:700,color:GOLD3,marginBottom:6}}>📷 תמונות וסרטונים מהביקור</div>
-          <div style={{fontSize:12.5,color:'#9a8e84',marginBottom:10}}>אפשר לצרף תמונות (באיכות גבוהה) וסרטונים מהנכס. סרטון עד {MAX_VIDEO_MB}MB לקובץ. ההעלאה ישירה ומהירה.</div>
+          <div style={{fontSize:12.5,color:'#9a8e84',marginBottom:10}}>אפשר לצרף תמונות (באיכות גבוהה) וסרטונים מהנכס. סרטון עד 2GB לקובץ. קובץ שכבר הועלה לא יועלה שוב.</div>
           <label style={{display:'inline-block',border:`1.5px dashed ${GOLD}`,background:'#fff',color:GOLD3,borderRadius:9,padding:'10px 16px',cursor:'pointer',fontSize:14,fontWeight:600}}>
             ➕ בחר תמונות / סרטונים
             <input type="file" accept="image/*,video/*" multiple onChange={onPickFiles} style={{display:'none'}}/>
@@ -543,9 +716,9 @@ function App(){
           {photos.length>0&&<div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:12}}>
             {photos.map((p,i)=>(
               <div key={i} style={{position:'relative',width:84,height:84,borderRadius:8,overflow:'hidden',border:'1px solid #e0d8cc',background:'#f0ede8'}}>
-                {p.isVideo
+                {(p.isVideo||!p.url)
                   ? <div style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:3,padding:4}}>
-                      <span style={{fontSize:24}}>🎬</span>
+                      <span style={{fontSize:24}}>{p.isVideo?'🎬':'🖼️'}</span>
                       <span style={{fontSize:9,color:'#7a6a58',textAlign:'center',lineHeight:1.2,wordBreak:'break-word',maxHeight:24,overflow:'hidden'}}>{p.name}</span>
                     </div>
                   : <img src={p.url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>}
