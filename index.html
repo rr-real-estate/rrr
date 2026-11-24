@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v149'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v150'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -2090,15 +2090,15 @@ function PriorityPicker({value,onPick}){
   const cell={width:40,height:40,borderRadius:10,border:`1px solid ${LINE}`,background:'#fff',cursor:'pointer',fontFamily:'Heebo,sans-serif',fontSize:15,fontWeight:600,color:INK,padding:0};
   return(<>
     <button onClick={open} title={value?`עדיפות לביצוע: ${value} — לחץ לשינוי`:'סמן עדיפות לביצוע'}
-      style={{minWidth:24,height:24,borderRadius:12,padding:value?'0 7px':0,boxSizing:'border-box',cursor:'pointer',fontFamily:'Heebo,sans-serif',fontSize:13,fontWeight:700,lineHeight:1,
+      style={{width:'50%',minWidth:34,height:20,borderRadius:20,padding:0,boxSizing:'border-box',cursor:'pointer',fontFamily:'Heebo,sans-serif',fontSize:12,fontWeight:700,lineHeight:1,
         display:'inline-flex',alignItems:'center',justifyContent:'center',
-        background:value?INK:'transparent',color:value?GOLD_PALE:'#b8ab98',border:value?`1px solid ${INK}`:'1.5px dashed #c9bda9'}}>{value||''}</button>
+        background:value?'#e6e3de':'transparent',color:'#4d4841',border:value?'1px solid #b9b3aa':'1.5px dashed #c4bdb2'}}>{value||''}</button>
     {pos&&ReactDOM.createPortal(
       <div onClick={e=>{e.stopPropagation();setPos(null);}} style={{position:'fixed',inset:0,zIndex:4000}}>
         <div onClick={e=>e.stopPropagation()} style={{position:'fixed',top:pos.top,left:pos.left,width:156,background:'#fff',border:`1px solid ${LINE}`,borderRadius:12,boxShadow:'0 10px 30px rgba(0,0,0,0.18)',padding:10,direction:'rtl'}}>
           <div style={{fontSize:12,color:'#6b5e50',marginBottom:8,fontWeight:600}}>עדיפות לביצוע</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,40px)',gap:6,justifyContent:'center'}}>
-            {[1,2,3,4,5,6,7,8,9].map(n=><button key={n} onClick={e=>pick(e,n)} style={{...cell,...(value===n?{background:INK,color:GOLD_PALE,borderColor:INK}:{})}}>{n}</button>)}
+            {[1,2,3,4,5,6,7,8,9].map(n=><button key={n} onClick={e=>pick(e,n)} style={{...cell,...(value===n?{background:'#e6e3de',borderColor:'#8f8a83'}:{})}}>{n}</button>)}
           </div>
           {value?<button onClick={e=>pick(e,'')} style={{...cell,width:'100%',height:32,marginTop:8,fontSize:12.5,fontWeight:500,color:'#a83b2f'}}>ללא עדיפות</button>:null}
         </div>
@@ -2160,10 +2160,9 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,case
               {parts[1]&&<span style={{color:'#3a3228'}}>{' — '}{parts.slice(1).join(' — ')}</span>}
             </div>}
         </div>
-        {!isGeneral&&<div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
-          {isMobile&&<WazeButton c={caseInfo}/>}
-          {isMobile&&<VisitCardButton caseNum={caseNum}/>}
-          <CardLinksButton c={caseInfo}/>
+        {!isGeneral&&<div style={{display:'flex',alignItems:isMobile?'flex-start':'center',gap:4,flexShrink:0}}>
+          {/* נייד: שתי עמודות סמלים — קישורים ומתחתיו Waze · Drive ומתחתיו ביקור בנכס */}
+          {isMobile?<div style={CARD_ICON_COL}><CardLinksButton c={caseInfo}/><WazeButton c={caseInfo}/></div>:<CardLinksButton c={caseInfo}/>}
           {_folderPath&&!isMobile&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_folderPath);}}
             style={{background:'none',border:'none',cursor:'pointer',padding:'3px 4px',lineHeight:1,borderRadius:6,transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
@@ -2172,6 +2171,7 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,case
             style={{background:'none',border:'none',cursor:'pointer',padding:'3px 4px',lineHeight:1,borderRadius:6,transition:'background 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'}
             onMouseLeave={e=>e.currentTarget.style.background='none'}><PdfStackIcon size={20}/></button>}
+          <div style={isMobile?CARD_ICON_COL:{display:'contents'}}>
           {driveLink&&<a href={driveLink} target="_blank" rel="noopener noreferrer" title="פתח תיקייה בגוגל דרייב"
             onClick={e=>e.stopPropagation()}
             style={{display:'inline-flex',alignItems:'center',justifyContent:'center',background:'none',border:'none',cursor:'pointer',padding:'3px 4px',borderRadius:6,textDecoration:'none',transition:'background 0.15s'}}
@@ -2179,7 +2179,9 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,case
             onMouseLeave={e=>e.currentTarget.style.background='none'}>
             <DriveIcon size={19}/>
           </a>}
-          <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:5}}>
+          {isMobile&&<VisitCardButton caseNum={caseNum}/>}
+          </div>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:5}}>
             <Badge status={project.status} size="sm"/>
             {onPriority&&<PriorityPicker value={project.priority} onPick={onPriority}/>}
           </div>
@@ -2588,6 +2590,39 @@ function WazeButton({c}){
       <circle cx="8.300" cy="19.600" r="1.900" fill="#14110d"/><circle cx="15.700" cy="19.600" r="1.900" fill="#14110d"/>
     </svg>
   </a>;
+}
+const CARD_ICON_COL={display:'flex',flexDirection:'column',alignItems:'center',gap:4};   // עמודת סמלים בכרטיס תיק (נייד)
+// כפתור "בקשות לאתר" בדף הבית — הבקשה נרשמת כמשימה כללית למיכאל (מופיעה בפרויקטים בביצוע)
+function SiteRequestButton({onAdd}){
+  const [open,setOpen]=React.useState(false);
+  const [txt,setTxt]=React.useState('');
+  const [st,setSt]=React.useState(null);   // null | 'busy' | 'done' | {err}
+  const send=async()=>{
+    const t=txt.trim();if(!t||st==='busy')return;
+    setSt('busy');
+    try{await onAdd('michael','בקשה לאתר: '+t);setTxt('');setSt('done');setTimeout(()=>{setOpen(false);setSt(null);},1400);}
+    catch(e){setSt({err:'השמירה נכשלה: '+(e.message||e)});}
+  };
+  return <>
+    <button onClick={()=>{setOpen(true);setSt(null);}} title="בקשות ושדרוגים לאתר — נרשמות כמשימה למיכאל"
+      style={{background:MYOS_TEAL,color:'#fff',border:'none',borderRadius:10,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:6}}>
+      <Icon name="plus" size={14}/>בקשות לאתר</button>
+    {open&&ReactDOM.createPortal(
+      <div onClick={()=>{if(st!=='busy')setOpen(false);}} style={{position:'fixed',inset:0,zIndex:4000,background:'rgba(20,17,13,0.45)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:14,padding:20,width:'100%',maxWidth:440,direction:'rtl',boxShadow:'0 20px 50px rgba(0,0,0,0.3)',fontFamily:'Heebo,sans-serif'}}>
+          <div style={{fontFamily:SERIF,fontSize:18,fontWeight:500,color:INK,marginBottom:4}}>בקשה לאתר</div>
+          <div style={{fontSize:12.5,color:'#8a7d70',marginBottom:10}}>מה לשפר, להוסיף או לתקן? הבקשה תירשם כמשימה למיכאל.</div>
+          <textarea value={txt} onChange={e=>setTxt(e.target.value)} rows={4} autoFocus placeholder="תיאור הבקשה..."
+            style={{width:'100%',boxSizing:'border-box',padding:'10px 12px',borderRadius:10,border:'1px solid #ddd0bb',fontSize:14,fontFamily:'inherit',outline:'none',resize:'vertical',lineHeight:1.5}}/>
+          {st&&st.err&&<div style={{fontSize:12.5,color:'#b91c1c',marginTop:6}}>{st.err}</div>}
+          {st==='done'&&<div style={{fontSize:13,color:'#15803d',marginTop:6,fontWeight:600}}>הבקשה נרשמה ✓</div>}
+          <div style={{display:'flex',gap:8,marginTop:14,justifyContent:'flex-start'}}>
+            <button onClick={send} disabled={!txt.trim()||st==='busy'||st==='done'} style={{background:MYOS_TEAL,color:'#fff',border:'none',borderRadius:9,padding:'9px 20px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit',opacity:(!txt.trim()||st==='busy'||st==='done')?0.55:1}}>{st==='busy'?'שומר...':'שלח בקשה'}</button>
+            <button onClick={()=>setOpen(false)} disabled={st==='busy'} style={{background:'transparent',color:'#6b5e50',border:`1px solid ${LINE}`,borderRadius:9,padding:'9px 16px',cursor:'pointer',fontSize:14,fontFamily:'inherit'}}>ביטול</button>
+          </div>
+        </div>
+      </div>,document.body)}
+  </>;
 }
 // כפתור "ביקור בנכס" בפינת כרטיס התיק — בתצוגת נייד בלבד; פותח את דף הביקור עם מספר התיק מוזן
 function VisitCardButton({caseNum}){
@@ -4302,17 +4337,18 @@ function ManagedCaseCard({cas,onClick,isMobile}){
           <span style={CASE_NUM_STYLE}>תיק {cas.caseNum}</span>
           <div style={{fontFamily:SERIF,fontSize:17,fontWeight:500,color:INK,lineHeight:1.35,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={title}>{title}</div>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
-          {isMobile&&<WazeButton c={cas}/>}
-          {isMobile&&<VisitCardButton caseNum={cas.caseNum}/>}
-          <CardLinksButton c={cas}/>
+        <div style={{display:'flex',alignItems:isMobile?'flex-start':'center',gap:4,flexShrink:0}}>
+          {isMobile?<div style={CARD_ICON_COL}><CardLinksButton c={cas}/><WazeButton c={cas}/></div>:<CardLinksButton c={cas}/>}
           {_fp&&!isMobile&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_fp);}} style={ib}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'} onMouseLeave={e=>e.currentTarget.style.background='none'}><WinFolderIcon size={20}/></button>}
           {_fp&&!isMobile&&<button title="פתח את כל קובצי ה-PDF שבתיקייה" onClick={e=>{e.stopPropagation();openPdfs(_fp);}} style={ib}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'} onMouseLeave={e=>e.currentTarget.style.background='none'}><PdfStackIcon size={20}/></button>}
+          <div style={isMobile?CARD_ICON_COL:{display:'contents'}}>
           {_drive&&<a href={_drive} target="_blank" rel="noopener noreferrer" title="פתח תיקייה בגוגל דרייב" onClick={e=>e.stopPropagation()}
             style={{...ib,display:'inline-flex',alignItems:'center',justifyContent:'center',textDecoration:'none'}}
             onMouseEnter={e=>e.currentTarget.style.background='#e8f0fe'} onMouseLeave={e=>e.currentTarget.style.background='none'}><DriveIcon size={19}/></a>}
+          {isMobile&&<VisitCardButton caseNum={cas.caseNum}/>}
+          </div>
           <span style={{background:sc.bg,color:sc.fg,padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:600,whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:6,border:`1px solid ${sc.bar}33`,flexShrink:0}}>
             <span style={{width:6,height:6,borderRadius:'50%',background:sc.bar,flexShrink:0}}/>{cas.status||'—'}
           </span>
@@ -5240,7 +5276,7 @@ function LoginScreen({onLogin,autoLogging}){
 }
 
 // ═══════════════ DASHBOARD VIEW ══════════════════════════════════
-function DashboardView({projects,closedTasks,managed,user,settings,onSetView,onOpenProject,messages,onlineUsers,onPostMessage,onMarkRead,onDeleteMessage}){
+function DashboardView({projects,closedTasks,managed,user,settings,onSetView,onOpenProject,messages,onlineUsers,onPostMessage,onMarkRead,onDeleteMessage,onAddGeneralTask}){
   const isMobile=useIsMobile();
   const today=new Date();today.setHours(0,0,0,0);
   const in7=new Date(today);in7.setDate(in7.getDate()+7);
@@ -5394,10 +5430,7 @@ function DashboardView({projects,closedTasks,managed,user,settings,onSetView,onO
       <PageHero isMobile={isMobile} title={`${greet}${userName?`, ${userName}`:''}`}
         subtitle={new Date().toLocaleDateString('he-IL',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}
         actions={<>
-            <a href="https://myos.co.il/tasks/" target="_blank" rel="noopener noreferrer"
-              style={{background:MYOS_TEAL,color:'#fff',border:'none',borderRadius:10,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',textDecoration:'none',display:'flex',alignItems:'center',gap:6}}
-              title="בקשות ושדרוגים לאתר — ב-MyOS">
-              <Icon name="external" size={14}/>בקשות לאתר</a>
+            {onAddGeneralTask&&<SiteRequestButton onAdd={onAddGeneralTask}/>}
             {(onlineUsers||[]).length>0&&(
               <div style={{display:'flex',alignItems:'center',gap:8,border:`1px solid ${GOLD2}59`,borderRadius:20,padding:'7px 14px',flexWrap:'wrap',fontSize:12,color:'#d9c79c'}}>
                 <span style={{width:7,height:7,borderRadius:'50%',background:'#4ade80',boxShadow:'0 0 0 3px rgba(74,222,128,0.18)'}}/>מחובר עכשיו:
@@ -7754,7 +7787,7 @@ function App(){
         paddingBottom:isMobile?68:0,
       }}>
         {error&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 24px',fontSize:13}}>{error}</div>}
-        {view==='home'&&<DashboardView projects={projects} closedTasks={closedTasks} managed={managed} user={user} settings={settings} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}} messages={messages} onlineUsers={onlineUsers} onPostMessage={postMessage} onMarkRead={markRead} onDeleteMessage={deleteMessage}/>}
+        {view==='home'&&<DashboardView projects={projects} closedTasks={closedTasks} managed={managed} user={user} settings={settings} onSetView={setView} onOpenProject={(row)=>{setOpenProjectRow(row);setView('projects');}} messages={messages} onlineUsers={onlineUsers} onPostMessage={postMessage} onMarkRead={markRead} onDeleteMessage={deleteMessage} onAddGeneralTask={addGeneralTask}/>}
         {view==='projects'&&<ProjectsView projects={projects} closedTasks={closedTasks} onUpdate={updateProject} user={user} managed={managed} onUpdateCase={updateCase} settings={settings} onDelete={deleteProject} autoOpenRow={openProjectRow} onAutoOpenConsumed={()=>setOpenProjectRow(null)} autoOpenSearch={projectSearch} onAutoOpenSearchConsumed={()=>setProjectSearch('')} isMobile={isMobile}/>}
         {view==='clients'&&<ClientView projects={projects} managed={managed} onUpdate={updateProject} onUpdateCase={updateCase} addCase={addCase} user={user} settings={settings} onDelete={deleteProject} isMobile={isMobile}/>}
         {view==='managed'&&<ManagedView cases={managed} projects={projects} onUpdateCase={updateCase} onAddCase={addCase} addProject={addProject} onDeleteCase={deleteCase} onDeleteProject={deleteProject} initialSearch={managedSearch} onSearchConsumed={()=>setManagedSearch('')} isMobile={isMobile} user={user} settings={settings} onUpdate={updateProject}/>}
