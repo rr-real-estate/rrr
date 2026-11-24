@@ -27,6 +27,36 @@ const { useState, useEffect, useRef } = React;
 const EXT_APPS_URL = 'https://script.google.com/macros/s/AKfycbwFh8IfiLYr_niS51XaA7W1G7kIhPfm3BfVE_uOUccMcnONnq2iaDDf1ncpAJTvMHVR/exec';
 
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400';
+// ── GovMap במיקום שלי: המרת מיקום המכשיר (WGS84) לרשת ישראל החדשה (ITM) ופתיחת GovMap עם שכבות גוש/חלקה ──
+const _ITM={a:6378137,f:1/298.257222101,lat0:31.7343936111111*Math.PI/180,lon0:35.2045169444444*Math.PI/180,k0:1.0000067,fe:219529.584,fn:626907.39};
+function _tmM(phi){const {a,f}=_ITM,e2=2*f-f*f,e4=e2*e2,e6=e4*e2;
+  return a*((1-e2/4-3*e4/64-5*e6/256)*phi-(3*e2/8+3*e4/32+45*e6/1024)*Math.sin(2*phi)+(15*e4/256+45*e6/1024)*Math.sin(4*phi)-(35*e6/3072)*Math.sin(6*phi));}
+function wgsToItm(lat,lon){
+  const {a,f,lat0,lon0,k0,fe,fn}=_ITM,e2=2*f-f*f,ep2=e2/(1-e2),phi=lat*Math.PI/180,lam=lon*Math.PI/180;
+  const s=Math.sin(phi),c=Math.cos(phi),t=Math.tan(phi),N=a/Math.sqrt(1-e2*s*s),T=t*t,C=ep2*c*c,A=(lam-lon0)*c;
+  return {x:fe+k0*N*(A+(1-T+C)*A**3/6+(5-18*T+T*T+72*C-58*ep2)*A**5/120),
+    y:fn+k0*(_tmM(phi)-_tmM(lat0)+N*t*(A*A/2+(5-T+9*C+4*C*C)*A**4/24+(61-58*T+T*T+600*C-330*ep2)*A**6/720))};
+}
+function GovmapHereButton(){
+  const [st,setSt]=React.useState(null);   // null | 'busy' | {url,acc,opened} | {err}
+  const go=()=>{
+    if(!navigator.geolocation){setSt({err:'הדפדפן לא תומך באיתור מיקום'});return;}
+    setSt('busy');
+    navigator.geolocation.getCurrentPosition(p=>{
+      const k=wgsToItm(p.coords.latitude,p.coords.longitude);
+      const url=`https://www.govmap.gov.il/?c=${Math.round(k.x)},${Math.round(k.y)}&z=10&lay=21,15`;
+      let w=null;try{w=window.open(url,'_blank');}catch(_){}
+      setSt({url,acc:Math.round(p.coords.accuracy||0),opened:!!w});
+    },e=>setSt({err:e&&e.code===1?'אין הרשאת מיקום — יש לאשר לאתר גישה למיקום בהגדרות הדפדפן':'לא הצלחתי לאתר מיקום — ודא שה-GPS פעיל ונסה שוב'}),
+    {enableHighAccuracy:true,timeout:20000,maximumAge:0});
+  };
+  return <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+    <button type="button" onClick={go} disabled={st==='busy'} style={{border:'1.5px solid #ddd0bb',background:'#fff',color:'#6b5e50',borderRadius:9,padding:'9px 16px',cursor:st==='busy'?'default':'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:8,opacity:st==='busy'?0.6:1}}>
+      {st==='busy'?'מאתר מיקום…':'GovMap במיקום שלי'}</button>
+    {st&&st.url&&<a href={st.url} target="_blank" rel="noopener noreferrer" style={{fontSize:13,fontWeight:600,color:GOLD3}}>{st.opened?'פתח שוב':'פתח את GovMap ←'}{st.acc?` (דיוק ±${st.acc} מ')`:''}</a>}
+    {st&&st.err&&<span style={{fontSize:12.5,color:'#b91c1c',fontWeight:500}}>{st.err}</span>}
+  </div>;
+}
 const p2=n=>String(n).padStart(2,'0');
 const today=()=>{const d=new Date();return `${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`;};
 const toISO=v=>{const m=(v||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:'';};
@@ -475,7 +505,7 @@ function App(){
     else if(fl.t==='num') inp=<input type="number" inputMode="decimal" value={v||''} onChange={e=>set(fl.k,e.target.value)} style={iS}/>;
     else if(fl.t==='long') inp=<textarea value={v||''} onChange={e=>set(fl.k,e.target.value)} rows={2} style={{...iS,resize:'vertical',lineHeight:1.5}}/>;
     else if(fl.t==='date') inp=<input type="date" value={toISO(v||'')} onChange={e=>set(fl.k,fromISO(e.target.value))} style={{...iS,cursor:'pointer'}}/>;
-    else if(fl.t==='check') inp=<button type="button" onClick={()=>set(fl.k,!v)} style={{border:`1.5px solid ${v?'#16a34a':'#ddd0bb'}`,background:v?'#f0fdf4':'#fff',color:v?'#15803d':'#6b5e50',borderRadius:9,padding:'9px 16px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:8}}>{v?'✓ בוצע':'סמן כבוצע'}</button>;
+    else if(fl.t==='check') inp=<div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}><button type="button" onClick={()=>set(fl.k,!v)} style={{border:`1.5px solid ${v?'#16a34a':'#ddd0bb'}`,background:v?'#f0fdf4':'#fff',color:v?'#15803d':'#6b5e50',borderRadius:9,padding:'9px 16px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:8}}>{v?'✓ בוצע':'סמן כבוצע'}</button>{fl.k==='gushVerify'&&<GovmapHereButton/>}</div>;
     else if(fl.t==='enum'){
       const canOther=!fl.noOther;
       const otherActive=canOther&&(f[fl.k+'__oon']||(v&&!fl.o.includes(v)));
