@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v145'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v146'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -2053,6 +2053,7 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,case
             </div>}
         </div>
         {!isGeneral&&<div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+          {isMobile&&<WazeButton c={caseInfo}/>}
           <CardLinksButton c={caseInfo}/>
           {_folderPath&&!isMobile&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_folderPath);}}
             style={{background:'none',border:'none',cursor:'pointer',padding:'3px 4px',lineHeight:1,borderRadius:6,transition:'background 0.15s'}}
@@ -2457,6 +2458,23 @@ function LinksEditor({c,only,onClose}){
 }
 
 // כפתור קטן בפינת כרטיס התיק — תפריט קישורים בלי לפתוח את התיק
+// כפתור Waze בפינת כרטיס התיק — בתצוגת נייד בלבד; פותח ניווט לכתובת התיק (לפי קישור "Waze" שבגיליון הקישורים)
+function WazeButton({c}){
+  const store=useLinkStore();
+  if(!c)return null;
+  const def=(store.defs||[]).find(d=>d[0]==='Waze'&&!d[2])||LINK_DEFAULTS.find(d=>d[0]==='Waze');
+  const l=def?fillLink('Waze',def[1],c)[0]:null;
+  if(!l||!l.ok)return null;   // אין כתובת בתיק — אין כפתור
+  return <a href={l.url} target="_blank" rel="noopener noreferrer" title={'ניווט ב-Waze: '+l.desc} aria-label="ניווט ב-Waze" onClick={e=>e.stopPropagation()}
+    style={{display:'inline-flex',alignItems:'center',justifyContent:'center',padding:'3px 4px',lineHeight:1,borderRadius:6,textDecoration:'none'}}>
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12.3 3.2c4.6 0 8.2 3.3 8.2 7.6 0 4.2-3.6 7.6-8.2 7.6-.6 0-1.300-.1-1.900-.2H7.300c-1.900 0-3.400-.9-4.200-2.300.9 0 1.700-.5 2-1.300.3-.8.2-1.500.2-2.400 0-.4-.1-.900-.1-1.400 0-4.300 3.500-7.600 7.100-7.600z" fill="#33ccff" stroke="#14110d" strokeWidth="1.3" strokeLinejoin="round"/>
+      <circle cx="10.2" cy="9.600" r="1" fill="#14110d"/><circle cx="15.300" cy="9.600" r="1" fill="#14110d"/>
+      <path d="M9.700 12.800c.7 1.300 1.800 1.900 3.100 1.900s2.400-.6 3.100-1.900" fill="none" stroke="#14110d" strokeWidth="1.200" strokeLinecap="round"/>
+      <circle cx="8.300" cy="19.600" r="1.900" fill="#14110d"/><circle cx="15.700" cy="19.600" r="1.900" fill="#14110d"/>
+    </svg>
+  </a>;
+}
 function CardLinksButton({c}){
   const store=useLinkStore();
   const [pos,setPos]=React.useState(null);
@@ -4087,6 +4105,7 @@ function ManagedCaseCard({cas,onClick,isMobile}){
           <div style={{fontFamily:SERIF,fontSize:17,fontWeight:500,color:INK,lineHeight:1.35,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={title}>{title}</div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+          {isMobile&&<WazeButton c={cas}/>}
           <CardLinksButton c={cas}/>
           {_fp&&!isMobile&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_fp);}} style={ib}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'} onMouseLeave={e=>e.currentTarget.style.background='none'}><WinFolderIcon size={20}/></button>}
@@ -7125,8 +7144,11 @@ function VisitFormView({managed,user,isMobile,offline}){
         const ymd=s=>{s=String(s||'').trim();let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[0]:'';};
         const apps=[...new Set(hist.map(h=>String(h.appraiser||'').trim()).filter(Boolean))].sort();
         const anyF=hCase.trim()||hDate||hApp;
+        // שם התיק המלא לפי מספר התיק (מ"ניהול תיקים"; זמין גם מהמטמון המקומי)
+        const nameBy={};casesSrc.forEach(c=>{const n=String(c.caseNum||'').trim();if(n&&c.folder&&!nameBy[n])nameBy[n]=String(c.folder).trim();});
+        const caseName=h=>nameBy[String(h.caseNum||'').trim()]||'';
         const list=hist.filter(h=>
-          (!hCase.trim()||String(h.caseNum||'').includes(hCase.trim()))&&
+          (!hCase.trim()||String(h.caseNum||'').includes(hCase.trim())||caseName(h).includes(hCase.trim()))&&
           (!hDate||ymd(h.date)===hDate||ymd(h.ts)===hDate)&&
           (!hApp||String(h.appraiser||'').trim()===hApp));
         const shown=anyF?list:list.slice(0,50);   // בלי סינון — 50 האחרונים
@@ -7143,7 +7165,7 @@ function VisitFormView({managed,user,isMobile,offline}){
         {histOpen&&<>
         {/* חיפוש: תיק · תאריך · שמאי */}
         <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr 1fr':'1fr 1fr 1fr auto',gap:8,padding:'12px 18px',borderBottom:`1px solid ${LINE2}`,background:'#fbf8f2',alignItems:'center'}}>
-          <input value={hCase} onChange={e=>setHCase(e.target.value)} placeholder="מספר תיק" inputMode="numeric" style={fS}/>
+          <input value={hCase} onChange={e=>setHCase(e.target.value)} placeholder="מספר / שם תיק" style={fS}/>
           <input type="date" value={hDate} onChange={e=>setHDate(e.target.value)} title="תאריך ביקור" style={fS}/>
           <select value={hApp} onChange={e=>setHApp(e.target.value)} style={fS}>
             <option value="">כל השמאים</option>
@@ -7156,7 +7178,7 @@ function VisitFormView({managed,user,isMobile,offline}){
           <div style={{padding:30,textAlign:'center',color:'#9a8e84',fontSize:14}}>{anyF?'לא נמצאו ביקורים':'אין ביקורים להצגה'}</div>
         ):shown.map((h,i)=>(
           <div key={h.rowNum} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 18px',borderBottom:i<shown.length-1?'1px solid #f0ebe2':'none',flexWrap:'wrap',background:editRow===h.rowNum?'#eff6ff':'transparent'}}>
-            <span style={{fontSize:12,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:20,padding:'2px 10px',fontWeight:600,whiteSpace:'nowrap'}}>תיק {h.caseNum||'—'}</span>
+            <span style={{fontSize:12,color:'#7a5f30',background:'#fef3c7',border:'1px solid #d9af34',borderRadius:14,padding:'2px 10px',fontWeight:600,lineHeight:1.5,maxWidth:'100%'}}>{caseName(h)||('תיק '+(h.caseNum||'—'))}</span>
             <span style={{fontSize:13,color:'#1a1510',fontWeight:500}}>{h.date||h.ts}</span>
             {h.appraiser&&<span style={{fontSize:12,color:'#9a8e84'}}>· {h.appraiser}</span>}
             {h.ext&&<span style={{fontSize:11,color:'#8a6d1f',background:'#fff3d6',border:'1px solid #e6c65a',borderRadius:10,padding:'1px 8px',fontWeight:600,whiteSpace:'nowrap'}}>שמאי חיצוני</span>}
