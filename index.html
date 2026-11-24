@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v148'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v149'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -163,6 +163,7 @@ const WORK_LAST_COL=52;  // BA (0-based)
 // עדיפות לביצוע (עמודה BB) — משותפת לכל המשרד. נשמרת כ-"מספר|סטטוס": המספר תקף רק כל עוד התיק באותו סטטוס,
 // כך ששינוי סטטוס (מהאתר, מהגיליון או מסקריפט) מאפס את העדיפות מעצמו. נכתבת בתא נפרד, לא כחלק מבלוק Z–BA.
 const PRIORITY_COL=53;   // BB (0-based)
+const COORDS_COL=54;     // BC (0-based) — קואורדינטות לניווט ("רוחב, אורך"), מוזנות בלשונית ביקור; גוברות על הכתובת בקישור Waze
 function parsePriority(raw,status){
   const m=String(raw||'').match(/^\s*(\d{1,2})\s*\|(.*)$/);
   if(!m||m[2].trim()!==String(status||'').trim())return '';
@@ -852,16 +853,57 @@ const api={
     return r.json();
   }
 };
-// כתיבת עדיפות לביצוע (עמודה BB). אם העמודה עדיין לא קיימת בגיליון — מוסיף אותה עם כותרת ומנסה שוב.
-async function putPriority(row,val){
-  const rng=`'ניהול תיקים'!BB${row}`;
-  try{await api.put(rng,[[val]]);}
-  catch(e){
-    if(!/grid limits|exceeds/i.test(String(e&&e.message||'')))throw e;
-    await api.addColumn('ניהול תיקים');
-    await api.put(`'ניהול תיקים'!BB1`,[['עדיפות לביצוע']]);
-    await api.put(rng,[[val]]);
+// כתיבה לתא בודד בעמודות התוספת של "ניהול תיקים" (BB עדיפות, BC קואורדינטות).
+// אם העמודה עדיין לא קיימת בגיליון — מוסיף עמודות עד שהיא קיימת, כותב כותרות ומנסה שוב.
+const EXTRA_HEADERS={BB:'עדיפות לביצוע',BC:'קואורדינטות'};
+async function putExtraCell(col,row,val){
+  const rng=`'ניהול תיקים'!${col}${row}`;
+  for(let i=0;;i++){
+    try{await api.put(rng,[[val]]);return;}
+    catch(e){
+      if(i>=3||!/grid limits|exceeds/i.test(String(e&&e.message||'')))throw e;
+      await api.addColumn('ניהול תיקים');
+      for(const k of Object.keys(EXTRA_HEADERS)){try{await api.put(`'ניהול תיקים'!${k}1`,[[EXTRA_HEADERS[k]]]);}catch(_){}}
+    }
   }
+}
+const putPriority=(row,val)=>putExtraCell('BB',row,val);
+
+// ── קואורדינטות ──
+// המרה בין WGS84 (קו רוחב/אורך) לרשת ישראל החדשה (ITM) — Transverse Mercator על GRS80
+const _ITM={a:6378137,f:1/298.257222101,lat0:31.7343936111111*Math.PI/180,lon0:35.2045169444444*Math.PI/180,k0:1.0000067,fe:219529.584,fn:626907.39};
+function _tmM(phi){const {a,f}=_ITM,e2=2*f-f*f,e4=e2*e2,e6=e4*e2;
+  return a*((1-e2/4-3*e4/64-5*e6/256)*phi-(3*e2/8+3*e4/32+45*e6/1024)*Math.sin(2*phi)+(15*e4/256+45*e6/1024)*Math.sin(4*phi)-(35*e6/3072)*Math.sin(6*phi));}
+function wgsToItm(lat,lon){
+  const {a,f,lat0,lon0,k0,fe,fn}=_ITM,e2=2*f-f*f,ep2=e2/(1-e2),phi=lat*Math.PI/180,lam=lon*Math.PI/180;
+  const s=Math.sin(phi),c=Math.cos(phi),t=Math.tan(phi),N=a/Math.sqrt(1-e2*s*s),T=t*t,C=ep2*c*c,A=(lam-lon0)*c;
+  return {x:fe+k0*N*(A+(1-T+C)*A**3/6+(5-18*T+T*T+72*C-58*ep2)*A**5/120),
+    y:fn+k0*(_tmM(phi)-_tmM(lat0)+N*t*(A*A/2+(5-T+9*C+4*C*C)*A**4/24+(61-58*T+T*T+600*C-330*ep2)*A**6/720))};
+}
+function itmToWgs(x,y){
+  const {a,f,lat0,lon0,k0,fe,fn}=_ITM,e2=2*f-f*f,e4=e2*e2,e6=e4*e2,ep2=e2/(1-e2);
+  const mu=(_tmM(lat0)+(y-fn)/k0)/(a*(1-e2/4-3*e4/64-5*e6/256)),e1=(1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
+  const p1=mu+(3*e1/2-27*e1**3/32)*Math.sin(2*mu)+(21*e1*e1/16-55*e1**4/32)*Math.sin(4*mu)+(151*e1**3/96)*Math.sin(6*mu)+(1097*e1**4/512)*Math.sin(8*mu);
+  const s=Math.sin(p1),c=Math.cos(p1),t=Math.tan(p1),C1=ep2*c*c,T1=t*t,N1=a/Math.sqrt(1-e2*s*s),R1=a*(1-e2)/Math.pow(1-e2*s*s,1.5),D=(x-fe)/(N1*k0);
+  const phi=p1-(N1*t/R1)*(D*D/2-(5+3*T1+10*C1-4*C1*C1-9*ep2)*D**4/24+(61+90*T1+298*C1+45*T1*T1-252*ep2-3*C1*C1)*D**6/720);
+  const lam=lon0+(D-(1+2*T1+C1)*D**3/6+(5-2*C1+28*T1-3*C1*C1+8*ep2+24*T1*T1)*D**5/120)/c;
+  return {lat:phi*180/Math.PI,lon:lam*180/Math.PI};
+}
+// מזהה קואורדינטות בטקסט חופשי: "31.2530, 34.7915", קישור מלא של Google Maps, או רשת ישראל (מזרח/צפון במטרים).
+// מחזיר {lat,lon} (5 ספרות אחרי הנקודה) או null. מקבל רק נקודות בתחום ישראל.
+function parseCoords(text){
+  const s=String(text||'');if(!s.trim())return null;
+  let a=null,b=null,m;
+  if((m=s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/))||(m=s.match(/[?&](?:q|query|ll|destination|daddr)=(?:loc:)?(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i))||(m=s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/))||(m=s.match(/(\d{2}\.\d{3,})[^\d]+?(\d{2}\.\d{3,})/))){a=+m[1];b=+m[2];}
+  else if((m=s.match(/(\d{6}(?:\.\d+)?)[^\d.]+(\d{6}(?:\.\d+)?)/))){
+    let x=+m[1],y=+m[2];if(x>y){const t=x;x=y;y=t;}
+    if(x<100000||x>300000||y<370000||y>810000)return null;
+    const w=itmToWgs(x,y);a=w.lat;b=w.lon;
+  }
+  if(a==null)return null;
+  if(a>33.6&&b<33.6){const t=a;a=b;b=t;}   // הוזן אורך לפני רוחב
+  if(!(a>=29.3&&a<=33.6&&b>=34&&b<=36))return null;
+  return {lat:+a.toFixed(5),lon:+b.toFixed(5)};
 }
 
 // ═══════════════ HELPERS ══════════════════════════════════════════
@@ -921,6 +963,7 @@ function parseManagedCase(row,ri){
     parcel:g(row,M.parcel),subParcel:g(row,M.subParcel),bank:g(row,M.bank),michael:g(row,M.michael),
     folderLink:g(row,M.folderLink),
     driveFolderLink:g(row,M.driveFolderLink),
+    coords:String(g(row,COORDS_COL)||'').trim(),
   };
 }
 // טעינה מאוחדת מ"ניהול תיקים" (A2:AZ): בונה managed (כל התיקים) + projects (פעילים + משימות כלליות).
@@ -2119,6 +2162,7 @@ function ProjectCard({project,onClick,hideDate,folderLink,driveLink,showPdf,case
         </div>
         {!isGeneral&&<div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
           {isMobile&&<WazeButton c={caseInfo}/>}
+          {isMobile&&<VisitCardButton caseNum={caseNum}/>}
           <CardLinksButton c={caseInfo}/>
           {_folderPath&&!isMobile&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_folderPath);}}
             style={{background:'none',border:'none',cursor:'pointer',padding:'3px 4px',lineHeight:1,borderRadius:6,transition:'background 0.15s'}}
@@ -2320,6 +2364,8 @@ async function ensureSheetTab(title,header,rows){
 }
 // מילוי תבנית אחת לתיק — מחזיר כפתור אחד, או כפתור לכל חלקה כשבתיק יש כמה חלקות והתבנית משתמשת ב-{חלקה}
 function fillLink(name,tpl,c){
+  // Waze: כשהוזנו בתיק קואורדינטות — ניווט ישר לנקודה (גובר על הכתובת, שלא תמיד נמצאת ב-Waze)
+  if(name==='Waze'){const k=parseCoords(c&&c.coords);if(k)return [{name,url:`https://waze.com/ul?ll=${k.lat},${k.lon}&navigate=yes`,ok:true,need:'',desc:`קואורדינטות ${k.lat}, ${k.lon}`}];}
   const parcels=[...new Set(String(c.parcel||'').match(/\d+/g)||[])];
   const keys=[...new Set((tpl.match(/\{([^}]+)\}/g)||[]).map(k=>k.slice(1,-1).trim()))];
   const variants=(keys.includes('חלקה')&&parcels.length>1)?parcels:[null];
@@ -2532,7 +2578,7 @@ function WazeButton({c}){
   if(!c)return null;
   const def=(store.defs||[]).find(d=>d[0]==='Waze'&&!d[2])||LINK_DEFAULTS.find(d=>d[0]==='Waze');
   const l=def?fillLink('Waze',def[1],c)[0]:null;
-  if(!l||!l.ok)return null;   // אין כתובת בתיק — אין כפתור
+  if(!l||!l.ok)return null;   // אין בתיק לא כתובת ולא קואורדינטות — אין כפתור
   return <a href={l.url} target="_blank" rel="noopener noreferrer" title={'ניווט ב-Waze: '+l.desc} aria-label="ניווט ב-Waze" onClick={e=>e.stopPropagation()}
     style={{display:'inline-flex',alignItems:'center',justifyContent:'center',padding:'3px 4px',lineHeight:1,borderRadius:6,textDecoration:'none'}}>
     <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
@@ -2542,6 +2588,76 @@ function WazeButton({c}){
       <circle cx="8.300" cy="19.600" r="1.900" fill="#14110d"/><circle cx="15.700" cy="19.600" r="1.900" fill="#14110d"/>
     </svg>
   </a>;
+}
+// כפתור "ביקור בנכס" בפינת כרטיס התיק — בתצוגת נייד בלבד; פותח את דף הביקור עם מספר התיק מוזן
+function VisitCardButton({caseNum}){
+  const n=String(caseNum||'').trim();
+  if(!n)return null;
+  return <button title="ביקור בנכס — מילוי דף ביקור" aria-label="ביקור בנכס" onClick={e=>{e.stopPropagation();if(_goToVisit)_goToVisit(n);}}
+    style={{display:'inline-flex',alignItems:'center',justifyContent:'center',background:'none',border:'none',cursor:'pointer',padding:'3px 4px',lineHeight:1,borderRadius:6}}>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 11.5 12 4l9 7.500M5.500 10v9.500h13V10" fill="#f5e9c8"/><path d="M9 14.500l2 2 4-4.200" stroke="#15803d" strokeWidth="2"/>
+    </svg>
+  </button>;
+}
+// כפתור בדף הביקור: פותח את GovMap (שכבות גוש/חלקה) ממורכז על המיקום הנוכחי של המכשיר
+function GovmapHereButton(){
+  const [st,setSt]=React.useState(null);   // null | 'busy' | {url,acc,opened} | {err}
+  const go=()=>{
+    if(!navigator.geolocation){setSt({err:'הדפדפן לא תומך באיתור מיקום'});return;}
+    setSt('busy');
+    navigator.geolocation.getCurrentPosition(p=>{
+      const k=wgsToItm(p.coords.latitude,p.coords.longitude);
+      const url=`https://www.govmap.gov.il/?c=${Math.round(k.x)},${Math.round(k.y)}&z=10&lay=21,15`;
+      let w=null;try{w=window.open(url,'_blank');}catch(_){}
+      setSt({url,acc:Math.round(p.coords.accuracy||0),opened:!!w});
+    },e=>setSt({err:e&&e.code===1?'אין הרשאת מיקום — יש לאשר לאתר גישה למיקום בהגדרות הדפדפן':'לא הצלחתי לאתר מיקום — ודא שה-GPS פעיל ונסה שוב'}),
+    {enableHighAccuracy:true,timeout:20000,maximumAge:0});
+  };
+  return <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+    <button type="button" onClick={go} disabled={st==='busy'} style={{border:`1.5px solid ${INK}`,background:'#fff',color:INK,borderRadius:9,padding:'9px 16px',cursor:st==='busy'?'default':'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:8,opacity:st==='busy'?0.6:1}}>
+      {st==='busy'?<Spinner size={14} color={INK}/>:<span>📍</span>}GovMap במיקום שלי</button>
+    {st&&st.url&&<a href={st.url} target="_blank" rel="noopener noreferrer" style={{fontSize:13,fontWeight:600,color:GOLD3}}>{st.opened?'פתח שוב':'פתח את GovMap ←'}{st.acc?` (דיוק ±${st.acc} מ')`:''}</a>}
+    {st&&st.err&&<span style={{fontSize:12.5,color:'#b91c1c',fontWeight:500}}>{st.err}</span>}
+  </div>;
+}
+// שדה קואורדינטות בלשונית "ביקור" של התיק — נשמר לתא נפרד (BC) ביציאה מהשדה; כשיש ערך, Waze מנווט לנקודה
+function CoordsField({c,onUpdateCase}){
+  const saved=String((c&&c.coords)||'');
+  const [txt,setTxt]=React.useState(saved);
+  const [msg,setMsg]=React.useState(null);   // {ok|err:string}
+  const last=React.useRef(saved);
+  React.useEffect(()=>{if(saved!==last.current){last.current=saved;setTxt(saved);}},[saved]);
+  const k=parseCoords(txt);
+  const noAddr=!LINK_FIELDS['כתובת'](c||{});
+  const commit=async()=>{
+    const t=txt.trim();
+    if(t===last.current)return;
+    let val='';
+    if(t){
+      const p=parseCoords(t);
+      if(!p){setMsg({err:/goo\.gl/i.test(t)?'קישור מקוצר לא ניתן לפענוח — יש להדביק את המספרים עצמם (לחיצה ימנית על הנקודה בגוגל מפות ← לחיצה על הקואורדינטות)':'לא זוהו קואורדינטות בתחום ישראל. דוגמה: 31.25300, 34.79150'});return;}
+      val=`${p.lat}, ${p.lon}`;
+    }
+    try{
+      await putExtraCell('BC',c._row,val);
+      last.current=val;setTxt(val);
+      if(onUpdateCase)onUpdateCase(c._row,{coords:val});
+      setMsg({ok:val?'נשמר ✓ — Waze ינווט לנקודה הזו':'הקואורדינטות נמחקו ✓'});
+    }catch(e){setMsg({err:'השמירה נכשלה: '+(e.message||e)});}
+  };
+  return <div style={{marginTop:14}}>
+    <FLabel>קואורדינטות לניווט (Waze)</FLabel>
+    {noAddr&&!saved&&<div style={{fontSize:12.5,color:'#92400e',background:'#fef3c7',border:'1px solid #fcd34d',borderRadius:8,padding:'6px 10px',marginBottom:6,fontWeight:500}}>בתיק אין כתובת מלאה (רחוב ועיר) — בלי קואורדינטות לא יהיה ניווט ב-Waze.</div>}
+    <div style={{display:'flex',gap:8,alignItems:'center'}}>
+      <input value={txt} onChange={e=>{setTxt(e.target.value);setMsg(null);}} onBlur={commit} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur();}}
+        placeholder="31.25300, 34.79150  או קישור מגוגל מפות" dir="ltr"
+        style={{flex:1,minWidth:0,padding:'8px 11px',borderRadius:8,border:'1px solid #ddd0bb',fontSize:14,background:'#fff',outline:'none',fontFamily:'inherit',textAlign:'right'}}/>
+      {k&&<a href={`https://www.google.com/maps/search/?api=1&query=${k.lat},${k.lon}`} target="_blank" rel="noopener noreferrer" style={{fontSize:12.5,fontWeight:600,color:GOLD3,whiteSpace:'nowrap'}}>בדיקה במפה</a>}
+    </div>
+    {msg?<div style={{fontSize:12,marginTop:4,fontWeight:500,color:msg.err?'#b91c1c':'#15803d'}}>{msg.err||msg.ok}</div>
+      :<div style={{fontSize:11.500,marginTop:4,color:'#9a8e84'}}>כשהכתובת לא נמצאת ב-Waze: מדביקים כאן קואורדינטות, והניווט יוביל ישר לנקודה.</div>}
+  </div>;
 }
 function CardLinksButton({c}){
   const store=useLinkStore();
@@ -3540,6 +3656,7 @@ function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDelet
                 </div>
               </div>
               <FLabel>הערות לביקור</FLabel>{inp('visitNotes',true)}
+              {matchedCase&&<CoordsField c={matchedCase} onUpdateCase={onUpdateCase}/>}
               <div style={{marginTop:14}}>
                 <FLabel>שמאי מבקר</FLabel>
                 <div style={{padding:'9px 12px',borderRadius:8,border:'1px solid #ede8e0',background:'#f7f4ef',fontSize:14,color:lastVisit?'#1a1510':'#9a8e84'}}>
@@ -4187,6 +4304,7 @@ function ManagedCaseCard({cas,onClick,isMobile}){
         </div>
         <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
           {isMobile&&<WazeButton c={cas}/>}
+          {isMobile&&<VisitCardButton caseNum={cas.caseNum}/>}
           <CardLinksButton c={cas}/>
           {_fp&&!isMobile&&<button title="פתח תיקייה במחשב" onClick={e=>{e.stopPropagation();openFolder(_fp);}} style={ib}
             onMouseEnter={e=>e.currentTarget.style.background='#f0e8d8'} onMouseLeave={e=>e.currentTarget.style.background='none'}><WinFolderIcon size={20}/></button>}
@@ -7008,7 +7126,7 @@ function VisitFormView({managed,user,isMobile,offline}){
     else if(fl.t==='num') inp=<input type="number" inputMode="decimal" value={v||''} onChange={e=>set(fl.k,e.target.value)} style={iS}/>;
     else if(fl.t==='long') inp=<textarea value={v||''} onChange={e=>set(fl.k,e.target.value)} rows={2} style={{...iS,resize:'vertical',lineHeight:1.5}}/>;
     else if(fl.t==='date') inp=<input type="date" value={toISO(v||'')} onChange={e=>set(fl.k,fromISO(e.target.value))} style={{...iS,cursor:'pointer'}}/>;
-    else if(fl.t==='check') inp=<button type="button" onClick={()=>set(fl.k,!v)} style={{border:`1.5px solid ${v?'#16a34a':'#ddd0bb'}`,background:v?'#f0fdf4':'#fff',color:v?'#15803d':'#6b5e50',borderRadius:9,padding:'9px 16px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:8}}>{v?'✓ בוצע':'סמן כבוצע'}</button>;
+    else if(fl.t==='check') inp=<div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}><button type="button" onClick={()=>set(fl.k,!v)} style={{border:`1.5px solid ${v?'#16a34a':'#ddd0bb'}`,background:v?'#f0fdf4':'#fff',color:v?'#15803d':'#6b5e50',borderRadius:9,padding:'9px 16px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:8}}>{v?'✓ בוצע':'סמן כבוצע'}</button>{fl.k==='gushVerify'&&<GovmapHereButton/>}</div>;
     else if(fl.t==='enum'){
       const canOther=!fl.noOther;
       const otherActive=canOther&&(f[fl.k+'__oon']||(v&&!fl.o.includes(v)));
@@ -7411,7 +7529,7 @@ function App(){
   const loadAll=useCallback(async()=>{
     setLoading(true);setError('');
     try{
-      const rows=await api.get("'ניהול תיקים'!A2:BB"); // מקור מאוחד — מרשם + נתוני עבודה + עדיפות (BB)
+      const rows=await api.get("'ניהול תיקים'!A2:BC"); // מקור מאוחד — מרשם + נתוני עבודה + עדיפות (BB)
       const {managed,projects,closedTasks}=buildCasesFromManaged(rows);
       setProjects(projects);
       setManaged(managed);
@@ -7425,7 +7543,7 @@ function App(){
   const silentRefresh=useCallback(async()=>{
     if(!api.token)return;
     try{
-      const rows=await api.get("'ניהול תיקים'!A2:BB");
+      const rows=await api.get("'ניהול תיקים'!A2:BC");
       const {managed,projects,closedTasks}=buildCasesFromManaged(rows);
       setProjects(projects);
       setManaged(managed);
