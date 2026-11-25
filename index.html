@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v151'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v153'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -2089,14 +2089,14 @@ function PriorityPicker({value,onPick}){
   const pick=(e,n)=>{e.stopPropagation();setPos(null);onPick(n);};
   const cell={width:40,height:40,borderRadius:10,border:`1px solid ${LINE}`,background:'#fff',cursor:'pointer',fontFamily:'Heebo,sans-serif',fontSize:15,fontWeight:600,color:INK,padding:0};
   return(<>
-    <button onClick={open} title={value?`עדיפות לביצוע: ${value} — לחץ לשינוי`:'סמן עדיפות לביצוע'}
+    <button onClick={open} title="עדיפות לביצוע — 1 הכי דחוף"
       style={{width:'50%',minWidth:34,height:20,borderRadius:20,padding:0,boxSizing:'border-box',cursor:'pointer',fontFamily:'Heebo,sans-serif',fontSize:12,fontWeight:700,lineHeight:1,
         display:'inline-flex',alignItems:'center',justifyContent:'center',
         background:value?'#e6e3de':'transparent',color:'#4d4841',border:value?'1px solid #b9b3aa':'1.5px dashed #c4bdb2'}}>{value||''}</button>
     {pos&&ReactDOM.createPortal(
       <div onClick={e=>{e.stopPropagation();setPos(null);}} style={{position:'fixed',inset:0,zIndex:4000}}>
         <div onClick={e=>e.stopPropagation()} style={{position:'fixed',top:pos.top,left:pos.left,width:156,background:'#fff',border:`1px solid ${LINE}`,borderRadius:12,boxShadow:'0 10px 30px rgba(0,0,0,0.18)',padding:10,direction:'rtl'}}>
-          <div style={{fontSize:12,color:'#6b5e50',marginBottom:8,fontWeight:600}}>עדיפות לביצוע</div>
+          <div style={{fontSize:12,color:'#6b5e50',marginBottom:8,fontWeight:600}}>עדיפות לביצוע <span style={{fontWeight:400,color:'#9a8e84'}}>· 1 הכי דחוף</span></div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,40px)',gap:6,justifyContent:'center'}}>
             {[1,2,3,4,5,6,7,8,9].map(n=><button key={n} onClick={e=>pick(e,n)} style={{...cell,...(value===n?{background:'#e6e3de',borderColor:'#8f8a83'}:{})}}>{n}</button>)}
           </div>
@@ -2605,7 +2605,7 @@ function SiteRequestButton({onAdd}){
   };
   return <>
     <button onClick={()=>{setOpen(true);setSt(null);}} title="בקשות ושדרוגים לאתר — נרשמות כמשימה למיכאל"
-      style={{background:MYOS_TEAL,color:'#fff',border:'none',borderRadius:10,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:6}}>
+      style={{background:'transparent',color:GOLD_PALE,border:`1px solid ${GOLD2}88`,borderRadius:10,padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',display:'flex',alignItems:'center',gap:6}}>
       <Icon name="plus" size={14}/>בקשות לאתר</button>
     {open&&ReactDOM.createPortal(
       <div onClick={()=>{if(st!=='busy')setOpen(false);}} style={{position:'fixed',inset:0,zIndex:4000,background:'rgba(20,17,13,0.45)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
@@ -2617,7 +2617,7 @@ function SiteRequestButton({onAdd}){
           {st&&st.err&&<div style={{fontSize:12.5,color:'#b91c1c',marginTop:6}}>{st.err}</div>}
           {st==='done'&&<div style={{fontSize:13,color:'#15803d',marginTop:6,fontWeight:600}}>הבקשה נרשמה ✓</div>}
           <div style={{display:'flex',gap:8,marginTop:14,justifyContent:'flex-start'}}>
-            <button onClick={send} disabled={!txt.trim()||st==='busy'||st==='done'} style={{background:MYOS_TEAL,color:'#fff',border:'none',borderRadius:9,padding:'9px 20px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit',opacity:(!txt.trim()||st==='busy'||st==='done')?0.55:1}}>{st==='busy'?'שומר...':'שלח בקשה'}</button>
+            <button onClick={send} disabled={!txt.trim()||st==='busy'||st==='done'} style={{background:INK,color:GOLD_PALE,border:'none',borderRadius:9,padding:'9px 20px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:'inherit',opacity:(!txt.trim()||st==='busy'||st==='done')?0.55:1}}>{st==='busy'?'שומר...':'שלח בקשה'}</button>
             <button onClick={()=>setOpen(false)} disabled={st==='busy'} style={{background:'transparent',color:'#6b5e50',border:`1px solid ${LINE}`,borderRadius:9,padding:'9px 16px',cursor:'pointer',fontSize:14,fontFamily:'inherit'}}>ביטול</button>
           </div>
         </div>
@@ -2946,12 +2946,16 @@ function ContactButtons({phone,email}){
   const intl=digits.length>=9?(digits.startsWith('972')?digits:digits.startsWith('0')?'972'+digits.slice(1):'972'+digits):'';
   const mail=String(email||'').trim();
   const okMail=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail);
+  const isMobile=useIsMobile();
   if(!intl&&!okMail)return null;
   const b={display:'inline-flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:9,border:`1px solid ${LINE}`,background:'#fff',color:INK,fontSize:13,fontWeight:500,textDecoration:'none',fontFamily:'inherit'};
   return <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:12}}>
     {intl&&<a href={'tel:+'+intl} style={b}>📞 חיוג</a>}
     {intl&&<a href={'https://wa.me/'+intl} target="_blank" rel="noopener noreferrer" style={b}>💬 וואטסאפ</a>}
-    {okMail&&<a href={'mailto:'+mail} style={b}>✉️ מייל</a>}
+    {/* במחשב: כתיבת הודעה ב-Gmail בדפדפן (mailto פותח את Outlook של Windows). בנייד: mailto — נפתח באפליקציית המייל */}
+    {okMail&&(isMobile
+      ?<a href={'mailto:'+mail} style={b}>✉️ מייל</a>
+      :<a href={'https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(mail)} target="_blank" rel="noopener noreferrer" style={b}>✉️ מייל</a>)}
   </div>;
 }
 function ProjectDetailPanel({project,onClose,onSave,managed,onUpdateCase,onDeleteProject,onDeleteCase,user,initialTab}){
@@ -6867,10 +6871,13 @@ function VisitFormView({managed,user,isMobile,offline}){
   const caseNums=[...new Set(casesSrc.map(c=>String(c.caseNum||'').trim()).filter(Boolean))];
   // בחירת תיק לפי מספר או שם: ברשימה מוצג שם התיק המלא (כולל המספר), ובבחירה נשמר מספר התיק. החדשים ראשונים.
   const {caseLabels,caseByLabel}=React.useMemo(()=>{
-    const by={},seen=new Set();
+    const by={},seen=new Set(),closed={};
     casesSrc.forEach(c=>{const n=String(c.caseNum||'').trim();if(!n||seen.has(n))return;seen.add(n);
-      const nm=String(c.folder||'').trim();by[nm?(nm.includes(n)?nm:nm+' - '+n):n]=n;});
-    return {caseLabels:Object.keys(by).sort((a,b)=>String(by[b]).localeCompare(String(by[a]),undefined,{numeric:true})),caseByLabel:by};
+      const nm=String(c.folder||'').trim(),stt=String(c.status||'').trim(),cl=['הסתיים','בוטל'].includes(stt);
+      const lbl=(nm?(nm.includes(n)?nm:nm+' - '+n):n)+(cl?`  ⛔ ${stt}`:'');   // תיק סגור מסומן ברשימה, כדי שלא יתבלבלו עם כתובת דומה
+      by[lbl]=n;closed[lbl]=cl;});
+    // תיקים פעילים קודם, אחריהם הסגורים; בכל קבוצה החדשים ראשונים
+    return {caseLabels:Object.keys(by).sort((a,b)=>(closed[a]-closed[b])||String(by[b]).localeCompare(String(by[a]),undefined,{numeric:true})),caseByLabel:by};
   },[casesSrc]);
   // ── מצב חיבור ותור ממתינים ──
   const [pending,setPending]=React.useState(()=>vqGet().length);
@@ -7154,7 +7161,8 @@ function VisitFormView({managed,user,isMobile,offline}){
     if(fl.t==='levelSpecs'&&(f.divisionLevels||[]).length<=1)return null; // מפרט גימור לפי מפלס — רק אם הוסיפו מפלסים
     const v=f[fl.k];
     let inp;
-    if(fl.t==='case') inp=<div><AutocompleteInput value={v||''} onChange={x=>set(fl.k,caseByLabel[x]||x)} options={caseLabels} style={iS} placeholder="הקלד מספר תיק או חלק מהשם (עיר / רחוב / לקוח)..."/>{matchedCase&&matchedCase.folder&&<div style={{fontSize:12.5,color:GOLD3,marginTop:6,fontWeight:600,background:'#fef9e8',border:`1px solid ${GOLD}55`,borderRadius:8,padding:'6px 10px'}}>{matchedCase.folder}</div>}</div>;
+    if(fl.t==='case') inp=<div><AutocompleteInput value={v||''} onChange={x=>set(fl.k,caseByLabel[x]||x)} options={caseLabels} style={iS} placeholder="הקלד מספר תיק או חלק מהשם (עיר / רחוב / לקוח)..."/>{matchedCase&&matchedCase.folder&&<div style={{fontSize:12.5,color:GOLD3,marginTop:6,fontWeight:600,background:'#fef9e8',border:`1px solid ${GOLD}55`,borderRadius:8,padding:'6px 10px'}}>{matchedCase.folder}</div>}
+      {matchedCase&&['הסתיים','בוטל'].includes(String(matchedCase.status||'').trim())&&<div style={{fontSize:13,color:'#991b1b',marginTop:6,fontWeight:700,background:'#fee2e2',border:'1px solid #fca5a5',borderRadius:8,padding:'6px 10px'}}>⛔ שים לב: התיק הזה {matchedCase.status} — ודא שזה התיק הנכון</div>}</div>;
     else if(fl.t==='text') inp=<input value={v||''} onChange={e=>set(fl.k,e.target.value)} style={iS}/>;
     else if(fl.t==='num') inp=<input type="number" inputMode="decimal" value={v||''} onChange={e=>set(fl.k,e.target.value)} style={iS}/>;
     else if(fl.t==='long') inp=<textarea value={v||''} onChange={e=>set(fl.k,e.target.value)} rows={2} style={{...iS,resize:'vertical',lineHeight:1.5}}/>;
