@@ -80,7 +80,7 @@ const CONFIG = {
   SHEET_URL:      'https://docs.google.com/spreadsheets/d/1uRViB_6k54vUZDbXaUXPRnJEyGgK4s_vdAKnMGQZFDI/edit',
 };
 const MAAGAR_ID='1dPh1MWKK2v29_olGMBRNaqotciPBqOfUacgMoQYxAoM'; // קובץ מאגר — גיליון "ביקורים"
-const APP_VERSION='v153'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
+const APP_VERSION='v154'; // ← לעדכן בכל פריסה יחד עם גרסת ה-cache ב-sw.js
 function getDeviceId(){try{let id=localStorage.getItem('rrDeviceId');if(!id){id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('rrDeviceId',id);}return id;}catch(_){return 'dev-'+Math.random().toString(36).slice(2,8);}}
 // ── מותג המשתמש (רובינשטיין רוזנטל): שחור + זהב. זהו המותג של התוכן/המשרד ──
 const GOLD='#d9af34', GOLD2='#c49a28', GOLD3='#4b3400', BLACK='#0d0d0d', BLACK2='#1c1c1c';
@@ -2308,7 +2308,44 @@ function ExternalLinkButton({caseNum,fullName,driveFolderLink}){
 // כשורה עם שם העיר — כך שהם חלים על כל התיקים של אותה עיר, אצל כולם.
 const LINKS_TAB='קישורים';
 const LINKS_HEADER=['שם','כתובת','עיר (ריק = כל הערים)','עודכן ע"י','תאריך'];
-const CITY_LINK_NAMES=['תיקי בניין','תב"ע','GIS'];
+const CITY_LINK_NAMES=['תיקי בניין','תב"ע','GIS','מבנים מסוכנים'];
+// קישורי "מבנים מסוכנים" מובנים (נבדקו 25.11.2026): [כתובת, הערה]. משמשים כל עוד אין לעיר שורה משלה בגיליון "קישורים";
+// שורה בגיליון (עריכה מתוך האתר) גוברת. "רשימה" = העירייה מפרסמת רשימה מתעדכנת; "פנייה" = אין רשימה, פונים פרטנית.
+const DANGER_LINKS={
+  'אשדוד':['https://www.ashdod.muni.il/he-il/אתר-העיר/הנדסה/אגפים-ומחלקות-במינהל-הנדסה/מבנים-מסוכנים/רשימת-מבנים-מסוכנים/','רשימה מתעדכנת'],
+  'קרית גת':['https://www.qiryat-gat.muni.il/מבנים-מסוכנים','רשימה מתעדכנת'],
+  'באר שבע':['https://br7.complot.co.il/rishuiandbnia/constructquality/','רשימה מתעדכנת + אישור סטטוס'],
+  'חולון':['https://www.holon.muni.il/CityHall/Lists/List6/CustomDispForm.aspx?ID=87','רשימה מתעדכנת'],
+  'רמת גן':['https://www.ramat-gan.muni.il/department-engineering/business-units/dangerous-buildings','רשימה חודשית'],
+  'קרית מלאכי':['https://v5.gis-net.co.il/v5/k_malachi','שכבת "מבנים מסוכנים" במפה'],
+  'פתח תקווה':['https://www.petah-tikva.muni.il/engineering/supervision/dangerous-structure-search-engine','בדיקה לפי כתובת'],
+  'ירושלים':['https://jeronlineforms.jerusalem.muni.il/ConfirmationForStructure','אין רשימה · טופס אישור העדר סכנה'],
+  'ערד':['https://www.arad.muni.il/112/','אין רשימה · פנייה להנדסה 08-9951616'],
+  'בני ברק':['https://www.bnei-brak.muni.il/dangerous-structure/','אין רשימה · פנייה למחלקה 03-5776311'],
+  'נתניה':['https://www.netanya.muni.il/CityHall/Engineering/Pages/DangerousStructures.aspx','אין רשימה · פנייה 09-8604400'],
+  'אשקלון':['https://ashkelon.complot.co.il/contact/','אין רשימה · פיקוח 08-6796900'],
+  'דימונה':['https://www.dimona.muni.il/תכנון-ובניה/','אין רשימה · פיקוח 08-6564641'],
+  'אופקים':['https://www.ofaqim.muni.il/הנדסה/','אין רשימה · פיקוח 08-9928423'],
+  'נתיבות':['https://www.netivot.muni.il/פיקוח-על-הבניה/','אין רשימה · פיקוח 08-9938741'],
+  'ירוחם':['https://handasa.yeroham.muni.il/main-page/elementor-9447/','אין רשימה · הנדסה 08-6598261'],
+  'בית שמש':['https://www.betshemesh.muni.il/71/','אין רשימה · פיקוח 02-9900765'],
+  'גבעת שמואל':['https://www.givat-shmuel.muni.il/הנדסה/','אין רשימה · הנדסה 03-7266847'],
+  'טבריה':['https://www.tiberias.muni.il/phones/category/engineering/','אין רשימה · פיקוח 04-6739537'],
+  'שלומי':['https://www.shelomi.org.il/phonebook/','אין רשימה · מהנדס 04-9950941'],
+  'גבעת עדה':['https://www.bin-ada.co.il/מחלקת-הנדסה-ופיתוח/','אין רשימה · הנדסה 04-6186410'],
+  'אליכין':['https://www.elyakhin.muni.il/muni/Lists/List/CustomDispForm.aspx?ID=4','אין רשימה · הנדסה 04-6182612'],
+  'בית אריה עופרים':['https://bry.bartech-net.co.il/contact-list/','אין רשימה · מהנדס 08-6256542'],
+  'איתמר':['https://www.shomron.org.il/1287/','אין רשימה · פיקוח מ.א. שומרון 03-9066451'],
+  'חירן':['https://www.ma-tamar.org.il/אגף-הנדסה/','אין רשימה · הנדסה מ.א. תמר 08-6688820'],
+};
+const builtinCityLink=(name,city)=>(name==='מבנים מסוכנים'&&city&&DANGER_LINKS[city])||null;
+// הגדרת קישור עיר: שורה מהגיליון, ואם אין — הקישור המובנה (מסומן builtin)
+function cityLinkDef(defs,name,city){
+  if(!city)return null;
+  const d=(defs||[]).find(x=>x[0]===name&&x[2]&&normCity(x[2])===city);if(d)return d;
+  const b=builtinCityLink(name,city);if(!b)return null;
+  const o=[name,b[0],city,'','',0];o.builtin=true;return o;
+}
 const LINK_DEFAULTS=[
   ['govmap','https://www.govmap.gov.il/?lay=21,15&q=גוש {גוש} חלקה {חלקה}',''],
   ['גוב נדל"ן','https://www.nadlan.gov.il/?view=kparcel_all&id={גוש}-{חלקה}&page=deals',''],
@@ -2396,8 +2433,9 @@ function buildCaseLinks(c,defs){
 function buildCityLinks(c,defs){
   const city=normCity(c.city);
   return CITY_LINK_NAMES.map(name=>{
-    const def=city?(defs||[]).find(d=>d[0]===name&&d[2]&&normCity(d[2])===city)||null:null;
-    return {name,def,links:def?fillLink(name,def[1],c):[]};
+    const def=cityLinkDef(defs,name,city);
+    const b=builtinCityLink(name,city), note=b&&def&&def[1]===b[0]?b[1]:'';
+    return {name,def,links:def?fillLink(name,def[1],c).map(l=>note&&!l.desc?{...l,desc:note}:l):[]};
   });
 }
 // הפיכת קישור של נכס מסוים לתבנית: הגוש והחלקה של התיק הפתוח מוחלפים ב-{גוש} / {חלקה}, וקוד ה-reCAPTCHA (חד-פעמי) מוסר.
@@ -2470,7 +2508,7 @@ function urlToTemplate(raw,c){
 function LinksEditor({c,only,onClose}){
   const city=normCity(c.city);
   const defs=linkStore.defs;
-  const initCity=CITY_LINK_NAMES.map(name=>{const d=city?(defs||[]).find(x=>x[0]===name&&x[2]&&normCity(x[2])===city):null;return {name,url:d?d[1]:'',orig:d||null};});
+  const initCity=CITY_LINK_NAMES.map(name=>{const d=cityLinkDef(defs,name,city);const bi=d&&d.builtin?d[1]:'';return {name,url:d?d[1]:'',orig:d&&!d.builtin?d:null,builtin:bi};});
   const initGen=(defs||LINK_DEFAULTS).filter(d=>!d[2]&&!CITY_LINK_NAMES.includes(d[0])).map((d,i)=>({id:'g'+i,name:d[0],url:d[1],orig:d}));
   const [cityRows,setCityRows]=React.useState(initCity);
   const [gen,setGen]=React.useState(initGen);
@@ -2508,7 +2546,7 @@ function LinksEditor({c,only,onClose}){
       const genRows=only
         ?((linkStore.defs===null&&!keep.some(r=>!r[2]))?LINK_DEFAULTS.map(d=>[d[0],d[1],'','','']):[])
         :genClean.map(g=>{const u=urlToTemplate(g.url,c).tpl;return [g.name,u,'',...stamp(g.name,u,g.orig)];});
-      const cRows=city?cityRows.filter(r=>(!only||r.name===only)&&r.url.trim()).map(r=>{const u=urlToTemplate(r.url,c).tpl;return [r.name,u,city,...stamp(r.name,u,r.orig)];}):[];
+      const cRows=city?cityRows.filter(r=>(!only||r.name===only)&&r.url.trim()&&r.url.trim()!==r.builtin).map(r=>{const u=urlToTemplate(r.url,c).tpl;return [r.name,u,city,...stamp(r.name,u,r.orig)];}):[];
       const all=[...genRows,...cRows,...keep];
       // ריפוד בשורות ריקות עד אורך הגיליון הקודם — כדי למחוק שאריות
       const out=[...all];while(out.length<cur.length)out.push(['','','','','']);
@@ -2826,7 +2864,7 @@ function CityLinksNudge({c,active,onGo}){
       </div>
     </div>,document.body);
 }
-// מעקב קישורים (הגדרות ← ניהול מערכת): לכל עיר שיש בה תיקים — אילו משלושת קישורי העיר כבר הוגדרו ואילו חסרים
+// מעקב קישורים (הגדרות ← ניהול מערכת): לכל עיר שיש בה תיקים — אילו מקישורי העיר כבר הוגדרו ואילו חסרים
 function LinksTracker({managed,sec,secTitle}){
   const store=useLinkStore();
   const [onlyMissing,setOnlyMissing]=React.useState(false);
@@ -2843,7 +2881,7 @@ function LinksTracker({managed,sec,secTitle}){
       if(String(c.block||'').match(/\d/)&&String(c.parcel||'').match(/\d/)&&num>r.latestGH)r.latestGH=num;
     });
     return Object.values(by).map(r=>{
-      const have=CITY_LINK_NAMES.map(n=>(store.defs||[]).find(d=>d[0]===n&&d[2]&&normCity(d[2])===r.city)||null);
+      const have=CITY_LINK_NAMES.map(n=>cityLinkDef(store.defs,n,r.city));
       return {...r,have,count:have.filter(Boolean).length};
     }).sort((a,b)=>b.total-a.total||a.city.localeCompare(b.city,'he'));
   },[managed,store.defs]);
